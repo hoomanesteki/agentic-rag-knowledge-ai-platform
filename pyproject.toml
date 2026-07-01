@@ -1,0 +1,13 @@
+# Tool configuration only. Dependencies live in requirements*.txt so a plain venv
+# plus pip is all you need. No packaging backend to fight with.
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

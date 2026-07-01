@@ -13,7 +13,19 @@ test: ## Run tests
 lint: ## Lint with ruff
 	ruff check .
 
-validate: ## Validate a domain pack, e.g. make validate DOMAIN=lululemon
+validate: ## Validate one domain pack, e.g. make validate DOMAIN=lululemon
 	python .claude/skills/domain-pack/scripts/validate_domain_pack.py domains/$(DOMAIN)
 
-.PHONY: help setup test lint validate
+validate-all: ## Validate every domain pack under domains/ (no-op if none yet)
+	@found=0; \
+	for d in domains/*/; do \
+	  [ -d "$$d" ] || continue; \
+	  found=1; echo "validating $${d%/}"; \
+	  python .claude/skills/domain-pack/scripts/validate_domain_pack.py "$${d%/}" || exit 1; \
+	done; \
+	if [ $$found -eq 0 ]; then echo "no domain packs yet, skipping"; fi
+
+check: lint test validate-all ## Run every check that CI runs
+	@echo "all checks passed"
+
+.PHONY: help setup test lint validate validate-all check

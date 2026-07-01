@@ -1,0 +1,36 @@
+# Governed metrics. The AI fills slots through a validated call, it never writes raw SQL.
+# Every `source` must trace to a role in the domain.yaml sources manifest (or a gold model
+# built from one). Keep the SQL read only and parameterized.
+
+metrics:
+  - name: return_rate_by_size
+    grain: product size
+    source: sales                 # a role from the manifest
+    dimensions: [size]
+    # sql_template runs against the gold layer. Params are validated before it runs.
+    # Allowed params are the dimensions plus any listed in `params`.
+    params:
+      size: string
+    sql_template: |
+      select
+        p.size as size,
+        sum(case when s.returned then 1 else 0 end)::float
+          / nullif(count(*), 0) as return_rate
+      from sales s
+      join products p on p.product_id = s.product_id
+      where (:size is null or p.size = :size)
+      group by p.size
+
+  - name: units_sold
+    grain: product
+    source: sales
+    dimensions: [product_id]
+    params:
+      product_id: string
+    sql_template: |
+      select
+        s.product_id,
+        sum(s.quantity) as units_sold
+      from sales s
+      where (:product_id is null or s.product_id = :product_id)
+      group by s.product_id

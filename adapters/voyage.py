@@ -1,8 +1,6 @@
 """Voyage embeddings behind the Embedder interface (hosted, dense, multilingual)."""
 from __future__ import annotations
 
-import os
-
 from ._http import request_json
 from .config import get_settings
 
@@ -14,7 +12,7 @@ _BATCH = 128  # Voyage caps input at 1000 per call and a per-request token budge
 class VoyageEmbedder:
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
         settings = get_settings()
-        self.model = model or os.getenv("EMBED_MODEL", "voyage-3-large")
+        self.model = model or settings.embed_model
         self.api_key = api_key or settings.voyage_api_key
         self._dim = _MODEL_DIMS.get(self.model, 1024)
 

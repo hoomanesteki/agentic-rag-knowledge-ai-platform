@@ -15,6 +15,7 @@ import json
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
 
 from adapters.base import Embedder, HybridStore, LLMClient, Reranker
@@ -164,18 +165,7 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     return reordered[:top_k]
 
 
-def _write_trace(trace: dict, path: str) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(trace, ensure_ascii=False) + "\n")
-
-
-def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
-                    reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
-                    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
-                    trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
-    started = time.perf_counter()
-    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+def build_contexts(hits: list[dict]) -> list[dict]:
     contexts = []
     for i, h in enumerate(hits):
         payload = h.get("payload") or {}
@@ -187,6 +177,22 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
             "doc_type": payload.get("doc_type"),
             "source": payload.get("source"),
         })
+    return contexts
+
+
+def write_trace(trace: dict, path: str) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(trace, ensure_ascii=False) + "\n")
+
+
+def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
+                    reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
+                    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+                    trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
+    started = time.perf_counter()
+    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    contexts = build_contexts(hits)
     abstained, confidence = should_abstain(query, contexts, min_confidence)
     trace = {
         "ts": time.time(),
@@ -200,7 +206,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
         trace.update(tier="abstain", model=None, grounding=0.0, prompt_tokens=0,
                      completion_tokens=0, cost=0.0,
                      latency_ms=round((time.perf_counter() - started) * 1000, 1))
-        _write_trace(trace, trace_path)
+        write_trace(trace, trace_path)
         return AnswerResult(answer=_ABSTAIN, tier="abstain", confidence=confidence,
                             citations=[], contexts=contexts, trace=trace)
 
@@ -216,6 +222,58 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
         cost=_estimate_cost(result.model, result.prompt_tokens, result.completion_tokens),
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
-    _write_trace(trace, trace_path)
+    write_trace(trace, trace_path)
     return AnswerResult(answer=result.text, tier="auto", confidence=confidence,
                         grounding=grounding, citations=citations, contexts=contexts, trace=trace)
+
+
+def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
+                  reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
+                  min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+                  trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None):
+    """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
+    then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
+    and message_id. The caller may pass message_id so a degraded fallback can reuse it.
+    Streaming responses do not report token usage (the trace omits it)."""
+    started = time.perf_counter()
+    message_id = message_id or uuid.uuid4().hex
+    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    contexts = build_contexts(hits)
+    abstained, confidence = should_abstain(query, contexts, min_confidence)
+    trace = {
+        "ts": time.time(),
+        "message_id": message_id,
+        "query": query,
+        "reranked": reranker is not None,
+        "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
+        "confidence": round(confidence, 3),
+    }
+
+    if abstained:
+        trace.update(tier="abstain", model=None, grounding=0.0, streamed=True,
+                     latency_ms=round((time.perf_counter() - started) * 1000, 1))
+        write_trace(trace, trace_path)
+        yield {"type": "token", "text": _ABSTAIN}
+        yield {"type": "final", "message_id": message_id, "answer": _ABSTAIN,
+               "tier": "abstain", "confidence": round(confidence, 3), "grounding": 0.0,
+               "citations": []}
+        return
+
+    prompt = _build_prompt(query, contexts)
+    parts = []
+    for piece in llm.stream(prompt, system=_SYSTEM):
+        parts.append(piece)
+        yield {"type": "token", "text": piece}
+    answer = "".join(parts)
+    grounding = grounding_score(answer, contexts)
+    citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
+                 for c in _used_citations(answer, contexts)]
+    trace.update(
+        tier="auto", model=getattr(llm, "model", None), grounding=round(grounding, 3),
+        streamed=True, prompt_hash=hashlib.sha256(prompt.encode()).hexdigest()[:16],
+        latency_ms=round((time.perf_counter() - started) * 1000, 1),
+    )
+    write_trace(trace, trace_path)
+    yield {"type": "final", "message_id": message_id, "answer": answer, "tier": "auto",
+           "confidence": round(confidence, 3), "grounding": round(grounding, 3),
+           "citations": citations}

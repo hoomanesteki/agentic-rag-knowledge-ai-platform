@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
 
 def tokenize(text: str) -> list[str]:
+    # Strip diacritics so accented and unaccented spellings share tokens (helps French).
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
     return _TOKEN.findall(text.lower())
 
 

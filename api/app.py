@@ -26,6 +26,7 @@ from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
+from rag.agent import answer_with_agent
 
 _FEEDBACK_PATH = os.getenv("FEEDBACK_PATH", "traces/feedback.jsonl")
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
@@ -38,6 +39,8 @@ class ChatRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     lang: str | None = Field(default=None, max_length=8)
     session_id: str | None = Field(default=None, max_length=64)
+    # prior turns [{"role": "user"|"assistant", "content": str}] so a follow-up can be rewritten
+    history: list[dict] | None = Field(default=None, max_length=20)
 
 
 class FeedbackRequest(BaseModel):
@@ -56,9 +59,11 @@ def _sse(event: dict) -> str:
     return "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
 
 
-def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -> FastAPI:
+def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
+               chat_brain: str | None = None) -> FastAPI:
     app = FastAPI(title="Skein Lite API")
     settings = get_settings()
+    brain = chat_brain or settings.chat_brain  # "linear" streams; "agent" runs the M6 brain
     limiter = RateLimiter(rate_limit or settings.rate_limit)
     origins = [o.strip() for o in
                os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
@@ -124,6 +129,21 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -
 
         def event_stream():
             try:
+                if brain == "agent":
+                    # the full M6 brain (supervisor, gate, escalation to the review queue) as a
+                    # buffered response over the same SSE contract
+                    result = answer_with_agent(
+                        req.query, components=comp, history=req.history or [],
+                        message_id=message_id, review_queue=comp.get("review_queue"),
+                        domain=comp.get("domain"))
+                    yield _sse({"type": "token", "text": result.answer})
+                    yield _sse({"type": "final", "message_id": message_id,
+                                "answer": result.answer, "tier": result.tier,
+                                "confidence": round(result.confidence, 3),
+                                "grounding": round(result.grounding, 3),
+                                "citations": result.citations,
+                                "escalation_id": result.trace.get("escalation_id")})
+                    return
                 for event in stream_answer(req.query, message_id=message_id,
                                            embedder=comp["embedder"], store=comp["store"],
                                            llm=comp["llm"], reranker=comp["reranker"],

@@ -281,9 +281,11 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   report and ablation table, and a one-page decisions-and-tradeoffs doc (BUILD-PLAN Part A). Done
   when: the README links all four and reads well in 90 seconds. The demo recording itself is a
   manual capture step. Size M.
-- [ ] M9.3 Deploy. Web to Vercel, API to Cloud Run (min-instances 0), Neo4j Aura, Qdrant Cloud,
-  Supabase, plus the keepalive job and enforced read-only + rate limit. Done when: the public
-  demo login works inside the cost cap and idles to zero. Size L.
+- [x] M9.3 Deploy. Web to Vercel, API to Cloud Run (min-instances 0) via the `Dockerfile`, Neo4j,
+  Qdrant Cloud, Supabase, plus the keepalive job (`scripts/keepalive.py` +
+  `.github/workflows/keepalive.yml`) and enforced read-only (`DEMO_READONLY`) + rate limit +
+  production JWT/Turnstile enforcement (`SKEIN_ENV=production`). The runbook is `docs/DEPLOY.md`.
+  Done when: the public demo login works inside the cost cap and idles to zero. Size L.
 - [ ] M9.4 Second domain, full. Flesh out `domains/saas_support/` and switch `DOMAIN`.
   Reproducibility is already proven in CI (M4.4); this makes the second case study real. Done
   when: the same engine answers support questions with no engine code change. Size L.

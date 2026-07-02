@@ -6,6 +6,7 @@ import time
 import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -39,6 +40,10 @@ def _sse(event: dict) -> str:
 def create_app(rate_limit: str | None = None) -> FastAPI:
     app = FastAPI(title="Skein Lite API")
     limiter = RateLimiter(rate_limit or get_settings().rate_limit)
+    origins = [o.strip() for o in
+               os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+    app.add_middleware(CORSMiddleware, allow_origins=origins,
+                       allow_methods=["POST", "GET", "OPTIONS"], allow_headers=["*"])
 
     def client_key(request: Request) -> str:
         # request.client.host is the direct peer; behind a proxy (Cloud Run, M9.3) this is the

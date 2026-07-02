@@ -22,13 +22,16 @@ metrics:
   - name: open_tickets_by_plan
     grain: plan
     source: tickets
-    dimensions: [plan_id]
+    # Keyed by the plan name, not the opaque plan_id: the slot-fill only sees a user's words
+    # ("the Business plan"), and nothing maps that to PL03, so join plans and match on the name.
+    dimensions: [plan]
     params:
-      plan_id: string
+      plan: string
     sql_template: |
       select
-        plan_id,
+        p.name as plan,
         count(*) as open_tickets
-      from tickets
-      where status = 'open' and ($plan_id is null or plan_id = $plan_id)
-      group by plan_id
+      from tickets t
+      join plans p on p.plan_id = t.plan_id
+      where t.status = 'open' and ($plan is null or p.name = $plan)
+      group by p.name

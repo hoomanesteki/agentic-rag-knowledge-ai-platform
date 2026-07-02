@@ -13,19 +13,20 @@ ENV PYTHONUNBUFFERED=1 \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 
+# Create the non-root user up front and build as that user, so the venv is owned correctly without
+# a `chown -R` layer that would duplicate the whole environment and roughly double the image size.
+RUN useradd --create-home --uid 10001 skein
 WORKDIR /app
+RUN chown skein:skein /app
+USER skein
 
 # Install locked dependencies first (no project, no dev) so this layer caches across code changes.
-COPY pyproject.toml uv.lock ./
+COPY --chown=skein:skein pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Then the app itself.
-COPY . .
+# Then the app itself (.venv is dockerignored, so this does not clobber the one just built).
+COPY --chown=skein:skein . .
 RUN uv sync --frozen --no-dev
-
-# A non-root user; Cloud Run runs containers unprivileged and this matches that.
-RUN useradd --create-home --uid 10001 skein && chown -R skein:skein /app
-USER skein
 
 EXPOSE 8080
 # One worker keeps memory low on a cold-starting min-instances-0 service. Scale out with instances,

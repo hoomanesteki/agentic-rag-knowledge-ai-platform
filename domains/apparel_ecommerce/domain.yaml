@@ -74,6 +74,13 @@ sources:
       meta_fields: [product_id, rating, date]
       entity_ref: [product_id]
       context_fields: [product_id]   # embedded with the text as a contextual prefix (M2.4)
+      # Entity linking (M5.2): each review becomes a Review node linked to the products it
+      # names, matched against the product `name`. Low-confidence links go to a review list.
+      mentions:
+        node_label: Review
+        edge_type: MENTIONS
+        target_label: Product
+        target_name_property: name
 
 # Knowledge graph (M5): nodes come from gold tables, edges from foreign keys already in the
 # data. The engine reads this section and never hardcodes a label or relationship. Labels match

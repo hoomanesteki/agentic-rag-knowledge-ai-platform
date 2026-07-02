@@ -57,6 +57,12 @@ sources:
       meta_fields: [plan_id, category]
       entity_ref: [plan_id]
       context_fields: [plan_id]   # embedded with the text as a contextual prefix (M2.4)
+      # Entity linking (M5.2): each article becomes an Article node linked to the plans it names.
+      mentions:
+        node_label: Article
+        edge_type: ABOUT
+        target_label: Plan
+        target_name_property: name
 
 # Knowledge graph (M5): nodes from gold tables, edges from foreign keys in the data. Same
 # engine, different schema, so the graph is declared here, never in code.

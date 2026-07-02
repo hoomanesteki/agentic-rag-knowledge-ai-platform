@@ -144,7 +144,11 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in result["contexts"]],
         "metric": any(f.kind == "metric" for f in findings),
         "graph": any(f.kind == "graph" for f in findings),
-        "confidence": confidence, "grounding": round(result["grounding"], 3),
+        "confidence": confidence,
+        # the retriever's lexical overlap, so monitoring/drift compare the same signal the linear
+        # path logs as confidence (the agent confidence above is max specialist strength)
+        "overlap_confidence": next((f.confidence for f in findings if f.kind == "text"), 0.0),
+        "grounding": round(result["grounding"], 3),
         "model": result["model"], "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "cost": _estimate_cost(result["model"], prompt_tokens, completion_tokens),

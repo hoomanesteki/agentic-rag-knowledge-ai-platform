@@ -2,8 +2,12 @@
 
 Tracing exists since M1.3; this just points it at MLflow so each request shows up as a run with
 its route/model as params and latency, tokens, cost, grounding, and confidence as metrics. Runs
-are tagged with a stable trace_id so re-running the sink does not duplicate. Local runs use the
-file store (opt-out env set here); a real deployment points MLFLOW_TRACKING_URI at the server.
+are tagged with a stable trace_id so re-running the sink does not duplicate.
+
+The proper backend is a tracking server (the compose MLflow server on postgres, via
+MLFLOW_TRACKING_URI); this client is mlflow-skinny, so it stays light and logs to the server. A
+bare ./mlruns path falls back to the deprecated file store, which is a dev convenience only (the
+opt-out env is set here for that path and for isolated test stores).
 """
 from __future__ import annotations
 
@@ -42,7 +46,10 @@ def log_traces(traces: list[dict], *, tracking_uri: str, experiment: str = "skei
                client=None) -> dict:
     """Log each trace as an MLflow run, skipping ones already logged (by trace_id). Returns
     {logged, skipped}."""
-    os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")  # the local file store is fine here
+    # opt into the deprecated file store only for a local path, never for a server URI, so a
+    # misconfigured prod URI that resolves to a bare directory still errors loudly
+    if not tracking_uri.startswith(("http://", "https://")):
+        os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
     from mlflow.tracking import MlflowClient
 
     client = client or MlflowClient(tracking_uri=tracking_uri)

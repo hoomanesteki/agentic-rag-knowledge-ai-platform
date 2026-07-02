@@ -17,7 +17,12 @@ from pipeline.answer import DEFAULT_TRACE_PATH
 
 
 def main() -> int:
-    uri = get_settings().mlflow_url or "./mlruns"
+    uri = get_settings().mlflow_url
+    if not uri:
+        uri = "./mlruns"
+        print("note: MLFLOW_TRACKING_URI is unset, using the deprecated local file store at "
+              "./mlruns. Run make up and set MLFLOW_TRACKING_URI=http://localhost:5000 for the "
+              "proper backend.", file=sys.stderr)
     traces = read_jsonl(DEFAULT_TRACE_PATH)
     if not traces:
         print("no traces at {}; ask some questions first (make ask / the API)".format(

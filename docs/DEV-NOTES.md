@@ -198,16 +198,21 @@ now (add a lock if it becomes automated).
 
 ## M8 MLOps
 
-MLflow uses mlflow-skinny (no server/scipy/pandas) so it stays light; the sink logs the existing
-traces to a ./mlruns file store locally or the compose MLflow server via MLFLOW_TRACKING_URI.
+MLflow uses mlflow-skinny (no server/scipy/pandas, so it stays light: full mlflow added ~410MB for
+a local SQLite store that the compose server already provides). The proper backend is the compose
+MLflow server (postgres) via MLFLOW_TRACKING_URI, which is the documented default in .env.example;
+a bare ./mlruns path is a deprecated file-store dev fallback only (used by isolated test stores).
+Client to tracking server is the correct architecture anyway, so this is not a compromise.
 
-The RAGAS metrics (faithfulness, answer relevance, context precision, context recall) are computed
-through the app's LLM adapter as a judge, not the ragas package: it stays offline-testable (fake
-judge) and light on disk, and the real ragas package is a drop-in for the judge if its exact
-rubric is wanted. Two correctness points: the judge should be independent (set JUDGE_MODEL, else
-the app LLM judges its own answers and inflates scores), and retrieved text plus the answer are
-sanitized and fenced before the judge so a poisoned document cannot rig the score. Context
-precision is per-chunk rank-weighted (canonical), not a single whole-block judgment.
+RAGAS is a faithful, dependency-free implementation of the actual RAGAS algorithms via the app's
+LLM adapter and embedder, not the ragas PyPI package. The package was tried and rejected: it added
+~360MB AND its import is broken against the resolved langchain versions (langchain_community moved
+ChatVertexAI), a version-fragility trap. Implementing the algorithms directly (faithfulness =
+statement decompose then verify; answer relevance = generate questions then embedding similarity;
+context precision = per-chunk rank-weighted; context recall = reference-statement attribution) is
+lighter, offline-testable, transparent, and measures exactly what RAGAS measures. The judge should
+be independent (JUDGE_MODEL, else the app LLM judges itself), and retrieved text and the answer
+are sanitized and fenced so a poisoned document cannot rig the score.
 
 Drift (M8.3): PSI has a constant-reference fallback (fraction of current values that moved off the
 constant) so a downward shift on a pinned signal is not missed. The by-language PSI monitors feed

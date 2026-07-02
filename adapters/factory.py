@@ -6,7 +6,7 @@ groq) are config swaps, not code changes.
 from __future__ import annotations
 
 from . import fakes
-from .base import Embedder, HybridStore, LLMClient, Reranker, VectorStore
+from .base import Embedder, GraphStore, HybridStore, LLMClient, Reranker, VectorStore
 from .config import get_settings
 
 
@@ -53,6 +53,17 @@ def make_store(provider: str | None = None, collection: str | None = None) -> Hy
         from .qdrant_store import QdrantStore
         return QdrantStore(collection=collection)
     raise ValueError("unknown vector provider: {}".format(provider))
+
+
+def make_graph(provider: str | None = None) -> GraphStore:
+    """The knowledge graph. Offline uses an in-memory fake, real uses Neo4j over its HTTP API."""
+    provider = provider or get_settings().graph_provider
+    if provider in ("memory", "fake", ""):
+        return fakes.InMemoryGraphStore()
+    if provider == "neo4j":
+        from .neo4j_store import Neo4jGraphStore
+        return Neo4jGraphStore()
+    raise ValueError("unknown GRAPH_PROVIDER: {}".format(provider))
 
 
 def make_vector_store(provider: str | None = None) -> VectorStore:

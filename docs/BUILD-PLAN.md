@@ -290,9 +290,13 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   Users stay on SQLite (ephemeral on Cloud Run, re-seeded per cold start); a Postgres swap is future
   work. The runbook is `docs/DEPLOY.md`. Done when: the public demo login works inside the cost cap
   and idles to zero. Size L.
-- [ ] M9.4 Second domain, full. Flesh out `domains/saas_support/` and switch `DOMAIN`.
-  Reproducibility is already proven in CI (M4.4); this makes the second case study real. Done
-  when: the same engine answers support questions with no engine code change. Size L.
+- [x] M9.4 Second domain, full. Fleshed out `domains/saas_support/`: plan-specific bilingual
+  articles (an Article-ABOUT-Plan graph across all four plans), its two governed metrics (one
+  reworked to resolve by plan name so the slot-fill can answer from a user's words), and a 20-item
+  golden set at parity with the first domain (factual, qualitative, relational, metric,
+  unanswerable, and out-of-domain, 14 English + 6 French). Reproducibility was already proven in
+  CI (M4.4); this makes the second case study real. Done when: the same engine answers support
+  questions with no engine code change (switch with `DOMAIN=saas_support`). Size L.
 
 ---
 

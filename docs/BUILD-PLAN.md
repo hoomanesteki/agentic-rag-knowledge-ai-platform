@@ -174,9 +174,13 @@ Keep it linear, no LangGraph yet.
 - [ ] M4.3 Metric retriever. Route number questions to the resolver; put the result in the
   prompt as a labeled evidence block, not fused with text. Done when: a return-rate question
   answers from the metric layer with the number cited. Size M.
-- [ ] M4.4 Second-domain stub in CI. Add a skeleton `domains/saas_support/` and a CI fixture
-  that ingests both domains and asks one question of each. Done when: CI proves the same engine
-  serves two domains, on every commit from here on. Size M.
+- [x] M4.4 Second-domain stub in CI. A skeleton `domains/saas_support/` (a fictional SaaS help
+  desk, synthetic data, bilingual golden set, a PII column to prove masking generalizes) plus
+  `tests/test_domains.py`, which runs inside `make check`: for each domain it ingests the pack
+  text and answers an in-domain question with citations, abstains on an out-of-domain one,
+  builds the lakehouse to passing contracts, and checks every declared PII column is masked in
+  gold. No engine code changed for the new domain. Done: CI re-proves one engine, two domains,
+  on every commit. Size M.
 
 ### M5. Knowledge graph
 

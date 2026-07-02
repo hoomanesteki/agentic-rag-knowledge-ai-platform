@@ -11,6 +11,7 @@ from adapters.factory import make_embedder, make_graph, make_llm, make_reranker,
 from api.resilience import ResilientEmbedder
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
+from rag.hitl import ReviewQueue
 from retrieval.graph import make_graph_retriever
 
 _log = logging.getLogger("skein.api")
@@ -42,4 +43,8 @@ def get_components() -> dict:
         "reranker": make_reranker(),
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),
         "graph_retriever": _build_graph_retriever(settings.domain),
+        "review_queue": ReviewQueue(
+            settings.review_queue_db,
+            verified_path=os.getenv("VERIFIED_PATH", "traces/verified_answers.jsonl")),
+        "domain": settings.domain,
     }

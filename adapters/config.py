@@ -32,6 +32,8 @@ class Settings:
     auth_db_path: str
     demo_username: str
     demo_password: str
+    chat_brain: str
+    review_queue_db: str
 
 
 @lru_cache
@@ -58,4 +60,8 @@ def get_settings() -> Settings:
         auth_db_path=os.getenv("AUTH_DB_PATH", ".auth.db"),
         demo_username=os.getenv("DEMO_USERNAME", "demo"),
         demo_password=os.getenv("DEMO_PASSWORD", "skein-demo-2026"),
+        # linear streams tokens (the proven default); agent runs the full M6 brain (supervisor,
+        # gate, escalation to the review queue) as a buffered response.
+        chat_brain=os.getenv("CHAT_BRAIN", "linear"),
+        review_queue_db=os.getenv("REVIEW_QUEUE_DB", ".review_queue.db"),
     )

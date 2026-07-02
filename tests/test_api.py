@@ -29,8 +29,8 @@ def _components(llm=None):
     return {"embedder": embedder, "store": store, "llm": llm or EchoLLM(), "reranker": None}
 
 
-def _client(components, rate_limit="100/minute", auth_db_path=None):
-    app = create_app(rate_limit=rate_limit, auth_db_path=auth_db_path)
+def _client(components, rate_limit="100/minute", auth_db_path=None, chat_brain=None):
+    app = create_app(rate_limit=rate_limit, auth_db_path=auth_db_path, chat_brain=chat_brain)
     app.dependency_overrides[get_components] = lambda: components
     return TestClient(app)
 
@@ -129,6 +129,31 @@ def test_rate_limit_returns_429():
 def test_empty_query_rejected():
     resp = _client(_components()).post("/api/chat", json={"query": "   "}, headers=_AUTH)
     assert resp.status_code == 400
+
+
+def test_agent_brain_answers_over_sse(tmp_path):
+    from rag.hitl import ReviewQueue
+    components = _components()
+    components["review_queue"] = ReviewQueue(str(tmp_path / "rq.db"))
+    components["domain"] = "apparel_ecommerce"
+    client = _client(components, chat_brain="agent")
+    events = _sse(_chat(client, "how much does the belt bag cost").text)
+    final = [e for e in events if e["type"] == "final"][-1]
+    assert final["tier"] == "auto" and final["citations"]
+
+
+def test_agent_brain_escalates_and_enqueues(tmp_path):
+    from rag.hitl import ReviewQueue
+    queue = ReviewQueue(str(tmp_path / "rq.db"))
+    components = _components()
+    components["review_queue"] = queue
+    components["domain"] = "apparel_ecommerce"
+    client = _client(components, chat_brain="agent")
+    events = _sse(_chat(client, "what is the boiling point of water").text)
+    final = [e for e in events if e["type"] == "final"][-1]
+    assert final["tier"] == "escalate"
+    assert final["escalation_id"] is not None
+    assert len(queue.list_open()) == 1  # the M6 brain actually queues escalations now
 
 
 def test_cors_allows_configured_origin(monkeypatch):

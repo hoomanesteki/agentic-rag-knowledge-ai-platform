@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import Counter, defaultdict, deque
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 
 def read_jsonl(path: str, limit: int | None = None) -> list[dict]:
@@ -92,3 +95,25 @@ def aggregate_quality(traces: list[dict], feedback: list[dict]) -> dict:
     overall_out["unmatched_feedback"] = unmatched_feedback
     return {"overall": overall_out,
             "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())}}
+
+
+def aggregate_gaps(traces: list[dict], limit: int = 50) -> list[dict]:
+    """The knowledge gaps: questions the system could not answer well (abstained or escalated),
+    most frequent first. Case-insensitive so the same question does not split; emails are masked
+    and the text is capped, since a user query can carry PII even in an admin view."""
+    counts: Counter = Counter()
+    original: dict[str, str] = {}
+    langs: dict[str, Counter] = defaultdict(Counter)
+    for trace in traces:
+        if trace.get("tier") not in ("abstain", "escalate"):
+            continue
+        question = (trace.get("query") or "").strip()
+        if not question:
+            continue
+        key = question.casefold()
+        counts[key] += 1
+        original.setdefault(key, question)
+        langs[key][trace.get("lang") or "unknown"] += 1
+    return [{"question": _EMAIL.sub("<email>", original[key])[:200], "count": count,
+             "lang": langs[key].most_common(1)[0][0]}
+            for key, count in counts.most_common(limit)]

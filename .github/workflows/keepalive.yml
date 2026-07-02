@@ -1,0 +1,30 @@
+name: keepalive
+
+# Free-tier hosted services idle out (Neo4j Aura in days, Supabase in about a week). This pings
+# each configured target so nothing is paused when it is time to demo. Runs every 3 days and can
+# be triggered by hand. Set the secrets in the repo (Settings -> Secrets and variables -> Actions);
+# targets with no secret are simply skipped, so a partial setup still works.
+on:
+  schedule:
+    - cron: "0 6 */3 * *" # 06:00 UTC every third day, comfortably inside every free-tier window
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.24"
+      - name: Ping the hosted services
+        env:
+          KEEPALIVE_API_URL: ${{ secrets.KEEPALIVE_API_URL }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GRAPH_PROVIDER: ${{ secrets.GRAPH_PROVIDER }}
+          NEO4J_URL: ${{ secrets.NEO4J_URL }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+        run: uv run --no-dev python -m scripts.keepalive

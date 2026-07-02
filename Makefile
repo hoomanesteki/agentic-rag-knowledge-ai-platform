@@ -31,4 +31,13 @@ leak-check: ## Fail if a domain's vocabulary leaked into engine folders
 check: lint test validate-all leak-check ## Run every check that CI runs
 	@echo "all checks passed"
 
-.PHONY: help setup test lint validate validate-all leak-check check
+up: ## Start local infrastructure (qdrant, postgres)
+	docker compose up -d --wait
+
+down: ## Stop local infrastructure (data volumes are kept)
+	docker compose down
+
+ps: ## Show infrastructure status
+	docker compose ps
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps

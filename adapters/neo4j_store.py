@@ -102,6 +102,24 @@ class Neo4jGraphStore:
             return None
         return _node_from_props(label, data[0]["row"][0])
 
+    def find_nodes(self, label: str, where: dict | None = None,
+                   limit: int = 1000) -> list[GraphNode]:
+        _ident(label, "label")
+        where = where or {}
+        for prop in where:
+            _ident(prop, "property")
+        params = {"w{}".format(i): v for i, v in enumerate(where.values())}
+        params["limit"] = limit
+        clause = ""
+        if where:
+            conds = " AND ".join(
+                "n.`{}` = $w{}".format(prop, i) for i, prop in enumerate(where))
+            clause = "WHERE " + conds + " "
+        stmt = "MATCH (n:`{L}`) {clause}RETURN properties(n) AS props LIMIT $limit".format(
+            L=label, clause=clause)
+        data = self._run(stmt, params)
+        return [_node_from_props(label, datum["row"][0]) for datum in data]
+
     def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
                   direction: str = "both", to_label: str | None = None,
                   limit: int = 50) -> list[GraphNeighbor]:

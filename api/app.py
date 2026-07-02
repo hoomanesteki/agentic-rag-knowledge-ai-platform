@@ -1,5 +1,7 @@
 """Customer-facing FastAPI app: streaming chat and feedback, with rate limiting and a
 degraded-mode fallback when hosted APIs are unavailable."""
+import base64
+import binascii
 import json
 import logging
 import os
@@ -9,7 +11,7 @@ import uuid
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
@@ -32,6 +34,10 @@ from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
 
 _FEEDBACK_PATH = os.getenv("FEEDBACK_PATH", "traces/feedback.jsonl")
+_MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB decoded: a short voice clip, not a file upload
+_MAX_BODY_BYTES = 15 * 1024 * 1024   # reject an oversized body before parsing it
+_ALLOWED_AUDIO_MIME = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/mp3",
+                       "audio/wav", "audio/x-wav", "audio/flac"}
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 _INSECURE_JWT_SECRET = "dev-insecure-change-me"
@@ -56,6 +62,13 @@ class AnswerRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=8000)
 
 
+class TranscribeRequest(BaseModel):
+    # a short voice clip, base64-encoded (about 13.4M chars caps the decoded audio near 10 MB)
+    audio_base64: str = Field(min_length=1, max_length=13_400_000)
+    mime: str = Field(default="audio/webm", max_length=100)
+    lang: str | None = Field(default=None, max_length=8)
+
+
 class LoginRequest(BaseModel):
     username: str = Field(max_length=64)
     password: str = Field(max_length=72)  # bcrypt only uses the first 72 bytes
@@ -76,6 +89,15 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins,
                        allow_methods=["POST", "GET", "OPTIONS"], allow_headers=["*"])
+
+    @app.middleware("http")
+    async def limit_body_size(request: Request, call_next):
+        # reject an oversized body on Content-Length before Starlette reads and parses it, so a
+        # voice clip cannot be used to force a huge allocation
+        length = request.headers.get("content-length")
+        if length and length.isdigit() and int(length) > _MAX_BODY_BYTES:
+            return JSONResponse({"detail": "request body too large"}, status_code=413)
+        return await call_next(request)
 
     login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
     store = UserStore(auth_db_path or settings.auth_db_path)
@@ -186,6 +208,29 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
         return StreamingResponse(event_stream(), media_type="text/event-stream",
                                  headers=_SSE_HEADERS)
+
+    @app.post("/api/transcribe")
+    def transcribe(body: TranscribeRequest, request: Request,
+                   comp: dict = Depends(get_components), user: dict = Depends(current_user)):
+        if not limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="rate limit exceeded",
+                                headers={"Retry-After": "10"})
+        try:
+            audio = base64.b64decode(body.audio_base64, validate=True)
+        except (ValueError, binascii.Error):
+            raise HTTPException(status_code=400, detail="audio_base64 is not valid base64")
+        if not audio or len(audio) > _MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=400, detail="audio is empty or too large")
+        # allowlist the mime so a client cannot inject a header value into the upstream multipart
+        mime = body.mime.split(";")[0].strip().lower()
+        if mime not in _ALLOWED_AUDIO_MIME:
+            mime = "audio/webm"
+        try:
+            text = comp["transcriber"].transcribe(audio, mime=mime, language=body.lang)
+        except Exception as exc:  # a hosted STT failure; the client falls back to Web Speech
+            _log.warning("transcription failed: %s", str(exc)[:200])
+            raise HTTPException(status_code=502, detail="transcription unavailable")
+        return {"text": text}
 
     @app.post("/api/feedback")
     def feedback(fb: FeedbackRequest, request: Request, user: dict = Depends(current_user)):

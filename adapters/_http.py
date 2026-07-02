@@ -1,8 +1,13 @@
 """Tiny JSON-over-HTTP helper using the standard library, so the adapters need no extra
-dependency. Swap for httpx or a vendor SDK later without touching callers."""
+dependency. Swap for httpx or a vendor SDK later without touching callers.
+
+On failure it raises RuntimeError with the vendor's response body included, because Voyage
+and Qdrant put the real reason (bad model, invalid filter, dim mismatch, quota) in the body.
+"""
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.request
 
 
@@ -13,6 +18,13 @@ def request_json(method: str, url: str, payload: dict | None = None,
     req.add_header("Content-Type", "application/json")
     for key, value in (headers or {}).items():
         req.add_header(key, value)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (trusted URLs)
-        body = resp.read().decode()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+            body = resp.read().decode()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:2000]
+        raise RuntimeError("{} {} -> HTTP {}: {}".format(method, url, exc.code, detail)) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            "{} {} failed: {} (is the service running?)".format(method, url, exc.reason)) from exc
     return json.loads(body) if body else {}

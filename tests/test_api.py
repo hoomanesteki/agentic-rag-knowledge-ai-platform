@@ -382,11 +382,26 @@ def test_production_refuses_default_admin_password():
             create_app()
 
 
-def test_production_boots_with_real_secret_and_captcha(tmp_path):
+def test_production_refuses_default_neo4j_password():
     with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
-              **_REAL_CREDS):
+              GRAPH_PROVIDER="neo4j", NEO4J_PASSWORD="skein_password", **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="NEO4J_PASSWORD"):
+            create_app()
+
+
+def test_production_boots_with_real_secret_and_captcha(tmp_path):
+    # GRAPH_PROVIDER=memory so the neo4j credential gate is not exercised here (a dev .env may set
+    # neo4j with the default password; that path has its own test above).
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
+              GRAPH_PROVIDER="memory", **_REAL_CREDS):
         app = create_app(auth_db_path=str(tmp_path / "auth.db"))
         assert TestClient(app).get("/health").json()["status"] == "ok"
+
+
+def test_chunked_transfer_encoding_is_rejected():
+    resp = _client(_components()).post("/api/chat", json={"query": "hi"}, headers={
+        **_AUTH, "Transfer-Encoding": "chunked"})
+    assert resp.status_code == 411
 
 
 def test_demo_readonly_blocks_mutations_but_not_reads(tmp_path):

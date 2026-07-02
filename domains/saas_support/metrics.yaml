@@ -1,0 +1,34 @@
+# Governed metrics for saas_support. The AI fills slots through a validated call, never raw
+# SQL. The engine runs these on a read-only DuckDB connection (external access off) and rejects
+# anything but a SELECT over the gold tables. Use DuckDB named parameters ($name); a missing
+# param binds to NULL, which the (... is null or ...) guard turns into "all values".
+
+metrics:
+  - name: resolution_rate_by_priority
+    grain: ticket priority
+    source: tickets
+    dimensions: [priority]
+    params:
+      priority: string
+    sql_template: |
+      select
+        priority,
+        sum(case when resolved then 1 else 0 end)::float
+          / nullif(count(*), 0) as resolution_rate
+      from tickets
+      where ($priority is null or priority = $priority)
+      group by priority
+
+  - name: open_tickets_by_plan
+    grain: plan
+    source: tickets
+    dimensions: [plan_id]
+    params:
+      plan_id: string
+    sql_template: |
+      select
+        plan_id,
+        count(*) as open_tickets
+      from tickets
+      where status = 'open' and ($plan_id is null or plan_id = $plan_id)
+      group by plan_id

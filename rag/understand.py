@@ -2,7 +2,9 @@
 
 The rewrite uses the LLM only when there is history (a follow-up to resolve), so single-turn
 questions pay nothing extra. Routing is a cheap deterministic heuristic, so it is measurable on
-the golden set with no model; the supervisor (M6.3) uses the route to pick specialists.
+the golden set with no model. The route is recorded for observability and language/route
+stratification (M7.5); dispatch does not branch on it (each specialist self-gates), so a
+misroute costs nothing.
 """
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ from pipeline.answer import _content_tokens
 from pipeline.sanitize import sanitize_context
 from retrieval.sparse import tokenize
 
-ROUTES = ("factual", "relational", "qualitative", "metric", "out_of_domain")
+ROUTES = ("factual", "relational", "qualitative", "metric")
 
 _REWRITE_SYSTEM = (
     "Rewrite the user's latest message as a standalone question using the conversation history: "
@@ -25,10 +27,10 @@ _REWRITE_SYSTEM = (
 # support" stays factual while "which supplier makes it" routes relational.
 _METRIC_WORDS = {"average", "avg", "median", "percent", "percentage", "proportion"}
 _RELATIONAL_CUES = {"supplier", "suppliers", "maker", "makes", "made", "supplies", "supply",
-                    "supplied", "store", "stores", "magasin", "located", "sold", "between"}
+                    "supplied", "store", "stores", "located", "sold", "between"}
 _QUALITATIVE_CUES = {"say", "says", "said", "think", "review", "reviews", "opinion", "feel",
                      "complain", "recommend", "experience", "quality", "comfortable", "good",
-                     "true", "fit", "fits", "runs", "petit"}
+                     "true", "fit", "fits", "runs"}
 
 
 def heuristic_route(query: str) -> str:

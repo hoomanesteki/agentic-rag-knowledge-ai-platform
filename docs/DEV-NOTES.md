@@ -145,6 +145,19 @@ mechanism is already proven by the M6.3 tests (two specialists agree, a planted 
 flagged and resolved, a wrong-but-cited synthesis falls back to the governed value). Until the M8
 comparison, the supervisor ships behind the call site, not as the default answer path.
 
+Wiring: the chat API serves `CHAT_BRAIN=linear` (streams tokens via the M1 path, the default) or
+`CHAT_BRAIN=agent` (the full M6 brain: supervisor, gate, and escalation to the review queue, as a
+buffered SSE response). The agent path is wired and tested end to end (an escalated question
+enqueues to the review queue), so the brain is switchable, not shelf-ware; it stays off by default
+until the M8 consensus comparison and because it does not stream token by token yet.
+
+Three end-to-end findings were deferred to their consuming milestone: `confidence` means lexical
+overlap in the linear/graph paths and evidence strength in the supervisor/agent paths (reconcile
+at M7.5 when the monitoring view reads it, likely as `overlap_confidence` vs `evidence_confidence`);
+the LangGraph checkpointer persists state in-process (MemorySaver) but cross-restart HITL resume
+needs SqliteSaver and a thread_id config, wired at M9; and per-call token accounting still omits
+the reformulation and metric slot-fill calls, folded in at M8 when the trace feeds MLflow.
+
 `detect_conflict` is a numeric heuristic: it only flags a governed number disagreeing with a
 number in a review chunk that shares a content word with the metric subject, so incidental numbers
 (sizes, ids, shipping windows) do not fire. The flag never changes the answer by itself. Evidence

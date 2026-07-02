@@ -127,7 +127,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -
                 for event in stream_answer(req.query, message_id=message_id,
                                            embedder=comp["embedder"], store=comp["store"],
                                            llm=comp["llm"], reranker=comp["reranker"],
-                                           metric_resolver=comp.get("metric_resolver")):
+                                           metric_resolver=comp.get("metric_resolver"),
+                                           graph_retriever=comp.get("graph_retriever")):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,

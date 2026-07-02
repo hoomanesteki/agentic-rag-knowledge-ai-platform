@@ -37,6 +37,7 @@ class Settings:
     chat_brain: str
     review_queue_db: str
     mlflow_url: str
+    judge_model: str
 
 
 @lru_cache
@@ -70,4 +71,5 @@ def get_settings() -> Settings:
         chat_brain=os.getenv("CHAT_BRAIN", "linear"),
         review_queue_db=os.getenv("REVIEW_QUEUE_DB", ".review_queue.db"),
         mlflow_url=os.getenv("MLFLOW_TRACKING_URI") or os.getenv("MLFLOW_URI", ""),
+        judge_model=os.getenv("JUDGE_MODEL", ""),  # an independent RAGAS judge; empty = the app LLM
     )

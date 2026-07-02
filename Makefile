@@ -1,31 +1,34 @@
 .DEFAULT_GOAL := help
-DOMAIN ?= lululemon
+DOMAIN ?= apparel_ecommerce
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
 
-setup: ## Install Python dependencies into the active environment
-	pip install -r requirements.txt -r requirements-dev.txt
+setup: ## Create the virtualenv and install dependencies (uv, reads .python-version)
+	uv sync --extra dev
 
 test: ## Run tests
-	pytest
+	uv run pytest
 
 lint: ## Lint with ruff
-	ruff check .
+	uv run ruff check .
 
-validate: ## Validate one domain pack, e.g. make validate DOMAIN=lululemon
-	python .claude/skills/domain-pack/scripts/validate_domain_pack.py domains/$(DOMAIN)
+validate: ## Validate one domain pack, e.g. make validate DOMAIN=apparel_ecommerce
+	uv run python .claude/skills/domain-pack/scripts/validate_domain_pack.py domains/$(DOMAIN)
 
 validate-all: ## Validate every domain pack under domains/ (no-op if none yet)
 	@found=0; \
 	for d in domains/*/; do \
 	  [ -d "$$d" ] || continue; \
 	  found=1; echo "validating $${d%/}"; \
-	  python .claude/skills/domain-pack/scripts/validate_domain_pack.py "$${d%/}" || exit 1; \
+	  uv run python .claude/skills/domain-pack/scripts/validate_domain_pack.py "$${d%/}" || exit 1; \
 	done; \
 	if [ $$found -eq 0 ]; then echo "no domain packs yet, skipping"; fi
 
-check: lint test validate-all ## Run every check that CI runs
+leak-check: ## Fail if a domain's vocabulary leaked into engine folders
+	uv run python scripts/check_domain_leak.py
+
+check: lint test validate-all leak-check ## Run every check that CI runs
 	@echo "all checks passed"
 
-.PHONY: help setup test lint validate validate-all check
+.PHONY: help setup test lint validate validate-all leak-check check

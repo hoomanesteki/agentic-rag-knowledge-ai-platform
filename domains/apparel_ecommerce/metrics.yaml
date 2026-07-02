@@ -1,0 +1,34 @@
+# Governed metrics. The AI fills slots through a validated call, never raw SQL.
+# Every source traces to a role in the domain.yaml manifest. The engine runs these on a
+# read-only connection and rejects any non-SELECT.
+
+metrics:
+  - name: return_rate_by_size
+    grain: product size
+    source: sales
+    dimensions: [size]
+    params:
+      size: string
+    sql_template: |
+      select
+        p.size as size,
+        sum(case when s.returned then 1 else 0 end)::float
+          / nullif(count(*), 0) as return_rate
+      from sales s
+      join products p on p.product_id = s.product_id
+      where (:size is null or p.size = :size)
+      group by p.size
+
+  - name: units_sold
+    grain: product
+    source: sales
+    dimensions: [product_id]
+    params:
+      product_id: string
+    sql_template: |
+      select
+        s.product_id,
+        sum(s.quantity) as units_sold
+      from sales s
+      where (:product_id is null or s.product_id = :product_id)
+      group by s.product_id

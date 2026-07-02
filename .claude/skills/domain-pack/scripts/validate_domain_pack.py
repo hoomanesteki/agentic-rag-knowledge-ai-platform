@@ -12,9 +12,10 @@ import json
 import os
 import sys
 
-REQUIRED_FILES = ["domain.yaml", "ontology.cypher", "metrics.yaml"]
+REQUIRED_FILES = ["domain.yaml", "ontology.cypher", "metrics.yaml", "eval/golden.jsonl"]
 REQUIRED_DIRS = ["seed/structured", "seed/unstructured"]
 REQUIRED_KEYS = ["name", "languages", "entity_types", "sources"]
+GOLDEN_TYPES = {"answerable", "unanswerable", "out_of_domain"}
 
 errors = []
 warnings = []
@@ -127,6 +128,33 @@ def check_unstructured_fields(pack, dom):
                     break
 
 
+def check_golden(pack):
+    path = os.path.join(pack, "eval", "golden.jsonl")
+    if not os.path.isfile(path):
+        return  # missing file already reported by the structure check
+    count = 0
+    with open(path) as f:
+        for i, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            count += 1
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                err("eval/golden.jsonl: line {} is not valid JSON".format(i))
+                continue
+            for field in ("id", "lang", "question", "type"):
+                if field not in rec:
+                    err("eval/golden.jsonl: record {} missing '{}'".format(i, field))
+            t = rec.get("type")
+            if t is not None and t not in GOLDEN_TYPES:
+                err("eval/golden.jsonl: record {} has bad type '{}' (use {})".format(
+                    i, t, ", ".join(sorted(GOLDEN_TYPES))))
+    if count == 0:
+        err("eval/golden.jsonl is empty, add some questions")
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: python validate_domain_pack.py domains/<name>")
@@ -137,6 +165,7 @@ def main():
         return 2
 
     check_structure(pack)
+    check_golden(pack)  # independent of PyYAML
 
     dom = load_yaml(os.path.join(pack, "domain.yaml"))
     if dom is None:

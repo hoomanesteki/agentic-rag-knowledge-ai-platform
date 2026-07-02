@@ -104,11 +104,25 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
 
-    if settings.jwt_secret == _INSECURE_JWT_SECRET:
-        _log.error("JWT_SECRET is the insecure default: anyone can forge a token, including an "
-                   "admin one. Set JWT_SECRET before exposing this (enforced at deploy, M9.3).")
+    insecure_secret = settings.jwt_secret in (_INSECURE_JWT_SECRET, "", "change-me")
+    if insecure_secret:
+        msg = ("JWT_SECRET is the insecure default: anyone can forge a token, including an admin "
+               "one. Set JWT_SECRET to a long random string before exposing this.")
+        if settings.app_env == "production":
+            # Fail fast instead of booting a forgeable-auth server on a public URL.
+            raise RuntimeError(msg + " Refusing to start with SKEIN_ENV=production.")
+        _log.error(msg)
+    if settings.app_env == "production" and not settings.turnstile_secret:
+        raise RuntimeError("TURNSTILE_SECRET_KEY is empty but SKEIN_ENV=production; the login "
+                           "captcha would be bypassed. Set it or unset SKEIN_ENV.")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
+    if settings.demo_readonly:
+        _log.info("DEMO_READONLY is on; mutating admin endpoints are disabled.")
+
+    def deny_if_readonly() -> None:
+        if settings.demo_readonly:
+            raise HTTPException(status_code=403, detail="this is a read-only demo")
 
     def client_key(request: Request) -> str:
         # request.client.host is the direct peer; behind a proxy (Cloud Run, M9.3) this is the
@@ -273,6 +287,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
     @app.post("/api/admin/flywheel")
     def admin_flywheel(comp: dict = Depends(get_components), _: dict = Depends(require_admin)):
+        deny_if_readonly()  # re-embedding costs money; off in the public demo
         queue = comp["review_queue"]
         domain = comp.get("domain") or ""
         # only items for this domain, resolved since the last run, so re-embedding is not repeated
@@ -296,6 +311,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     @app.post("/api/admin/queue/{item_id}/claim")
     def admin_claim(item_id: str, comp: dict = Depends(get_components),
                     user: dict = Depends(require_admin)):
+        deny_if_readonly()
         queue = comp["review_queue"]
         if queue.get(item_id) is None:
             raise HTTPException(status_code=404, detail="no such item")
@@ -306,6 +322,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     @app.post("/api/admin/queue/{item_id}/answer")
     def admin_answer(item_id: str, body: AnswerRequest, comp: dict = Depends(get_components),
                      user: dict = Depends(require_admin)):
+        deny_if_readonly()
         queue = comp["review_queue"]
         if not body.answer.strip():
             raise HTTPException(status_code=400, detail="answer is required")

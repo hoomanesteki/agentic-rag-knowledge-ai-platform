@@ -92,8 +92,21 @@ class InMemoryHybridStore:
             self._points[p["id"]] = p
 
     def hybrid_search(self, dense_query: list[float], sparse_query: dict,
-                      top_k: int = 8, where: dict | None = None) -> list[dict]:
+                      top_k: int = 8, where: dict | None = None,
+                      dense_only: bool = False) -> list[dict]:
         candidates = [p for p in self._points.values() if _matches(p["payload"], where)]
+
+        def out(pid, score):
+            p = by_id[pid]
+            return {"id": pid, "score": score,
+                    "payload": {**p["payload"], "text": p["text"], "chunk_id": pid}}
+
+        by_id = {p["id"]: p for p in candidates}
+        if dense_only:
+            scored = sorted(((p["id"], _cosine(dense_query, p["dense"])) for p in candidates),
+                            key=lambda kv: kv[1], reverse=True)[:top_k]
+            return [out(pid, score) for pid, score in scored]
+
         dense_ranked = sorted(candidates, key=lambda p: _cosine(dense_query, p["dense"]),
                               reverse=True)
         sparse_ranked = sorted(candidates, key=lambda p: _sparse_dot(sparse_query, p["sparse"]),
@@ -102,13 +115,8 @@ class InMemoryHybridStore:
         for ranked in (dense_ranked, sparse_ranked):
             for rank, point in enumerate(ranked):
                 fused[point["id"]] = fused.get(point["id"], 0.0) + 1.0 / (_RRF_K + rank + 1)
-        by_id = {p["id"]: p for p in candidates}
         top = sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
-        return [
-            {"id": pid, "score": score,
-             "payload": {**by_id[pid]["payload"], "text": by_id[pid]["text"], "chunk_id": pid}}
-            for pid, score in top
-        ]
+        return [out(pid, score) for pid, score in top]
 
 
 class LexicalReranker:

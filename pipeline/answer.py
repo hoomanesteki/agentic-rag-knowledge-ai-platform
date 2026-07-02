@@ -135,17 +135,20 @@ def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
 
 
 def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
-             reranker: Reranker | None = None, top_k_in: int = 50) -> list[dict]:
+             reranker: Reranker | None = None, top_k_in: int = 50,
+             dense_only: bool = False) -> list[dict]:
     """Hybrid retrieval used by both the answer pipeline and the eval harness.
 
     With a reranker, fetch a wider pool (top_k_in) then rerank down to top_k; the hit score
-    becomes the reranker score. Without one, return the hybrid top_k directly.
+    becomes the reranker score. Without one, return the top_k directly. dense_only disables
+    the sparse leg (used by the ablation to isolate dense vs hybrid).
     """
     dense_q = embedder.embed([query], input_type="query")[0]
     sparse_q = SparseEncoder().encode(query)
     fetch = top_k_in if reranker is not None else top_k
     hits = store.hybrid_search(
-        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=fetch)
+        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=fetch,
+        dense_only=dense_only)
     if reranker is None or not hits:
         return hits[:top_k]
     texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs

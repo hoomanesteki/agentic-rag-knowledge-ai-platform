@@ -11,6 +11,7 @@ dependencies = [
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
     "langgraph>=1.2.7",
+    "mlflow-skinny>=3.14.0",
     "pyjwt>=2.13.0",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",

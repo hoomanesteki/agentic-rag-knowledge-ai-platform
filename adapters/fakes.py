@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import math
 
-from .base import Chunk
+from .base import Chunk, LLMResult
 
 _RRF_K = 60
 
@@ -112,8 +112,11 @@ class InMemoryHybridStore:
 
 
 class EchoLLM:
-    """Offline placeholder LLM. Returns a fixed string so the seam is testable without keys."""
+    """Offline placeholder LLM. Returns a fixed string plus rough token counts so the seam
+    (and tracing) is testable without keys."""
 
-    def complete(self, prompt: str, *, system: str | None = None,
-                 max_tokens: int = 512) -> str:
-        return "offline-fake-response"
+    def generate(self, prompt: str, *, system: str | None = None,
+                 max_tokens: int = 512) -> LLMResult:
+        return LLMResult(text="offline-fake-response",
+                         prompt_tokens=max(len(prompt) // 4, 1),
+                         completion_tokens=3, model="fake")

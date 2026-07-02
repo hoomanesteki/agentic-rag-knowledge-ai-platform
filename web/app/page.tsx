@@ -57,7 +57,7 @@ export default function Home() {
 function Login({ onToken }: { onToken: (t: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const { token: captchaToken, widget: captchaWidget } = useTurnstile();
+  const { token: captchaToken, widget: captchaWidget, reset: resetCaptcha } = useTurnstile();
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,10 +79,13 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         onToken((await res.json()).access_token);
       } else if (res.status === 401) {
         setError("Wrong username or password.");
+        resetCaptcha(); // the token was consumed; a fresh one is needed for the retry
       } else if (res.status === 403) {
         setError("Captcha check failed. Please try again.");
+        resetCaptcha();
       } else {
         setError("Could not sign in. Please try again.");
+        resetCaptcha();
       }
     } catch {
       setError("Could not reach the server.");

@@ -7,6 +7,7 @@ const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 type Turnstile = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;
   remove: (id: string) => void;
+  reset: (id: string) => void;
 };
 
 function turnstileApi(): Turnstile | undefined {
@@ -59,7 +60,21 @@ export function useTurnstile() {
     };
   }, []);
 
+  // Turnstile tokens are single-use; after a failed login the consumed token would make every
+  // retry fail the captcha, so the caller resets the widget (and clears the token) on failure.
+  function reset() {
+    const ts = turnstileApi();
+    if (ts && widgetId.current !== undefined) {
+      try {
+        ts.reset(widgetId.current);
+      } catch {
+        /* widget already gone */
+      }
+    }
+    setToken(null);
+  }
+
   // null when Turnstile is not configured, so the caller can render {widget} unconditionally
   const widget = SITE_KEY ? <div ref={ref} /> : null;
-  return { token, widget };
+  return { token, widget, reset };
 }

@@ -29,6 +29,22 @@ state instead of the chat.
   whether a step is finished.
 - Prefer small diffs. If a step feels like an L, split it into two S sessions.
 
+## Evaluation and the rerank delta
+
+`make eval` scores the golden set. To record the reranker's effect (M2.2 done-when), run it
+both ways against a real Voyage + Qdrant index and compare `hit@k` / `mrr` / `entity_recall@k`:
+
+```bash
+make up && make ingest
+PYTHONPATH=. uv run python scripts/run_eval.py --no-rerank   # hybrid baseline
+make eval                                                    # hybrid + rerank
+```
+
+Only the real Voyage run counts. The offline `RERANK_PROVIDER=fake` reranker scores by word
+overlap, the same signal as the sparse leg and the abstain gate, so its "delta" is circular
+and must not be recorded as the M2.2 number. Paste the two scorecards and the delta here once
+you have run them (this environment has no network, so the numbers come from your machine).
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

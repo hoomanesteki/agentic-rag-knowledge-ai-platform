@@ -14,9 +14,16 @@ def _pack(domain: str, domains_dir: str) -> str:
     return os.path.join(domains_dir, domain)
 
 
+def _has_manifest(pack: str) -> bool:
+    return os.path.isfile(os.path.join(pack, "domain.yaml"))
+
+
 def ontology_view(domain: str, domains_dir: str = "domains") -> dict:
     """Entity labels and the typed relationships between them, from the pack's graph section."""
-    manifest = load_manifest(_pack(domain, domains_dir))
+    pack = _pack(domain, domains_dir)
+    if not _has_manifest(pack):
+        return {"entity_types": [], "nodes": [], "edges": []}
+    manifest = load_manifest(pack)
     graph = manifest.get("graph", {}) or {}
     return {
         "entity_types": manifest.get("entity_types", []) or [],
@@ -31,7 +38,7 @@ def ontology_view(domain: str, domains_dir: str = "domains") -> dict:
 def metrics_view(domain: str, domains_dir: str = "domains") -> list:
     """The governed metrics as metadata only (name, grain, source, dimensions, params). The SQL
     template is never exposed."""
-    metrics = load_metrics(_pack(domain, domains_dir))
+    metrics = load_metrics(_pack(domain, domains_dir))  # tolerant of a missing metrics.yaml
     return [{"name": spec.get("name"), "grain": spec.get("grain"), "source": spec.get("source"),
              "dimensions": spec.get("dimensions", []) or [],
              "params": list((spec.get("params") or {}).keys())}
@@ -42,6 +49,8 @@ def lineage_view(domain: str, domains_dir: str = "domains") -> dict:
     """The medallion lineage per structured source: the seed file flows bronze -> silver -> gold,
     which PII is masked, and which governed metrics read each gold table."""
     pack = _pack(domain, domains_dir)
+    if not _has_manifest(pack):
+        return {"medallion": [], "unmapped_metrics": []}
     sources = (load_manifest(pack).get("sources", {}) or {}).get("structured", []) or []
     metric_of_role: dict[str, list] = {}
     for spec in load_metrics(pack).values():

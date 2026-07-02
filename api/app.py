@@ -129,7 +129,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -
                                            llm=comp["llm"], reranker=comp["reranker"],
                                            metric_resolver=comp.get("metric_resolver")):
                     yield _sse(event)
-            except RuntimeError as exc:
+            # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
+            # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,
+            # never a silent dead stream. is_transient decides degraded vs honest error.
+            except Exception as exc:
                 latency = round((time.perf_counter() - started) * 1000, 1)
                 transient = is_transient(exc)
                 write_trace({"ts": time.time(), "message_id": message_id, "query": req.query,
@@ -155,8 +158,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -
         if fb.verdict not in ("up", "down"):
             raise HTTPException(status_code=400, detail="verdict must be 'up' or 'down'")
         os.makedirs(os.path.dirname(_FEEDBACK_PATH) or ".", exist_ok=True)
+        # Attribute the feedback to the authenticated user so entries are not anonymous or
+        # spoofable; the flywheel (M7.3) needs to know who rated what.
+        record = {"ts": time.time(), "username": user["username"], **fb.model_dump()}
         with open(_FEEDBACK_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"ts": time.time(), **fb.model_dump()}) + "\n")
+            f.write(json.dumps(record) + "\n")
         return {"status": "recorded"}
 
     return app

@@ -20,6 +20,8 @@ from .config import get_settings
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _KEY_PROP = "_key"
+_DOMAIN_PROP = "_domain"
+_ARROWS = {"out": "-[r]->", "in": "<-[r]-", "both": "-[r]-"}
 
 
 def _ident(name: str, kind: str) -> str:
@@ -30,10 +32,14 @@ def _ident(name: str, kind: str) -> str:
 
 class Neo4jGraphStore:
     def __init__(self, url: str | None = None, user: str | None = None,
-                 password: str | None = None, database: str = "neo4j") -> None:
+                 password: str | None = None, database: str = "neo4j",
+                 domain: str | None = None) -> None:
         s = get_settings()
         self.url = (url or s.neo4j_url).rstrip("/")
         self.database = database
+        # scope every write and the reset to this domain, so one shared Neo4j can hold several
+        # domains without a load wiping the others
+        self.domain = domain or s.domain
         self.endpoint = "{}/db/{}/tx/commit".format(self.url, self.database)
         token = base64.b64encode(
             "{}:{}".format(user or s.neo4j_user, password or s.neo4j_password).encode()).decode()
@@ -52,7 +58,8 @@ class Neo4jGraphStore:
         return results[0].get("data", [])
 
     def reset(self) -> None:
-        self._run("MATCH (n) DETACH DELETE n")
+        # only this domain's nodes, so a shared graph keeps other domains intact
+        self._run("MATCH (n {`_domain`: $d}) DETACH DELETE n", {"d": self.domain})
 
     def apply_schema(self, statements: list[str]) -> None:
         for stmt in statements:
@@ -67,8 +74,9 @@ class Neo4jGraphStore:
             return 0
         stmt = ("UNWIND $rows AS row "
                 "MERGE (n:`{L}` {{`{K}`: row.`{K}`}}) "
-                "SET n += row SET n.`{P}` = $key").format(L=label, K=key, P=_KEY_PROP)
-        self._run(stmt, {"rows": rows, "key": key})
+                "SET n += row SET n.`{P}` = $key SET n.`{D}` = $domain").format(
+                    L=label, K=key, P=_KEY_PROP, D=_DOMAIN_PROP)
+        self._run(stmt, {"rows": rows, "key": key, "domain": self.domain})
         return len(rows)
 
     def upsert_edges(self, edge_type: str, from_label: str, from_key: str,
@@ -115,19 +123,24 @@ class Neo4jGraphStore:
             conds = " AND ".join(
                 "n.`{}` = $w{}".format(prop, i) for i, prop in enumerate(where))
             clause = "WHERE " + conds + " "
-        stmt = "MATCH (n:`{L}`) {clause}RETURN properties(n) AS props LIMIT $limit".format(
-            L=label, clause=clause)
+        # deterministic order so a truncation at $limit is stable across runs
+        stmt = ("MATCH (n:`{L}`) {clause}RETURN properties(n) AS props "
+                "ORDER BY elementId(n) LIMIT $limit").format(L=label, clause=clause)
         data = self._run(stmt, params)
         return [_node_from_props(label, datum["row"][0]) for datum in data]
 
     def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
                   direction: str = "both", to_label: str | None = None,
                   limit: int = 50) -> list[GraphNeighbor]:
+        if not key or not value:
+            return []
         _ident(label, "label")
         _ident(key, "key")
         # edge_type and to_label stay parameters, so no identifier interpolation is needed for
         # them; direction is a fixed enum that picks the pattern, never user text.
-        arrow = {"out": "-[r]->", "in": "<-[r]-", "both": "-[r]-"}.get(direction, "-[r]-")
+        if direction not in _ARROWS:
+            raise ValueError("unknown direction: {!r}".format(direction))
+        arrow = _ARROWS[direction]
         stmt = (
             "MATCH (a:`{L}` {{`{K}`: $value}}){arrow}(b) "
             "WHERE ($etype IS NULL OR type(r) = $etype) "
@@ -150,4 +163,5 @@ class Neo4jGraphStore:
 def _node_from_props(label: str, props: dict) -> GraphNode:
     props = dict(props or {})
     key = props.pop(_KEY_PROP, "")
+    props.pop(_DOMAIN_PROP, None)  # internal scoping property, not part of the node's data
     return GraphNode(label=label, key=key, id=str(props.get(key, "")), properties=props)

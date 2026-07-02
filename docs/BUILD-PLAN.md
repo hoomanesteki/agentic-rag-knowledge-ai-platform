@@ -184,15 +184,29 @@ Keep it linear, no LangGraph yet.
 
 ### M5. Knowledge graph
 
-- [ ] M5.1 Neo4j load. Start `neo4j`, load nodes and typed edges from gold, driven by the
-  ontology and manifest. Done when: a templated Cypher query returns expected relations. Size M.
-- [ ] M5.2 Entity linking. LLM pass at build time links review mentions to canonical
-  entity_ids above a threshold; low confidence goes to a review list. Done when: reviews carry
-  `mentions` edges to products. Size M.
-- [ ] M5.3 Graph retriever, measured. Vector-first then hop from mentioned entity_ids, plus a
-  graph-first path for relational questions, templated read-only Cypher with a clause
-  allowlist. Done when: a relational golden question answers using graph plus text and the
-  score is recorded. Size M.
+Graph work is offline-testable on the fakes; the real Neo4j load is a local step (`make up`,
+`make graph-load`). The engine talks to Neo4j over its HTTP API, so no bolt driver is a
+dependency, and every label/key/edge is validated against an identifier allowlist while values
+are parameters, so nothing reaches Cypher as text.
+
+- [x] M5.1 Neo4j load. A `GraphStore` seam (in-memory fake + Neo4j HTTP impl) and a
+  manifest-driven loader: each pack declares a `graph` section (nodes from gold tables, edges
+  from foreign keys), and the loader builds nodes and typed edges from the gold lakehouse for
+  any domain, no label named in engine code. Done: both domains load, a traversal returns the
+  expected relations (Supplier SUPPLIES Product, Product SOLD_AT Store, Ticket ON_PLAN Plan),
+  verified in `make check`; the real Neo4j run is the local step. Size M.
+- [x] M5.2 Entity linking. A build-time pass shortlists candidate entities by distinctive name
+  tokens, scores them with the LLM, adds a typed edge at or above a confidence threshold, and
+  queues low-confidence matches and unparseable output for human review, never a silent drop.
+  Done: reviews carry `MENTIONS` edges to products and articles `ABOUT` edges to plans; the
+  review list is written to `traces/entity_link_review.jsonl`. Size M.
+- [x] M5.3 Graph retriever, measured. Resolve entities named in the query (graph-first) or in
+  retrieved text (vector-first hop) to graph nodes, and attach their neighborhood as a labeled,
+  cited evidence block; only a query-named entity is authoritative and may suppress abstain.
+  Templated, allowlisted traversals only. Done: a relational golden question (which supplier
+  makes the Cloud Hoodie) answers from the graph and cites it, proven in `make check`. The
+  bilingual retrieval-quality delta from turning the graph on is recorded on a real index via
+  `make eval` (see DEV-NOTES); that number is a local-run step. Size M.
 
 ### M6. The brain: a supervisor over specialist agents (LangGraph)
 

@@ -48,11 +48,21 @@ class GraphRetriever:
                              spec["label"], _MAX_INDEX_NODES, _MAX_INDEX_NODES)
                 label_nodes = label_nodes[:_MAX_INDEX_NODES]
             nodes.extend(label_nodes)
-        common = self._common_tokens(nodes)
+
+        # Dedupe by (label, name): variant-grain rows (a product name repeated per size) share a
+        # name, so one representative keeps token frequency honest and avoids crowding out other
+        # entities at resolution time.
+        reps: dict[tuple[str, str], GraphNode] = {}
+        for node in nodes:
+            name = str(node.properties.get(name_prop, ""))
+            if name:
+                reps.setdefault((node.label, name.lower()), node)
+        representatives = list(reps.values())
+        common = self._common_tokens(representatives)
         # only nodes with a distinctive name are resolvable (tickets have no name, so they are
         # reached by hopping, not by naming them in a query)
         self._index: list[tuple[GraphNode, set[str]]] = []
-        for node in nodes:
+        for node in representatives:
             distinctive = _name_tokens(str(node.properties.get(name_prop, ""))) - common
             if distinctive:
                 self._index.append((node, distinctive))
@@ -77,8 +87,10 @@ class GraphRetriever:
         return [node for node, _ in matched[:self.max_entities]]
 
     def _render(self, node: GraphNode) -> str:
-        neighbors = self.graph.neighbors(node.label, node.key, node.id, limit=self.max_neighbors)
         name = node.properties.get(self.name_prop, node.id)
+        if not node.key:  # a node with no key property cannot be traversed; render it bare
+            return "{} ({}).".format(name, node.label)
+        neighbors = self.graph.neighbors(node.label, node.key, node.id, limit=self.max_neighbors)
         props = ", ".join(
             "{}={}".format(k, v) for k, v in node.properties.items()
             if k not in (node.key, self.name_prop))
@@ -118,9 +130,11 @@ class GraphRetriever:
 
 def make_graph_retriever(domain: str, graph: GraphStore,
                          domains_dir: str = "domains") -> GraphRetriever | None:
-    """Build a retriever from the pack's graph node specs, or None if the pack declares no graph."""
-    specs = (load_manifest(os.path.join(domains_dir, domain)).get("graph", {}) or {}).get(
-        "nodes", []) or []
+    """Build a retriever from the pack's graph node specs, or None if the pack declares no graph.
+    The name property to resolve against is the manifest's graph.name_property (default 'name'),
+    so a domain whose entities carry a 'title' still resolves."""
+    graph_spec = load_manifest(os.path.join(domains_dir, domain)).get("graph", {}) or {}
+    specs = graph_spec.get("nodes", []) or []
     if not specs:
         return None
-    return GraphRetriever(graph, specs)
+    return GraphRetriever(graph, specs, name_prop=graph_spec.get("name_property", "name"))

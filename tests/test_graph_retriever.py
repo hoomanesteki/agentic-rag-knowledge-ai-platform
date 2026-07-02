@@ -51,6 +51,14 @@ def test_unrelated_query_resolves_nothing(tmp_path):
     assert block is None and from_query is False
 
 
+def test_variant_grain_entity_resolves_once(tmp_path):
+    # The Flow Legging exists as several size variants sharing one name; resolution must return a
+    # single representative, not one per size, so variants do not crowd out other entities.
+    retriever = _retriever_for("apparel_ecommerce", tmp_path)
+    resolved = retriever.resolve("tell me about the Aster Flow Legging")
+    assert len(resolved) == 1
+
+
 def test_two_named_entities_both_resolve(tmp_path):
     retriever = _retriever_for("apparel_ecommerce", tmp_path)
     block, _ = retriever.evidence("Compare the Aster Cloud Hoodie and the Aster Flow Legging")

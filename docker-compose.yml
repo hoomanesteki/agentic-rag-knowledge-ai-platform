@@ -49,19 +49,25 @@ services:
       timeout: 3s
       retries: 20
 
-  # Added at M8 (MLflow tracking, eval, and drift, the MLOps layer):
-  # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:latest
-  #   command: >
-  #     mlflow server --host 0.0.0.0 --port 5000
-  #     --backend-store-uri postgresql://skein:skein@postgres:5432/skein
-  #     --default-artifact-root /mlruns
-  #   ports: ["5000:5000"]
-  #   volumes: ["mlflow_data:/mlruns"]
-  #   depends_on: [postgres]
+  # MLflow tracking server (M8). The app logs runs here when MLFLOW_TRACKING_URI points at it;
+  # locally the sink defaults to a ./mlruns file store instead, so this is optional.
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.4.0
+    restart: unless-stopped
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql://skein:skein@postgres:5432/skein
+      --default-artifact-root /mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   qdrant_data:
   postgres_data:
   neo4j_data:
-  # mlflow_data:
+  mlflow_data:

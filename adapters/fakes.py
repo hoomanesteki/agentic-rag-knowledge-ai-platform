@@ -119,6 +119,15 @@ class InMemoryHybridStore:
         return [out(pid, score) for pid, score in top]
 
 
+class FakeTranscriber:
+    """Offline speech-to-text: returns a fixed transcript so the voice path is testable with no
+    audio model or network."""
+
+    def transcribe(self, audio: bytes, *, mime: str = "audio/webm",
+                   language: str | None = None) -> str:
+        return "offline transcription"
+
+
 class LexicalReranker:
     """Offline reranker: scores documents by word overlap with the query. Crude, but it
     reorders deterministically with no network, mirroring a cross-encoder's role."""

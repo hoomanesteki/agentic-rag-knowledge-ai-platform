@@ -66,10 +66,32 @@ Medium:
   labeled evidence block in the prompt. RRF is only for vector plus graph text hits.
 - Voice via Web Speech is Chrome-centric. Fix: use Groq hosted Whisper for speech-to-text
   with Web Speech as fallback (M9).
+- Multi-agent orchestration can be pure cost and latency theater. Fanning out to specialists
+  and a consensus round multiplies LLM calls, and "agents that talk" can loop. Fix: the
+  supervisor fans out only when a query needs more than one evidence type (a single-source
+  question stays single-pass), every specialist and the consensus round is bounded by step and
+  token caps, and M6.3 must show consensus beats single-pass on the golden set plus a planted
+  set of conflict cases. If it does not beat single-pass, it does not ship: it stays a demoable
+  path behind a flag, not the default. Measured, not assumed.
 
 Keep as is: the medallion idea, dbt for tests and lineage, the KG for relations and for
-generating eval questions, hybrid vector plus rerank, the LangGraph brain, MLflow plus RAGAS,
-HITL feeding a flywheel, and the adapters boundary. Those are the senior parts.
+generating eval questions, hybrid vector plus rerank, the LangGraph brain (now a supervisor
+over specialist agents, see M6), MLflow plus RAGAS, HITL feeding a flywheel, and the adapters
+boundary. Those are the senior parts.
+
+### The agent architecture: a supervisor over specialists that must agree (M6)
+
+The brain is not one prompt with tools. It is a **supervisor agent** (the orchestrator) that
+decomposes a question, dispatches it to the **specialist agents** that each own one evidence
+source (a Retriever over hybrid text + graph, a Metrics agent over the governed numbers, a
+Graph agent over relations), and then runs a **consensus step**: the specialists' structured
+findings are checked for agreement, conflicts are reconciled (a metric number that contradicts
+a text claim is caught, not averaged), and only agreed, grounded evidence is synthesized into
+the answer. If they cannot agree, the system abstains or escalates rather than papering over
+the disagreement. This is the multi-agent layer, built on the same tools from M1 to M5, so no
+earlier code is rewritten: the M1 to M5 pipeline functions become the specialists' tools.
+
+This earns its cost only if it is bounded and measured (see the risk note below).
 
 ---
 
@@ -168,18 +190,36 @@ Keep it linear, no LangGraph yet.
   allowlist. Done when: a relational golden question answers using graph plus text and the
   score is recorded. Size M.
 
-### M6. The brain (LangGraph)
+### M6. The brain: a supervisor over specialist agents (LangGraph)
 
-Fold M1 to M5 into the real state machine.
+Fold M1 to M5 into one state machine, then put a supervisor agent on top that coordinates
+specialist agents which each own one evidence source and must agree before an answer ships.
+The M1 to M5 pipeline functions become the specialists' tools, so nothing earlier is rewritten.
 
 - [ ] M6.1 State, routing, multi-turn. Typed state; nodes understand (with conversation
   history and follow-up rewriting, so "what about size S?" works), route, retrieve, fuse,
   rerank, generate, verify, gate. Done when: all four query types answer, a follow-up resolves
   from context, and routing accuracy is measured on the golden set. Size L.
-- [ ] M6.2 Agent loop and gate. Bounded ReAct over the same tools, step and budget caps, the
-  gate decides auto vs agent vs escalate, calibrated against the golden set. Done when: a hard
-  question triggers the loop and an unanswerable one escalates. Size M.
-- [ ] M6.3 HITL. Postgres review queue, LangGraph checkpointer so interrupts survive, an honest
+- [ ] M6.2 Specialist agents. Wrap the existing tools as three specialists behind one common
+  finding contract (answer text, evidence contexts, self-scored confidence, citations): a
+  Retriever (hybrid text + graph), a Metrics agent (governed numbers from M4), and a Graph
+  agent (relations from M5). Done when: each specialist answers its slice of a golden question
+  and returns a structured, self-scored finding. Size M.
+- [ ] M6.3 Supervisor and agent-to-agent consensus. The supervisor (the orchestrator, the
+  "omniagent") decomposes a query, dispatches to the relevant specialists in parallel, then a
+  reconciliation step makes them agree: a reconciler node (an LLM judge given each specialist's
+  claim plus its evidence) flags contradictions (a metric number contradicting a text claim, two
+  sources disagreeing), resolves by evidence rank (governed metric over text over model prior)
+  or by asking a specialist to revise, and commits only agreed, grounded evidence, otherwise
+  abstains or escalates. All
+  bounded by step and token caps; the fan-out fires only for multi-source questions. Done when:
+  a mixed number-and-text question is answered by two specialists agreeing, a planted conflict
+  is caught and reconciled or escalated, and consensus is shown to beat single-pass on the
+  golden set (else it ships behind a flag, not as default). Size L.
+- [ ] M6.4 Agent loop and gate. Bounded ReAct over the same specialists for the hard tail, step
+  and budget caps, the gate decides auto vs agent vs escalate, calibrated against the golden
+  set. Done when: a hard question triggers the loop and an unanswerable one escalates. Size M.
+- [ ] M6.5 HITL. Postgres review queue, LangGraph checkpointer so interrupts survive, an honest
   "escalated" reply, admin answers and the answer is stored as gold. Done when: a low-confidence
   question lands in the queue and a human answer closes it. Size L.
 
@@ -242,8 +282,8 @@ skein-lite/
   adapters/               # llm, embeddings, vectorstore, (later) graph, storage
   ingest/                 # chunk, embed (dense + sparse), index  (M1, M2)
   retrieval/              # vector, metric, graph, fuse, rerank
-  pipeline/               # linear pipeline first (M1-M5), becomes the graph at M6
-  rag/                    # LangGraph app, state, nodes, eval/  (M6+)
+  pipeline/               # linear pipeline first (M1-M5), becomes the specialists' tools at M6
+  rag/                    # LangGraph app, state, nodes, agents/ (supervisor + specialists), eval/  (M6+)
   data/                   # duckdb + dbt project  (M4)
   api/                    # FastAPI  (M3+)
   web/                    # Next.js  (M3+)
@@ -267,6 +307,8 @@ hour and stay convinced:
 - Retrieval quality shown as an ablation table with real bilingual numbers.
 - Every answer grounded, cited, or an honest abstain, with the injection defense demonstrated.
 - Every request traced (retrieval, tokens, cost, latency); drift monitored and named.
+- A supervisor agent that coordinates specialist agents which agree (or escalate) before an
+  answer ships, with consensus measured to beat single-pass, not assumed.
 - A human hand-off that visibly makes the system better (the flywheel), not just a queue.
 - Runs free locally, a ~$0 hosted demo that idles to zero, portable to Databricks/AWS by
   adapter swap only.

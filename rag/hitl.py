@@ -32,6 +32,10 @@ class ReviewQueue:
                 "route TEXT, status TEXT NOT NULL DEFAULT 'open', answer TEXT, answered_by TEXT, "
                 "created_at REAL, claimed_at REAL, resolved_at REAL)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_rq_status ON review_queue(status)")
+            # watermark of the last resolved item the flywheel processed, per domain, so a run
+            # only re-indexes newly closed items instead of the whole history
+            conn.execute("CREATE TABLE IF NOT EXISTS flywheel_state ("
+                         "domain TEXT PRIMARY KEY, last_resolved_at REAL NOT NULL)")
             conn.commit()
 
     def _conn(self):
@@ -130,16 +134,34 @@ class ReviewQueue:
                 "answered_by": answered_by, "ts": stamp, "source": "hitl"})
         return True
 
-    def closed_since(self, ts: float = 0.0) -> list[dict]:
+    def closed_since(self, ts: float = 0.0, domain: str | None = None) -> list[dict]:
         """Resolved items for the flywheel to re-index, straight from the durable rows so it does
-        not depend on the verified JSONL cache."""
+        not depend on the verified JSONL cache. Filtered to one domain when given, so a shared
+        queue does not cross-contaminate domains."""
+        query = ("SELECT id, question, answer, domain, answered_by, resolved_at FROM review_queue "
+                 "WHERE status = 'closed' AND resolved_at >= ?")
+        params: list = [ts]
+        if domain is not None:
+            query += " AND domain = ?"
+            params.append(domain)
+        query += " ORDER BY resolved_at"
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT question, answer, domain, answered_by, resolved_at FROM review_queue "
-                "WHERE status = 'closed' AND resolved_at >= ? ORDER BY resolved_at",
-                (ts,)).fetchall()
-        return [{"question": r[0], "answer": r[1], "domain": r[2], "answered_by": r[3],
-                 "resolved_at": r[4]} for r in rows]
+            rows = conn.execute(query, params).fetchall()
+        return [{"id": r[0], "question": r[1], "answer": r[2], "domain": r[3], "answered_by": r[4],
+                 "resolved_at": r[5]} for r in rows]
+
+    def flywheel_watermark(self, domain: str) -> float:
+        with self._conn() as conn:
+            row = conn.execute("SELECT last_resolved_at FROM flywheel_state WHERE domain = ?",
+                               (domain,)).fetchone()
+        return row[0] if row else 0.0
+
+    def advance_flywheel_watermark(self, domain: str, ts: float) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT INTO flywheel_state (domain, last_resolved_at) VALUES (?, ?) "
+                         "ON CONFLICT(domain) DO UPDATE SET last_resolved_at = ?",
+                         (domain, ts, ts))
+            conn.commit()
 
     def _append_verified(self, record: dict) -> None:
         os.makedirs(os.path.dirname(self.verified_path) or ".", exist_ok=True)

@@ -51,6 +51,18 @@ def test_closed_items_are_re_exportable_from_the_db(tmp_path):
     assert len(closed) == 1 and closed[0]["answer"] == "Settings, Data, Export."
 
 
+def test_closed_since_filters_by_domain_and_tracks_a_watermark(tmp_path):
+    queue = ReviewQueue(str(tmp_path / "rq.db"))
+    a = queue.enqueue("qa", domain="A")
+    queue.resolve(a, "answer a", "op", now=10.0)
+    b = queue.enqueue("qb", domain="B")
+    queue.resolve(b, "answer b", "op", now=20.0)
+    assert [i["domain"] for i in queue.closed_since(0.0, domain="A")] == ["A"]  # only domain A
+    assert queue.flywheel_watermark("A") == 0.0
+    queue.advance_flywheel_watermark("A", 10.0)
+    assert queue.flywheel_watermark("A") == 10.0  # persisted per domain
+
+
 def test_resolve_writes_verified_knowledge(tmp_path):
     verified = tmp_path / "verified.jsonl"
     queue = ReviewQueue(str(tmp_path / "rq.db"), verified_path=str(verified))

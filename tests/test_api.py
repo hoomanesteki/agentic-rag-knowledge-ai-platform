@@ -232,6 +232,15 @@ def test_admin_answer_unknown_item_is_404(tmp_path):
     assert resp.status_code == 404
 
 
+def test_admin_quality_requires_admin_and_returns_shape():
+    client = _client(_components())
+    assert client.get("/api/admin/quality", headers=_AUTH).status_code == 403
+    resp = client.get("/api/admin/quality", headers=_ADMIN)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "overall" in body and "by_language" in body
+
+
 def test_chat_rejects_forged_token():
     forged = "Bearer " + create_access_token("demo", "customer", "a-different-secret")
     resp = _client(_components()).post("/api/chat", json={"query": "hi"},

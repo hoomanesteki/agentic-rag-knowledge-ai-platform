@@ -10,7 +10,7 @@
 {"id": "G010", "lang": "en", "question": "Does the Flow Legging come in a petite length?", "type": "unanswerable"}
 {"id": "G011", "lang": "en", "question": "What is the capital of France?", "type": "out_of_domain"}
 {"id": "G012", "lang": "en", "question": "Can you write me a Python script to sort a list?", "type": "out_of_domain"}
-{"id": "G013", "lang": "fr", "question": "Combien coute le legging Flow?", "type": "answerable", "route": "factual", "expected_answer_contains": ["98"], "expected_entities": ["P001"]}
+{"id": "G013", "lang": "fr", "question": "Combien coute le legging Flow?", "type": "answerable", "route": "factual", "expected_answer_contains": ["98"], "expected_entities": ["P001", "P002", "P003"]}
 {"id": "G014", "lang": "fr", "question": "Est-ce que le legging Flow taille petit?", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["petit"], "expected_entities": ["P002"]}
 {"id": "G015", "lang": "fr", "question": "Quel magasin se trouve a Vancouver?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Gastown"], "expected_entities": ["ST02"]}
 {"id": "G016", "lang": "fr", "question": "Quelle est la garantie du Cloud Hoodie?", "type": "unanswerable"}

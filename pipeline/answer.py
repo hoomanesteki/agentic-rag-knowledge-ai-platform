@@ -43,6 +43,7 @@ _PRICES = {
 
 _CITE = re.compile(r"\[(\d+)\]")
 
+DEFAULT_MIN_CONFIDENCE = 0.34  # abstain unless more than a third of query content words are present
 DEFAULT_TRACE_PATH = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 
 
@@ -75,6 +76,14 @@ def overlap_confidence(query: str, contexts: list[dict]) -> float:
     return len(q & ctx) / len(q)
 
 
+def should_abstain(query: str, contexts: list[dict],
+                   min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> tuple[bool, float]:
+    """The confidence gate, shared by the pipeline and the eval harness so they never drift.
+    Returns (abstained, confidence)."""
+    confidence = overlap_confidence(query, contexts)
+    return (not contexts or confidence < min_confidence), confidence
+
+
 def _build_prompt(query: str, contexts: list[dict]) -> str:
     # Collapse whitespace so a multi-line chunk cannot forge the prompt structure.
     blocks = "\n".join("[{}] {}".format(c["n"], " ".join(c["text"].split())) for c in contexts)
@@ -98,6 +107,14 @@ def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
     return cited or contexts  # fall back if the model cited nothing
 
 
+def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8) -> list[dict]:
+    """Hybrid retrieval used by both the answer pipeline and the eval harness."""
+    dense_q = embedder.embed([query], input_type="query")[0]
+    sparse_q = SparseEncoder().encode(query)
+    return store.hybrid_search(
+        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=top_k)
+
+
 def _write_trace(trace: dict, path: str) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
@@ -105,13 +122,10 @@ def _write_trace(trace: dict, path: str) -> None:
 
 
 def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
-                    top_k: int = 8, min_confidence: float = 0.34,
+                    top_k: int = 8, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                     trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     started = time.perf_counter()
-    dense_q = embedder.embed([query], input_type="query")[0]
-    sparse_q = SparseEncoder().encode(query)
-    hits = store.hybrid_search(
-        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=top_k)
+    hits = retrieve(query, embedder, store, top_k)
     contexts = []
     for i, h in enumerate(hits):
         payload = h.get("payload") or {}
@@ -123,7 +137,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
             "doc_type": payload.get("doc_type"),
             "source": payload.get("source"),
         })
-    confidence = overlap_confidence(query, contexts)
+    abstained, confidence = should_abstain(query, contexts, min_confidence)
     trace = {
         "ts": time.time(),
         "query": query,
@@ -131,8 +145,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
         "confidence": round(confidence, 3),
     }
 
-    # Gate: abstain unless more than a third of the query's content words are in the context.
-    if not contexts or confidence < min_confidence:
+    if abstained:
         trace.update(tier="abstain", model=None, prompt_tokens=0, completion_tokens=0,
                      cost=0.0, latency_ms=round((time.perf_counter() - started) * 1000, 1))
         _write_trace(trace, trace_path)

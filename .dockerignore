@@ -1,0 +1,29 @@
+# Keep the build context small and free of secrets and local state. Docker matches these with
+# filepath.Match (no implicit **/), so nested paths need an explicit **/ prefix.
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# secrets and local databases (never bake these into the image)
+**/.env
+**/.env.*
+**/*.db
+mlruns/
+traces/
+# NOTE: .lakehouse.duckdb is intentionally NOT excluded, so a locally-built lakehouse can be baked
+# into the image to serve governed metric answers (see docs/DEPLOY.md step 3). It is absent by
+# default, in which case metric answers are simply disabled.
+
+# the web app deploys separately (Vercel); it is not part of the API image at all
+web/
+node_modules
+
+# docs and scratch
+*.md
+docs/
+scratchpad/

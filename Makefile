@@ -74,4 +74,7 @@ drift: ## Report drift across the four monitors from recent traffic
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse graph-load ingest ask eval ablation mlflow-log ragas gate drift serve
+keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
+	PYTHONPATH=. uv run python -m scripts.keepalive
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive

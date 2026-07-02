@@ -1,8 +1,12 @@
 """M3.1/M3.3 API: streaming chat, degraded mode, rate limiting, feedback, and auth (offline)."""
+import contextlib
 import json
+import os
 
+import pytest
 from fastapi.testclient import TestClient
 
+from adapters import config
 from adapters.config import get_settings
 from adapters.factory import make_embedder, make_store
 from adapters.fakes import EchoLLM
@@ -315,3 +319,84 @@ def test_feedback_requires_auth_and_records(tmp_path, monkeypatch):
     assert client.post("/api/feedback", json=payload).status_code == 401
     assert client.post("/api/feedback", json=payload, headers=_AUTH).status_code == 200
     assert (tmp_path / "fb.jsonl").read_text().strip()
+
+
+@contextlib.contextmanager
+def _env(**overrides):
+    # Settings are lru_cached, so set the env, clear the cache, and (critically) restore the env
+    # BEFORE the final clear so no later test inherits these settings.
+    saved = {k: os.environ.get(k) for k in overrides}
+    os.environ.update({k: v for k, v in overrides.items()})
+    config.get_settings.cache_clear()
+    try:
+        yield
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        config.get_settings.cache_clear()
+
+
+# A real production secret: not a placeholder and at least 32 characters.
+_STRONG_SECRET = "a-long-random-production-jwt-secret-0123456789"
+# Explicit non-default credentials so the production credential gate does not fire on these tests.
+_REAL_CREDS = {"ADMIN_PASSWORD": "a-real-admin-password", "DEMO_PASSWORD": "a-real-demo-password"}
+
+
+def test_production_refuses_insecure_jwt_secret():
+    # A public deploy with a forgeable admin token must fail to boot, not just warn.
+    with _env(SKEIN_ENV="production", JWT_SECRET="dev-insecure-change-me",
+              TURNSTILE_SECRET_KEY="a-secret", **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            create_app()
+
+
+def test_production_refuses_the_shipped_placeholder_secret():
+    # The .env.example value is 33 chars, so the length check alone misses it; it is denylisted.
+    with _env(SKEIN_ENV="production", JWT_SECRET="change-me-to-a-long-random-string",
+              TURNSTILE_SECRET_KEY="a-secret", **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            create_app()
+
+
+def test_production_refuses_short_secret():
+    with _env(SKEIN_ENV="production", JWT_SECRET="too-short", TURNSTILE_SECRET_KEY="a-secret",
+              **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            create_app()
+
+
+def test_production_refuses_missing_turnstile():
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="",
+              **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="TURNSTILE"):
+            create_app()
+
+
+def test_production_refuses_default_admin_password():
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
+              ADMIN_PASSWORD="skein-admin-2026", DEMO_PASSWORD="a-real-demo-password"):
+        with pytest.raises(RuntimeError, match="ADMIN_PASSWORD"):
+            create_app()
+
+
+def test_production_boots_with_real_secret_and_captcha(tmp_path):
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
+              **_REAL_CREDS):
+        app = create_app(auth_db_path=str(tmp_path / "auth.db"))
+        assert TestClient(app).get("/health").json()["status"] == "ok"
+
+
+def test_demo_readonly_blocks_mutations_but_not_reads(tmp_path):
+    with _env(DEMO_READONLY="true"):
+        client, _queue, ids = _queue_client(tmp_path, "what is the SLA?")
+        # reads still work
+        assert client.get("/api/admin/queue", headers=_ADMIN).status_code == 200
+        # every mutating admin endpoint is refused, even for a real admin token
+        assert client.post("/api/admin/flywheel", headers=_ADMIN).status_code == 403
+        assert client.post("/api/admin/queue/{}/claim".format(ids[0]),
+                           headers=_ADMIN).status_code == 403
+        assert client.post("/api/admin/queue/{}/answer".format(ids[0]),
+                           json={"answer": "x"}, headers=_ADMIN).status_code == 403

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { useTurnstile } from "../turnstile";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Item = {
@@ -12,11 +14,62 @@ type Item = {
   status: string;
 };
 
+// The login lives in its own component so it mounts together with the Turnstile widget div. If the
+// hook ran on a parent that first renders null (the mounted gate), its one-shot effect would fire
+// against a missing ref and the widget would never appear, making production admin login impossible.
+function AdminLogin({ onToken }: { onToken: (t: string) => void }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { token: captchaToken, widget: captchaWidget, reset: resetCaptcha } = useTurnstile();
+
+  async function login(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, turnstile_token: captchaToken || undefined }),
+      });
+      if (res.status === 403) {
+        setError("Captcha check failed. Please try again.");
+        resetCaptcha();
+        return;
+      }
+      if (!res.ok) {
+        setError("Login failed.");
+        resetCaptcha(); // the captcha token was consumed; the retry needs a fresh one
+        return;
+      }
+      onToken((await res.json()).access_token);
+    } catch {
+      setError("Could not reach the server.");
+    }
+  }
+
+  return (
+    <main className="admin">
+      <h1>Review queue</h1>
+      <form onSubmit={login} className="login">
+        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
+        />
+        {captchaWidget}
+        <button type="submit">Sign in</button>
+        {error && <p className="error">{error}</p>}
+      </form>
+    </main>
+  );
+}
+
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -50,19 +103,7 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function login(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const res = await fetch(`${API_BASE}/api/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      setError("Login failed.");
-      return;
-    }
-    const t = (await res.json()).access_token;
+  function onToken(t: string) {
     localStorage.setItem("skein_admin_token", t);
     setToken(t);
   }
@@ -100,24 +141,7 @@ export default function AdminPage() {
 
   if (!mounted) return null;
 
-  if (!token) {
-    return (
-      <main className="admin">
-        <h1>Review queue</h1>
-        <form onSubmit={login} className="login">
-          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="password"
-          />
-          <button type="submit">Sign in</button>
-          {error && <p className="error">{error}</p>}
-        </form>
-      </main>
-    );
-  }
+  if (!token) return <AdminLogin onToken={onToken} />;
 
   return (
     <main className="admin">

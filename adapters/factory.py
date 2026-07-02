@@ -1,12 +1,12 @@
 """Choose adapter implementations from config.
 
-Defaults to the offline fakes so the app runs with no API keys. Real providers (voyage,
-groq, qdrant) get wired in at M1.2 and M1.3 and raise a clear message until then.
+Defaults to offline fakes so the app runs with no API keys. Real providers (voyage, qdrant,
+groq) are config swaps, not code changes.
 """
 from __future__ import annotations
 
 from . import fakes
-from .base import Embedder, LLMClient, VectorStore
+from .base import Embedder, HybridStore, LLMClient, VectorStore
 from .config import get_settings
 
 
@@ -30,11 +30,23 @@ def make_llm(provider: str | None = None) -> LLMClient:
     raise ValueError("unknown LLM_PROVIDER: {}".format(provider))
 
 
+def make_store(provider: str | None = None, collection: str | None = None) -> HybridStore:
+    """The hybrid (dense + sparse) store. Offline uses an in-memory fake, real uses Qdrant."""
+    provider = provider or get_settings().vector_provider
+    if provider in ("memory", "fake", ""):
+        return fakes.InMemoryHybridStore()
+    if provider == "qdrant":
+        if not collection:
+            raise ValueError("make_store('qdrant') needs a collection name")
+        from .qdrant_store import QdrantStore
+        return QdrantStore(collection=collection)
+    raise ValueError("unknown vector provider: {}".format(provider))
+
+
 def make_vector_store(provider: str | None = None) -> VectorStore:
+    """Simple dense-only store (offline fake). For hybrid retrieval use make_store."""
     provider = provider or "memory"
     if provider in ("memory", "fake", ""):
         return fakes.InMemoryVectorStore()
-    if provider == "qdrant":
-        raise NotImplementedError(
-            "qdrant store arrives at M1.2; use the in-memory store to run offline")
-    raise ValueError("unknown vector store: {}".format(provider))
+    raise ValueError(
+        "unknown vector store: {} (use make_store for the qdrant hybrid path)".format(provider))

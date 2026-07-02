@@ -22,6 +22,9 @@ jobs:
       - name: Run checks (lint, tests, domain validation, leak check)
         run: make check
 
+      - name: Eval gate (blocks a retrieval/abstain regression on recorded fixtures)
+        run: make gate
+
   web:
     runs-on: ubuntu-latest
     defaults:

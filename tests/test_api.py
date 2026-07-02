@@ -232,6 +232,14 @@ def test_admin_answer_unknown_item_is_404(tmp_path):
     assert resp.status_code == 404
 
 
+def test_admin_answer_rejects_blank(tmp_path):
+    client, _queue, ids = _queue_client(tmp_path, "what is the SLA?")
+    _claim(client, ids[0])
+    resp = client.post("/api/admin/queue/{}/answer".format(ids[0]),
+                       json={"answer": "   "}, headers=_ADMIN)
+    assert resp.status_code == 400  # a blank answer must not silently close the item
+
+
 def test_admin_quality_requires_admin_and_returns_shape():
     client = _client(_components())
     assert client.get("/api/admin/quality", headers=_AUTH).status_code == 403

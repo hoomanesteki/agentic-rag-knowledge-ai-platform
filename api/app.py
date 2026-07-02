@@ -233,8 +233,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         # only items for this domain, resolved since the last run, so re-embedding is not repeated
         items = queue.closed_since(queue.flywheel_watermark(domain), domain=domain)
         indexed = reindex_verified(items, comp["embedder"], comp["store"])
-        eval_path = (os.path.join("domains", domain, "eval", "verified.jsonl")
-                     if domain else "traces/verified_eval.jsonl")
+        # a growing eval set under traces/ (gitignored), never written into a git-tracked pack
+        eval_path = "traces/verified_eval_{}.jsonl".format(domain or "default")
         grown = grow_verified_eval(items, eval_path)
         if items:
             queue.advance_flywheel_watermark(domain, max(it["resolved_at"] for it in items))
@@ -262,6 +262,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def admin_answer(item_id: str, body: AnswerRequest, comp: dict = Depends(get_components),
                      user: dict = Depends(require_admin)):
         queue = comp["review_queue"]
+        if not body.answer.strip():
+            raise HTTPException(status_code=400, detail="answer is required")
         if queue.get(item_id) is None:
             raise HTTPException(status_code=404, detail="no such item")
         if not queue.resolve(item_id, body.answer, user["username"]):

@@ -22,12 +22,12 @@ def test_all_four_metrics_when_inputs_present():
                       "context_precision": 1.0, "context_recall": 0.8}
 
 
-def test_abstention_skips_faithfulness():
+def test_abstention_skips_faithfulness_and_relevance():
     item = {"question": "q", "answer": "I do not have enough information", "contexts": ["c"],
             "abstained": True}
     scores = ragas_scores(item, FixedJudge("0.9"))
-    assert scores["faithfulness"] is None            # no claims to be faithful about
-    assert scores["answer_relevance"] == 0.9         # relevance still applies
+    # an abstention has no claims and does not "address" the question, so both are not applicable
+    assert scores["faithfulness"] is None and scores["answer_relevance"] is None
 
 
 def test_irrelevant_chunks_score_zero_precision():

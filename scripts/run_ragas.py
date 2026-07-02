@@ -30,10 +30,9 @@ def main() -> int:
     store = make_store(collection=collection_name(settings.domain, settings.embed_model))
 
     # an independent judge (canonical RAGAS): set JUDGE_MODEL, else the app LLM judges itself
-    judge_model = os.getenv("JUDGE_MODEL")
-    if judge_model and settings.llm_provider == "groq":
+    if settings.judge_model and settings.llm_provider == "groq":
         from adapters.groq import GroqClient
-        judge = GroqClient(model=judge_model)
+        judge = GroqClient(model=settings.judge_model)
     else:
         judge = llm
         print("note: the judge is the app LLM (set JUDGE_MODEL for an independent judge)",

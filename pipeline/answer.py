@@ -19,7 +19,9 @@ import uuid
 from dataclasses import dataclass, field
 
 from adapters.base import Embedder, HybridStore, LLMClient, Reranker
+from data.metrics import MetricResolver
 from pipeline.sanitize import sanitize_context
+from retrieval.metric_router import metric_context, route_metric
 from retrieval.sparse import SparseEncoder, tokenize
 
 _STOPWORDS = {
@@ -165,6 +167,21 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     return reordered[:top_k]
 
 
+def with_metric_evidence(query: str, contexts: list[dict], llm: LLMClient,
+                         metric_resolver: MetricResolver | None) -> tuple[list[dict], bool]:
+    """Prepend a governed metric block (if the query maps to one) and renumber. Metric evidence
+    is authoritative, so the caller treats its presence as high confidence (no abstain)."""
+    if metric_resolver is None:
+        return contexts, False
+    result = route_metric(query, llm, metric_resolver)
+    if result is None:
+        return contexts, False
+    combined = [metric_context(result)] + contexts
+    for i, c in enumerate(combined):
+        c["n"] = i + 1
+    return combined, True
+
+
 def build_contexts(hits: list[dict]) -> list[dict]:
     contexts = []
     for i, h in enumerate(hits):
@@ -187,17 +204,22 @@ def write_trace(trace: dict, path: str) -> None:
 
 
 def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
-                    reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
+                    reranker: Reranker | None = None, metric_resolver: MetricResolver | None = None,
+                    top_k: int = 8, top_k_in: int = 50,
                     min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                     trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     started = time.perf_counter()
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
-    contexts = build_contexts(hits)
+    contexts, has_metric = with_metric_evidence(
+        query, build_contexts(hits), llm, metric_resolver)
     abstained, confidence = should_abstain(query, contexts, min_confidence)
+    if has_metric:
+        abstained = False  # a governed metric number is authoritative evidence
     trace = {
         "ts": time.time(),
         "query": query,
         "reranked": reranker is not None,
+        "metric": has_metric,
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }
@@ -228,7 +250,8 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
 
 
 def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
-                  reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
+                  reranker: Reranker | None = None, metric_resolver: MetricResolver | None = None,
+                  top_k: int = 8, top_k_in: int = 50,
                   min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
@@ -238,13 +261,17 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     started = time.perf_counter()
     message_id = message_id or uuid.uuid4().hex
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
-    contexts = build_contexts(hits)
+    contexts, has_metric = with_metric_evidence(
+        query, build_contexts(hits), llm, metric_resolver)
     abstained, confidence = should_abstain(query, contexts, min_confidence)
+    if has_metric:
+        abstained = False  # a governed metric number is authoritative evidence
     trace = {
         "ts": time.time(),
         "message_id": message_id,
         "query": query,
         "reranked": reranker is not None,
+        "metric": has_metric,
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }

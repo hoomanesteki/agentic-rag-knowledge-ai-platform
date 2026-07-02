@@ -22,7 +22,10 @@ _SCALAR = (str, int, float, bool)
 
 
 def load_metrics(pack: str) -> dict:
-    with open(os.path.join(pack, "metrics.yaml"), encoding="utf-8") as f:
+    path = os.path.join(pack, "metrics.yaml")
+    if not os.path.isfile(path):
+        return {}  # a domain may ship no metrics; chat still works vector-only
+    with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     return {m["name"]: m for m in (data.get("metrics", []) or [])}
 

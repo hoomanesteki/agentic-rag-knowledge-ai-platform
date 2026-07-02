@@ -1,0 +1,81 @@
+# Domain pack: a fictional athletic apparel ecommerce brand. Synthetic data only.
+# The engine reads only this pack. Nothing here should appear in engine code.
+
+name: apparel_ecommerce
+brand: Aster Athletics
+languages: [en, fr]
+
+# Terms the understand step normalizes before retrieval.
+glossary:
+  belt bag: [waist bag, fanny pack]
+  legging: [tights, leggings]
+  hoodie: [sweatshirt, hooded top]
+
+# Canonical node labels. Every one also appears in ontology.cypher.
+entity_types:
+  - Product
+  - Store
+  - Supplier
+  - Review
+
+# The manifest. This is what makes ingestion domain agnostic.
+sources:
+  structured:
+    - file: seed/structured/products.csv
+      role: products
+      primary_key: product_id
+      grain: one row per product variant (name plus size)
+      columns:
+        product_id: string
+        name: string
+        category: string
+        size: string
+        price: float
+        supplier_id: string
+      pii_columns: []
+    - file: seed/structured/stores.csv
+      role: stores
+      primary_key: store_id
+      grain: one row per store
+      columns:
+        store_id: string
+        name: string
+        city: string
+        country: string
+      pii_columns: []
+    - file: seed/structured/suppliers.csv
+      role: suppliers
+      primary_key: supplier_id
+      grain: one row per supplier
+      columns:
+        supplier_id: string
+        name: string
+        country: string
+        material: string
+      pii_columns: []
+    - file: seed/structured/sales.csv
+      role: sales
+      primary_key: sale_id
+      grain: one row per sale line
+      columns:
+        sale_id: string
+        product_id: string
+        store_id: string
+        quantity: int
+        returned: bool
+        sold_at: date
+      pii_columns: []
+  unstructured:
+    - file: seed/unstructured/reviews.jsonl
+      doc_type: review
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [product_id, rating, date]
+      entity_ref: [product_id]
+
+defaults:
+  top_k_in: 50
+  top_n_out: 8
+  confidence_high: 0.7
+  confidence_low: 0.4

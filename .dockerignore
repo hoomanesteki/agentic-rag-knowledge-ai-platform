@@ -1,27 +1,24 @@
-# Keep the build context small and free of secrets and local state.
+# Keep the build context small and free of secrets and local state. Docker matches these with
+# filepath.Match (no implicit **/), so nested paths need an explicit **/ prefix.
 .git
 .github
 .venv
-__pycache__
-*.pyc
+**/__pycache__
+**/*.pyc
 .pytest_cache
 .ruff_cache
 .mypy_cache
 
 # secrets and local databases (never bake these into the image)
-.env
-.env.*
-!.env.example
-*.db
-.auth.db
-.review_queue.db
+**/.env
+**/.env.*
+**/*.db
 .lakehouse.duckdb
 mlruns/
 traces/
 
-# the web app deploys separately (Vercel); it is not part of the API image
-web/node_modules
-web/.next
+# the web app deploys separately (Vercel); it is not part of the API image at all
+web/
 node_modules
 
 # docs and scratch

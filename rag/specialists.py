@@ -58,15 +58,22 @@ def _cite(contexts: list) -> list:
 
 
 def retriever_finding(query: str, *, embedder, store, llm, reranker=None, top_k: int = 8,
-                      top_k_in: int = 50,
-                      min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> Finding:
-    """Hybrid text retrieval, self-scored by lexical overlap and answer grounding."""
+                      top_k_in: int = 50, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+                      generate_answer: bool = True) -> Finding:
+    """Hybrid text retrieval, self-scored by lexical overlap and answer grounding. With
+    generate_answer=False it returns evidence and confidence but no answer (no LLM call), so the
+    supervisor can synthesize once from all specialists instead of paying for a per-specialist
+    answer plus a synthesis."""
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
     contexts = build_contexts(hits)
     if not contexts:
         return Finding("retriever", "text", found=False)
     abstained, confidence = should_abstain(query, contexts, min_confidence)
     confidence = round(confidence, 3)
+    if not generate_answer:
+        # evidence only: report whether it is strong (abstained) without producing an answer
+        return Finding("retriever", "text", found=True, abstained=abstained,
+                       confidence=confidence, contexts=contexts)
     if abstained or llm is None:
         # found context but did not answer (gated, or no model); leave it to the supervisor
         return Finding("retriever", "text", found=True, abstained=True, confidence=confidence,

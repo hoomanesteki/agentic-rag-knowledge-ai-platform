@@ -22,6 +22,11 @@ class ChatState(TypedDict, total=False):
     has_graph: bool
     graph_auth: bool           # a query-named graph entity (authoritative)
 
+    # supervisor (M6.3)
+    findings: list             # the specialists' Finding objects
+    specialists: list          # which specialists contributed
+    conflict: bool             # a governed number disagrees with a text number
+
     # gate + answer
     abstained: bool
     confidence: float

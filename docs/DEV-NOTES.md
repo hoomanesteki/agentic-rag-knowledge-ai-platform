@@ -129,6 +129,29 @@ Known follow-ups (not blocking M5):
 - Entity linking calls the LLM per doc at build time. Fine for these packs; batch and cache by
   text if a corpus grows.
 
+## M6 the brain (supervisor and consensus)
+
+The chat graph (M6.1, `rag/graph.py`, `run_chat`) is the single-pass brain and stays the default
+answer path. The supervisor (M6.3, `rag/supervisor.py`, `run_supervised`) dispatches to the
+specialists and reconciles their findings; it is available and tested but is NOT wired as the
+default yet, on purpose. The rule is that consensus ships as default only if it beats single-pass.
+
+Deciding that is an answer-quality comparison, not a retrieval one: `make eval` scores recall and
+the abstain gate, which the supervisor does not change. The real measurement is RAGAS answer
+faithfulness and correctness (M8) run once through `run_chat` and once through `run_supervised` on
+the golden set, plus the planted-conflict set where a governed metric and a review disagree; the
+supervised path should win or tie while resolving the conflict to the governed number. The
+mechanism is already proven by the M6.3 tests (two specialists agree, a planted conflict is
+flagged and resolved, a wrong-but-cited synthesis falls back to the governed value). Until the M8
+comparison, the supervisor ships behind the call site, not as the default answer path.
+
+`detect_conflict` is a numeric heuristic: it only flags a governed number disagreeing with a
+number in a review chunk that shares a content word with the metric subject, so incidental numbers
+(sizes, ids, shipping windows) do not fire. The flag never changes the answer by itself. Evidence
+rank plus a post-synthesis check do: if the model answers with a non-governed number under a
+conflict, the reconciler ships the governed evidence and marks the conflict unresolved (which M6.4
+turns into an escalation). A real semantic judge is an M6.4 concern.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

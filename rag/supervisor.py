@@ -45,10 +45,19 @@ _SYNTH_SYSTEM = (
 )
 
 _NUM = re.compile(r"\d+(?:\.\d+)?")
+_CITE_MARK = re.compile(r"\[\d+\]")
 
 
 def _numbers(text: str) -> set[str]:
-    return set(_NUM.findall(text or ""))
+    """Numbers in the text, normalized to a canonical float form and with citation markers
+    stripped, so 0.50 == 0.5 and a [1] marker never contributes a spurious 1."""
+    out: set[str] = set()
+    for token in _NUM.findall(_CITE_MARK.sub(" ", text or "")):
+        try:
+            out.add(repr(float(token)))
+        except ValueError:
+            pass
+    return out
 
 
 def dispatch(query: str, components: dict, *,

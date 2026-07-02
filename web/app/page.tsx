@@ -158,12 +158,33 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
   );
 }
 
+type SpeechRecognitionEventLike = {
+  results: { [i: number]: { [j: number]: { transcript: string } } };
+};
+type SpeechRecognitionLike = {
+  lang: string;
+  onresult: (e: SpeechRecognitionEventLike) => void;
+  onerror: () => void;
+  start: () => void;
+};
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1] || "");
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState("");
   const [final, setFinal] = useState<FinalEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -232,6 +253,79 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
     }
   }
 
+  function speechFallback() {
+    // browser live speech recognition, the fallback when MediaRecorder or the server STT is down
+    const SR =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike })
+        .webkitSpeechRecognition;
+    if (!SR) {
+      setAnswer("Voice input is not available in this browser. Please type your question.");
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.onresult = (e: SpeechRecognitionEventLike) => setQuery(e.results[0][0].transcript);
+    rec.onerror = () => setAnswer("Could not capture voice. Please type your question.");
+    rec.start();
+  }
+
+  async function toggleMic() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.mediaDevices ||
+        typeof MediaRecorder === "undefined") {
+      speechFallback(); // no MediaRecorder: use live Web Speech instead
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setAnswer("Microphone unavailable or permission denied.");
+      return;
+    }
+    try {
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        recorderRef.current = null;
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        try {
+          const res = await fetch(`${API_BASE}/api/transcribe`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({ audio_base64: await blobToBase64(blob), mime: blob.type }),
+          });
+          if (res.ok) setQuery((await res.json()).text);
+          else speechFallback(); // server STT down: fall back to live Web Speech
+        } catch {
+          speechFallback();
+        }
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      stream.getTracks().forEach((t) => t.stop()); // do not leave the mic hot
+      speechFallback();
+    }
+  }
+
+  function speak() {
+    const text = final?.answer ?? answer;
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (text && synth) {
+      synth.cancel();
+      synth.speak(new SpeechSynthesisUtterance(text));
+    }
+  }
+
   async function sendFeedback(verdict: "up" | "down") {
     if (!final?.message_id) return;
     setFeedback(verdict);
@@ -257,6 +351,14 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
           placeholder="What do customers say about sizing?"
           aria-label="Your question"
         />
+        <button
+          type="button"
+          className={recording ? "mic recording" : "mic"}
+          onClick={toggleMic}
+          aria-label={recording ? "Stop recording" : "Ask by voice"}
+        >
+          {recording ? "Stop" : "Mic"}
+        </button>
         <button type="submit" disabled={loading}>
           {loading ? "..." : "Ask"}
         </button>
@@ -265,6 +367,9 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
       {shown && (
         <div className="answer" aria-live="polite">
           {shown}
+          <button type="button" className="speak" onClick={speak} aria-label="Read the answer aloud">
+            Speak
+          </button>
         </div>
       )}
 

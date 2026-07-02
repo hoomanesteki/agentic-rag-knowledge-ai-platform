@@ -28,7 +28,9 @@ def _components(llm=None):
         {**d, "dense": dv, "sparse": {"indices": sv.indices, "values": sv.values}}
         for d, dv, sv in zip(docs, dense, [encoder.encode(d["text"]) for d in docs])
     ])
-    return {"embedder": embedder, "store": store, "llm": llm or EchoLLM(), "reranker": None}
+    from adapters.fakes import FakeTranscriber
+    return {"embedder": embedder, "store": store, "llm": llm or EchoLLM(), "reranker": None,
+            "transcriber": FakeTranscriber()}
 
 
 def _client(components, rate_limit="100/minute", auth_db_path=None, chat_brain=None):
@@ -273,6 +275,21 @@ def test_admin_flywheel_reindexes_a_resolved_answer(tmp_path):
     assert resp.status_code == 200
     body = resp.json()
     assert body["closed_items"] == 1 and body["indexed"] == 1 and "threshold" in body
+
+
+def test_transcribe_returns_text():
+    import base64
+    client = _client(_components())
+    audio = base64.b64encode(b"fake audio bytes").decode()
+    resp = client.post("/api/transcribe", json={"audio_base64": audio}, headers=_AUTH)
+    assert resp.status_code == 200 and resp.json()["text"] == "offline transcription"
+
+
+def test_transcribe_requires_auth_and_rejects_bad_audio():
+    client = _client(_components())
+    assert client.post("/api/transcribe", json={"audio_base64": "AAAA"}).status_code == 401
+    resp = client.post("/api/transcribe", json={"audio_base64": "not base64 %%%"}, headers=_AUTH)
+    assert resp.status_code == 400  # invalid base64
 
 
 def test_chat_rejects_forged_token():

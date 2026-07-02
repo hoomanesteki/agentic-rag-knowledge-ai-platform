@@ -7,7 +7,14 @@ import os
 from functools import lru_cache
 
 from adapters.config import get_settings
-from adapters.factory import make_embedder, make_graph, make_llm, make_reranker, make_store
+from adapters.factory import (
+    make_embedder,
+    make_graph,
+    make_llm,
+    make_reranker,
+    make_store,
+    make_transcriber,
+)
 from api.resilience import ResilientEmbedder
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
@@ -43,6 +50,7 @@ def get_components() -> dict:
         "reranker": make_reranker(),
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),
         "graph_retriever": _build_graph_retriever(settings.domain),
+        "transcriber": make_transcriber(),
         "review_queue": ReviewQueue(
             settings.review_queue_db,
             verified_path=os.getenv("VERIFIED_PATH", "traces/verified_answers.jsonl")),

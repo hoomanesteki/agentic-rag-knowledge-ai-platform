@@ -1,0 +1,5 @@
+{"id": "G001", "lang": "en", "question": "REPLACE with a factual question your data can answer", "type": "answerable", "route": "factual", "expected_answer_contains": ["term"], "expected_entities": ["P001"]}
+{"id": "G002", "lang": "en", "question": "REPLACE with a relational question needing the graph", "type": "answerable", "route": "relational", "expected_entities": ["P001"]}
+{"id": "G003", "lang": "en", "question": "REPLACE with a qualitative question answered from reviews", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["term"]}
+{"id": "G004", "lang": "en", "question": "REPLACE with an in-scope question the data does not cover", "type": "unanswerable"}
+{"id": "G005", "lang": "en", "question": "REPLACE with a question about an unrelated topic", "type": "out_of_domain"}

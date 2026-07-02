@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import math
 
-from .base import Chunk, LLMResult
+from .base import Chunk, GraphNeighbor, GraphNode, LLMResult
 
 _RRF_K = 60
 
@@ -129,6 +129,77 @@ class LexicalReranker:
         scored = [(i, float(len(q & set(doc.lower().split())))) for i, doc in enumerate(documents)]
         scored.sort(key=lambda pair: pair[1], reverse=True)
         return scored[:top_n]
+
+
+class InMemoryGraphStore:
+    """Offline GraphStore: nodes in a dict, edges in a list, traversals in Python. Mirrors the
+    Neo4j impl's behavior so the loader and retriever are tested without a database."""
+
+    def __init__(self) -> None:
+        self._nodes: dict[tuple[str, str], GraphNode] = {}
+        self._edges: list[tuple[str, tuple[str, str], tuple[str, str]]] = []
+        self._edge_sigs: set[tuple] = set()     # dedup across calls, like Neo4j MERGE
+        self._label_keys: dict[str, str] = {}   # label -> its key property, to fill neighbor ids
+
+    def reset(self) -> None:
+        self._nodes.clear()
+        self._edges.clear()
+        self._edge_sigs.clear()
+        self._label_keys.clear()
+
+    def apply_schema(self, statements: list[str]) -> None:
+        pass  # uniqueness constraints are a real-database concern; the dict store is exact
+
+    def upsert_nodes(self, label: str, key: str, rows: list[dict]) -> int:
+        self._label_keys[label] = key
+        for row in rows:
+            node_id = str(row[key])
+            self._nodes[(label, node_id)] = GraphNode(
+                label=label, key=key, id=node_id, properties=dict(row))
+        return len(rows)
+
+    def upsert_edges(self, edge_type: str, from_label: str, from_key: str,
+                     to_label: str, to_key: str, pairs: list[tuple[str, str]]) -> int:
+        added = 0
+        for from_id, to_id in pairs:
+            sig = (edge_type, from_label, str(from_id), to_label, str(to_id))
+            if sig in self._edge_sigs:
+                continue
+            self._edge_sigs.add(sig)
+            self._edges.append(
+                (edge_type, (from_label, str(from_id)), (to_label, str(to_id))))
+            added += 1
+        return added
+
+    def get_node(self, label: str, key: str, value: str) -> GraphNode | None:
+        # mirror Neo4j: matching on a key this label was not loaded with finds nothing
+        if label in self._label_keys and self._label_keys[label] != key:
+            return None
+        return self._nodes.get((label, str(value)))
+
+    def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
+                  direction: str = "both", to_label: str | None = None,
+                  limit: int = 50) -> list[GraphNeighbor]:
+        anchor = (label, str(value))
+        out: list[GraphNeighbor] = []
+        for etype, src, dst in self._edges:
+            if edge_type and etype != edge_type:
+                continue
+            if src == anchor and direction in ("out", "both"):
+                far, seen_dir = dst, "out"
+            elif dst == anchor and direction in ("in", "both"):
+                far, seen_dir = src, "in"
+            else:
+                continue
+            if to_label and far[0] != to_label:
+                continue
+            node = self._nodes.get(far)
+            if node is None:
+                continue  # edge points at a node that was not loaded; skip it
+            out.append(GraphNeighbor(edge_type=etype, direction=seen_dir, node=node))
+            if len(out) >= limit:
+                break
+        return out
 
 
 class EchoLLM:

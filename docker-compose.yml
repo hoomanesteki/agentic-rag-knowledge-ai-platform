@@ -32,13 +32,22 @@ services:
       timeout: 3s
       retries: 10
 
-  # Added at M5 (knowledge graph):
-  # neo4j:
-  #   image: neo4j:5-community
-  #   environment:
-  #     NEO4J_AUTH: neo4j/skein_password
-  #   ports: ["7474:7474", "7687:7687"]
-  #   volumes: ["neo4j_data:/data"]
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/skein_password
+    ports:
+      - "7474:7474"   # HTTP API and browser UI (the app uses this)
+      - "7687:7687"   # bolt (for cypher-shell / drivers, not required by the app)
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      # the image ships wget; the HTTP endpoint is ready a little after the process starts
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   # Added at M8 (MLflow tracking, eval, and drift, the MLOps layer):
   # mlflow:
@@ -54,5 +63,5 @@ services:
 volumes:
   qdrant_data:
   postgres_data:
-  # neo4j_data:
+  neo4j_data:
   # mlflow_data:

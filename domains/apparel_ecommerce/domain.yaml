@@ -75,6 +75,37 @@ sources:
       entity_ref: [product_id]
       context_fields: [product_id]   # embedded with the text as a contextual prefix (M2.4)
 
+# Knowledge graph (M5): nodes come from gold tables, edges from foreign keys already in the
+# data. The engine reads this section and never hardcodes a label or relationship. Labels match
+# entity_types and ontology.cypher. `source` is a gold role; keys/properties are its columns.
+graph:
+  nodes:
+    - label: Product
+      source: products
+      key: product_id
+      properties: [name, category, size, price]
+    - label: Supplier
+      source: suppliers
+      key: supplier_id
+      properties: [name, country, material]
+    - label: Store
+      source: stores
+      key: store_id
+      properties: [name, city, country]
+  edges:
+    - type: SUPPLIES
+      from: Supplier
+      to: Product
+      source: products          # each product row carries its supplier_id
+      from_key: supplier_id
+      to_key: product_id
+    - type: SOLD_AT
+      from: Product
+      to: Store
+      source: sales             # each sale line links a product to a store
+      from_key: product_id
+      to_key: store_id
+
 defaults:
   top_k_in: 50
   top_n_out: 8

@@ -167,14 +167,22 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     return reordered[:top_k]
 
 
+def _metric_has_value(result) -> bool:
+    """A governed metric is authoritative only if it actually returned a value. An aggregate
+    over no matching rows comes back empty or as a single null (e.g. a return rate for a size
+    we do not sell), which is not grounds to answer or to suppress abstain."""
+    return any(cell is not None for row in result.rows for cell in row)
+
+
 def with_metric_evidence(query: str, contexts: list[dict], llm: LLMClient,
                          metric_resolver: MetricResolver | None) -> tuple[list[dict], bool]:
-    """Prepend a governed metric block (if the query maps to one) and renumber. Metric evidence
-    is authoritative, so the caller treats its presence as high confidence (no abstain)."""
+    """Prepend a governed metric block (if the query maps to one and it has a value) and
+    renumber. Metric evidence is authoritative, so the caller treats its presence as high
+    confidence (no abstain); a value-less result is dropped so we fall back to the normal gate."""
     if metric_resolver is None:
         return contexts, False
     result = route_metric(query, llm, metric_resolver)
-    if result is None:
+    if result is None or not _metric_has_value(result):
         return contexts, False
     combined = [metric_context(result)] + contexts
     for i, c in enumerate(combined):

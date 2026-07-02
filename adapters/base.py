@@ -61,6 +61,52 @@ class Reranker(Protocol):
                top_n: int = 8) -> list[tuple[int, float]]: ...
 
 
+@dataclass
+class GraphNode:
+    """A node in the knowledge graph: a label (Product, Supplier, ...), its primary-key
+    property name and value, and the rest of its properties."""
+
+    label: str
+    key: str
+    id: str
+    properties: dict = field(default_factory=dict)
+
+
+@dataclass
+class GraphNeighbor:
+    """A node reached from an anchor, with the edge that connected them. direction is relative
+    to the anchor: "out" means anchor -> node, "in" means node -> anchor."""
+
+    edge_type: str
+    direction: str
+    node: GraphNode
+
+
+@runtime_checkable
+class GraphStore(Protocol):
+    """A property graph the loader writes and the retriever traverses. The Neo4j impl turns
+    these typed calls into parameterized, allowlisted Cypher; the in-memory fake runs the same
+    traversals over dicts, so the retrieval code is written once and tested with no database.
+    """
+
+    def reset(self) -> None: ...
+
+    # Ontology constraints (from the pack's ontology.cypher). The fake treats them as a no-op.
+    def apply_schema(self, statements: list[str]) -> None: ...
+
+    # rows are property dicts that each include the key property; the id is row[key].
+    def upsert_nodes(self, label: str, key: str, rows: list[dict]) -> int: ...
+
+    def upsert_edges(self, edge_type: str, from_label: str, from_key: str,
+                     to_label: str, to_key: str, pairs: list[tuple[str, str]]) -> int: ...
+
+    def get_node(self, label: str, key: str, value: str) -> "GraphNode | None": ...
+
+    def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
+                  direction: str = "both", to_label: str | None = None,
+                  limit: int = 50) -> "list[GraphNeighbor]": ...
+
+
 @runtime_checkable
 class HybridStore(Protocol):
     """Dense + sparse store with reciprocal-rank fusion. Implemented by the in-memory fake

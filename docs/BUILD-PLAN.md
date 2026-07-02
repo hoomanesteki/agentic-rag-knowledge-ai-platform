@@ -214,31 +214,28 @@ Fold M1 to M5 into one state machine, then put a supervisor agent on top that co
 specialist agents which each own one evidence source and must agree before an answer ships.
 The M1 to M5 pipeline functions become the specialists' tools, so nothing earlier is rewritten.
 
-- [ ] M6.1 State, routing, multi-turn. Typed state; nodes understand (with conversation
-  history and follow-up rewriting, so "what about size S?" works), route, retrieve, fuse,
-  rerank, generate, verify, gate. Done when: all four query types answer, a follow-up resolves
-  from context, and routing accuracy is measured on the golden set. Size L.
-- [ ] M6.2 Specialist agents. Wrap the existing tools as three specialists behind one common
-  finding contract (answer text, evidence contexts, self-scored confidence, citations): a
-  Retriever (hybrid text + graph), a Metrics agent (governed numbers from M4), and a Graph
-  agent (relations from M5). Done when: each specialist answers its slice of a golden question
-  and returns a structured, self-scored finding. Size M.
-- [ ] M6.3 Supervisor and agent-to-agent consensus. The supervisor (the orchestrator, the
-  "omniagent") decomposes a query, dispatches to the relevant specialists in parallel, then a
-  reconciliation step makes them agree: a reconciler node (an LLM judge given each specialist's
-  claim plus its evidence) flags contradictions (a metric number contradicting a text claim, two
-  sources disagreeing), resolves by evidence rank (governed metric over text over model prior)
-  or by asking a specialist to revise, and commits only agreed, grounded evidence, otherwise
-  abstains or escalates. All
-  bounded by step and token caps; the fan-out fires only for multi-source questions. Done when:
-  a mixed number-and-text question is answered by two specialists agreeing, a planted conflict
-  is caught and reconciled or escalated, and consensus is shown to beat single-pass on the
-  golden set (else it ships behind a flag, not as default). Size L.
-- [ ] M6.4 Agent loop and gate. Bounded ReAct over the same specialists for the hard tail, step
-  and budget caps, the gate decides auto vs agent vs escalate, calibrated against the golden
-  set. Done when: a hard question triggers the loop and an unanswerable one escalates. Size M.
-- [ ] M6.5 HITL. Postgres review queue, LangGraph checkpointer so interrupts survive, an honest
-  "escalated" reply, admin answers and the answer is stored as gold. Done when: a low-confidence
+- [x] M6.1 State, routing, multi-turn. A typed LangGraph state machine (`rag/graph.py`,
+  `run_chat`): understand (follow-up rewrite, sanitized history, content-word guard) -> retrieve
+  -> evidence -> gate -> generate|abstain, reusing the M1-M5 functions as node bodies. A
+  deterministic route classifier measured at 100% on the golden set. Done: the query types answer,
+  a follow-up resolves, routing is measured; the ask CLI runs through the graph. Size L.
+- [x] M6.2 Specialist agents. Three specialists behind one Finding contract (`rag/specialists.py`):
+  Retriever (hybrid text, with an evidence-only mode), Metrics (governed numbers), Graph
+  (relations). found/authoritative/abstained flags, confidence and grounding kept separate, id as
+  the cross-specialist join key. Done: each answers its slice and stays quiet outside it. Size M.
+- [x] M6.3 Supervisor and agent-to-agent consensus. The orchestrator (`rag/supervisor.py`,
+  `run_supervised`) dispatches to the needed specialists, merges evidence with governed and
+  query-named facts ranked first, flags numeric conflicts against the metric subject, and
+  synthesizes one grounded answer; on conflict a post-check ships the governed value if the model
+  answered with a review number. Done: two specialists agree, a planted conflict is flagged and
+  resolved. Ships behind the call site until the M8 answer-quality comparison (DEV-NOTES). Size L.
+- [x] M6.4 Agent loop and gate. The gate (`rag/agent.py`) picks auto/agent/escalate; the agent
+  tier runs a bounded ReAct that stops on no-new-evidence and escalates at the step cap. Done: a
+  hard question runs the loop then escalates, an unanswerable one escalates with an honest
+  hand-off, an unresolved conflict escalates keeping the governed value. Size M.
+- [x] M6.5 HITL. A durable SQLite review queue (`rag/hitl.py`, Postgres at M9): escalations
+  enqueue once, an atomic claim-safe resolve closes an item, the closed row is the flywheel's
+  source of truth, and a LangGraph checkpointer persists a run's state. Done: an escalated
   question lands in the queue and a human answer closes it. Size L.
 
 ### M7. Back-office and the flywheel

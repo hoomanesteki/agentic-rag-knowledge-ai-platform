@@ -126,7 +126,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -
             try:
                 for event in stream_answer(req.query, message_id=message_id,
                                            embedder=comp["embedder"], store=comp["store"],
-                                           llm=comp["llm"], reranker=comp["reranker"]):
+                                           llm=comp["llm"], reranker=comp["reranker"],
+                                           metric_resolver=comp.get("metric_resolver")):
                     yield _sse(event)
             except RuntimeError as exc:
                 latency = round((time.perf_counter() - started) * 1000, 1)

@@ -134,11 +134,12 @@ export default function AdminPage() {
           <p className="meta">
             {it.domain} · {it.route || "unrouted"}
           </p>
-          {it.status === "open" ? (
-            <div className="row">
-              <button onClick={() => claim(it.id)}>Claim</button>
-            </div>
-          ) : (
+          <div className="row">
+            {/* Claim is always offered: on an open item it locks it, on a stale claimed one it
+                takes it over (the server rejects a live claim by someone else). */}
+            <button onClick={() => claim(it.id)}>Claim</button>
+          </div>
+          {it.status === "claimed" && (
             <>
               <textarea
                 value={answers[it.id] || ""}

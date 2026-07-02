@@ -240,19 +240,21 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
 
 ### M7. Back-office and the flywheel
 
-- [ ] M7.1 Queue UI. `/admin` queue with row lock on claim and an answer form. Done when: an
-  operator can claim and answer a queued item. Size M.
-- [ ] M7.2 Quality dashboard. Thumbs, faithfulness, escalation rate, grouped by language. Done
-  when: a thumbs-down from M3 shows up per language. Size M.
-- [ ] M7.3 Close the flywheel. HITL-approved answers are re-indexed as verified knowledge with
-  provenance and appended to the golden set; thumbs data tunes the gate threshold. Done when: a
-  human answer becomes retrievable and grows the golden set. Size M.
-- [ ] M7.4 Read-only views. Knowledge-gap list, ontology, metric, and dbt lineage viewers, plus
-  a link to MLflow. Done when: each renders from real data. Size M.
-- [ ] M7.5 Operational monitoring view. An admin page that reads the M1.3 per-request traces
-  and shows live platform health: p95 latency, throughput, error rate, cost per request, and
-  retrieval-quality trend, stratified by language. This is the continuous-monitoring surface
-  that pairs with MLflow (M8.1) and the drift monitors (M8.3). Done when: the page shows real
+- [x] M7.1 Queue UI. An admin role, `/api/admin/queue` list/claim/answer over the review queue
+  (atomic row lock with stale takeover, 404 vs 409), and an `/admin` console. Done: an operator
+  claims and answers a queued item. Admin Turnstile and JWT-default enforcement deferred to M9.3.
+- [x] M7.2 Quality dashboard. `aggregate_quality` over the traces and thumbs by language (tier
+  mix, escalation/abstain over served turns, grounding, thumbs), with lang now on every trace,
+  an admin endpoint, and a page. Done: a thumbs-down shows up per language. Size M.
+- [x] M7.3 Close the flywheel. Resolved answers become retrievable verified chunks (provenance)
+  and grow a separate verified eval set; thumbs suggest a gate threshold. Per-domain watermark so
+  a run only re-indexes new items. Done: a human answer becomes retrievable and grows eval. Size M.
+- [x] M7.4 Read-only views. Ontology, governed-metric metadata (no SQL template), medallion
+  lineage with PII flags, a knowledge-gap worklist, and an MLflow link, rendered from the manifest
+  for any domain. Done: each renders from real data (dbt lineage overlays later). Size M.
+- [x] M7.5 Operational monitoring view. `aggregate_health` over the traces: throughput (recent
+  window), p95 latency (overall and auto-only), error rate, cost per request, grounding, and a
+  retrieval-quality trend, by language, with an admin endpoint and page. Done: the page shows real
   numbers from recent traffic. Size M.
 
 ### M8. MLOps

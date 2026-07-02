@@ -221,3 +221,5 @@ __marimo__/
 traces/
 .auth.db
 *.duckdb
+.review_queue.db
+*.db

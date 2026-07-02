@@ -38,7 +38,8 @@ def test_embedder_accepts_input_type():
 
 
 def test_llm_fake_runs_offline():
-    assert make_llm("fake").complete("hello", system="be brief")
+    result = make_llm("fake").generate("hello", system="be brief")
+    assert result.text and result.model == "fake"
 
 
 def test_offline_hybrid_store_roundtrip():

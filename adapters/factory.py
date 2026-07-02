@@ -15,8 +15,8 @@ def make_embedder(provider: str | None = None) -> Embedder:
     if provider in ("fake", ""):
         return fakes.HashEmbedder()
     if provider == "voyage":
-        raise NotImplementedError(
-            "voyage embedder arrives at M1.2; set EMBED_PROVIDER=fake to run offline")
+        from .voyage import VoyageEmbedder
+        return VoyageEmbedder()
     raise ValueError("unknown EMBED_PROVIDER: {}".format(provider))
 
 

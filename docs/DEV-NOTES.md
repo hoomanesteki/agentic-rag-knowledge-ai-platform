@@ -165,6 +165,15 @@ rank plus a post-synthesis check do: if the model answers with a non-governed nu
 conflict, the reconciler ships the governed evidence and marks the conflict unresolved (which M6.4
 turns into an escalation). A real semantic judge is an M6.4 concern.
 
+## M7 back-office (admin hardening deferred to deploy)
+
+The admin queue (M7.1) works in dev. Two hardening items are deferred to M9.3 (deploy), when the
+real secrets are set: the admin login page needs the Turnstile widget the customer page already
+has (otherwise, once TURNSTILE_SECRET_KEY is set, admin login 403s), and running with the default
+JWT_SECRET must be refused in production (today it logs an error, since admin tokens are forgeable
+with the default). A stale claim (older than 15 minutes) is auto-reclaimable so an abandoned item
+never sticks.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

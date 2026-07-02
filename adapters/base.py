@@ -24,10 +24,19 @@ class Embedder(Protocol):
     def embed(self, texts: list[str], input_type: str = "document") -> list[list[float]]: ...
 
 
+@dataclass
+class LLMResult:
+    text: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    model: str = ""
+
+
 @runtime_checkable
 class LLMClient(Protocol):
-    def complete(self, prompt: str, *, system: str | None = None,
-                 max_tokens: int = 512) -> str: ...
+    # Returns text plus token usage so every request can be traced and costed.
+    def generate(self, prompt: str, *, system: str | None = None,
+                 max_tokens: int = 512) -> LLMResult: ...
 
 
 @runtime_checkable

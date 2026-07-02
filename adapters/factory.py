@@ -25,8 +25,8 @@ def make_llm(provider: str | None = None) -> LLMClient:
     if provider in ("fake", ""):
         return fakes.EchoLLM()
     if provider == "groq":
-        raise NotImplementedError(
-            "groq client arrives at M1.3; set LLM_PROVIDER=fake to run offline")
+        from .groq import GroqClient
+        return GroqClient()
     raise ValueError("unknown LLM_PROVIDER: {}".format(provider))
 
 

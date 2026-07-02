@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { useTurnstile } from "../turnstile";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Item = {
@@ -21,6 +23,7 @@ export default function AdminPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [flywheel, setFlywheel] = useState<string | null>(null);
+  const { token: captchaToken, widget: captchaWidget } = useTurnstile();
 
   useEffect(() => {
     setMounted(true);
@@ -56,8 +59,12 @@ export default function AdminPage() {
     const res = await fetch(`${API_BASE}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, turnstile_token: captchaToken || undefined }),
     });
+    if (res.status === 403) {
+      setError("Captcha check failed. Please try again.");
+      return;
+    }
     if (!res.ok) {
       setError("Login failed.");
       return;
@@ -112,6 +119,7 @@ export default function AdminPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="password"
           />
+          {captchaWidget}
           <button type="submit">Sign in</button>
           {error && <p className="error">{error}</p>}
         </form>

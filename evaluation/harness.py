@@ -63,8 +63,9 @@ def _contexts(hits: list[dict]) -> list[dict]:
 
 
 def _score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields, min_confidence,
-                     reranker) -> dict:
-    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+                     reranker, dense_only) -> dict:
+    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker,
+                    top_k_in=top_k_in, dense_only=dense_only)
     flags = _relevance_flags(hits, g["expected_entities"], entity_fields)
     abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
     return {
@@ -77,8 +78,10 @@ def _score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields, min_con
     }
 
 
-def _score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker) -> dict:
-    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+def _score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker,
+                   dense_only) -> dict:
+    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker,
+                    top_k_in=top_k_in, dense_only=dense_only)
     abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
     return {"lang": g.get("lang", "unknown"), "abstained": 1.0 if abstained else 0.0}
 
@@ -108,16 +111,18 @@ def _route_counts(items: list[dict]) -> dict:
 
 def evaluate(golden: list[dict], *, embedder: Embedder, store: HybridStore,
              entity_fields: list[str], reranker: Reranker | None = None, top_k: int = 8,
-             top_k_in: int = 50, min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> dict:
+             top_k_in: int = 50, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+             dense_only: bool = False) -> dict:
     measurable, deferred, abstain = _partition(golden)
     m_records = [_score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields,
-                                  min_confidence, reranker) for g in measurable]
-    a_records = [_score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker)
-                 for g in abstain]
+                                  min_confidence, reranker, dense_only) for g in measurable]
+    a_records = [_score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker,
+                                dense_only) for g in abstain]
     overall = _agg_retrieval(m_records)
     scorecard = {
         "top_k": top_k,
         "top_k_in": top_k_in,
+        "dense_only": dense_only,
         "reranked": reranker is not None,
         "coverage": {"measured": len(measurable), "deferred": len(deferred),
                      "deferred_by_route": _route_counts(deferred), "abstain_set": len(abstain)},

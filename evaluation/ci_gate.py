@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 
 from adapters.factory import make_embedder, make_llm, make_store
-from pipeline.answer import DEFAULT_TRACE_PATH, answer_question
+from pipeline.answer import answer_question
 from retrieval.sparse import SparseEncoder
 
 
@@ -41,16 +41,17 @@ def _judge(fixture: dict, result) -> bool:
     return False
 
 
-def run_gate(gate: dict, *, min_score: float = 1.0,
-             trace_path: str = DEFAULT_TRACE_PATH) -> dict:
+def run_gate(gate: dict, *, trace_path: str, min_score: float = 1.0) -> dict:
     """Run every fixture through the offline pipeline and score it. passed is score >= min_score;
-    the default 1.0 blocks on any single failed fixture (a real regression)."""
+    the default 1.0 blocks on any single failed fixture (a real regression). top_k is small so a
+    retrieves-fixture tests ranking, not just the abstain gate. trace_path is required so the gate
+    never writes to the real traces that feed MLflow and drift."""
     embedder, store, llm = make_embedder("fake"), make_store("memory"), make_llm("fake")
     _seed_store(gate["corpus"], embedder, store)
     results = []
     for fixture in gate["fixtures"]:
         result = answer_question(fixture["query"], embedder=embedder, store=store, llm=llm,
-                                 trace_path=trace_path)
+                                 top_k=2, trace_path=trace_path)
         results.append({"id": fixture["id"], "expect": fixture["expect"],
                         "passed": _judge(fixture, result)})
     passed = sum(1 for r in results if r["passed"])

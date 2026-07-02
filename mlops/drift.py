@@ -1,11 +1,15 @@
 """M8.3 drift monitors: compare a reference window of traffic to a current one and flag drift.
 
-Four named monitors, stratified by language:
+Four named monitors:
 - query-embedding drift: cosine distance between the reference and current query-embedding
   centroids (needs an embedder; the same one the app uses).
-- retrieval-score distribution: PSI of the top retrieval score per request.
-- confidence distribution: PSI of the gate confidence.
+- retrieval-score distribution: PSI of the top vector-hit score per request (governed metric and
+  graph blocks are excluded, since their score is a constant 1.0 that would mask a real drop).
+- confidence distribution: PSI of the lexical-overlap gate confidence, read from the same field
+  across answer paths so a change in brain or metric-traffic mix is not misread as drift.
 - feedback rate: change in the thumbs-down rate.
+
+The retrieval-score and confidence monitors are also stratified by language.
 
 Everything is derived from the traces and feedback the app already writes, so drift is measured on
 real traffic with no extra store. Trace fields are generic, so this stays domain agnostic.
@@ -77,9 +81,17 @@ def embedding_drift(ref_queries: list, cur_queries: list, embedder) -> float | N
 
 
 def _top_score(trace: dict) -> float | None:
-    retrieved = trace.get("retrieved") or []
-    scores = [r.get("score") for r in retrieved if isinstance(r.get("score"), (int, float))]
+    # top vector-hit score, excluding injected metric/graph blocks whose score is a constant 1.0
+    scores = [r.get("score") for r in (trace.get("retrieved") or [])
+              if isinstance(r.get("score"), (int, float))
+              and not str(r.get("id", "")).startswith(("metric:", "graph:"))]
     return max(scores) if scores else None
+
+
+def _gate_confidence(trace: dict):
+    # the lexical-overlap confidence, consistent across paths (the agent path also traces it as
+    # overlap_confidence; a metric/graph specialist's pinned 1.0 is not this signal)
+    return trace.get("overlap_confidence", trace.get("confidence"))
 
 
 def _down_rate(feedback: list) -> float | None:
@@ -97,7 +109,7 @@ def _numeric_monitors(reference: list, current: list) -> dict:
         "retrieval_score": _psi_monitor(
             [_top_score(t) for t in reference], [_top_score(t) for t in current], _PSI_THRESHOLD),
         "confidence": _psi_monitor(
-            [t.get("confidence") for t in reference], [t.get("confidence") for t in current],
+            [_gate_confidence(t) for t in reference], [_gate_confidence(t) for t in current],
             _PSI_THRESHOLD),
     }
 

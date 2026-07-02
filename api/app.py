@@ -25,6 +25,7 @@ from api.auth import (
 from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
+from evaluation.monitoring import aggregate_quality, read_jsonl
 from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.agent import answer_with_agent
 
@@ -146,7 +147,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                     result = answer_with_agent(
                         req.query, components=comp, history=req.history or [],
                         message_id=message_id, review_queue=comp.get("review_queue"),
-                        domain=comp.get("domain"))
+                        domain=comp.get("domain"), lang=req.lang)
                     yield _sse({"type": "token", "text": result.answer})
                     yield _sse({"type": "final", "message_id": message_id,
                                 "answer": result.answer, "tier": result.tier,
@@ -159,7 +160,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                            embedder=comp["embedder"], store=comp["store"],
                                            llm=comp["llm"], reranker=comp["reranker"],
                                            metric_resolver=comp.get("metric_resolver"),
-                                           graph_retriever=comp.get("graph_retriever")):
+                                           graph_retriever=comp.get("graph_retriever"),
+                                           lang=req.lang):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,
@@ -168,6 +170,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                 latency = round((time.perf_counter() - started) * 1000, 1)
                 transient = is_transient(exc)
                 write_trace({"ts": time.time(), "message_id": message_id, "query": req.query,
+                             "lang": req.lang,
                              "tier": "degraded" if transient else "error", "streamed": True,
                              "error": str(exc)[:200], "latency_ms": latency}, DEFAULT_TRACE_PATH)
                 if transient:
@@ -196,6 +199,12 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         with open(_FEEDBACK_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         return {"status": "recorded"}
+
+    @app.get("/api/admin/quality")
+    def admin_quality(_: dict = Depends(require_admin)):
+        traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
+        feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
+        return aggregate_quality(traces, feedback)
 
     @app.get("/api/admin/queue")
     def admin_queue(comp: dict = Depends(get_components), user: dict = Depends(require_admin)):

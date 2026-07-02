@@ -50,4 +50,7 @@ ask: ## Ask a question, e.g. make ask q="What do customers say about sizing?"
 eval: ## Score retrieval and the abstain gate against the domain golden set
 	PYTHONPATH=. uv run python scripts/run_eval.py
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask eval
+ablation: ## Write docs/eval-report.md comparing dense vs hybrid vs hybrid+rerank
+	PYTHONPATH=. uv run python scripts/run_ablation.py
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask eval ablation

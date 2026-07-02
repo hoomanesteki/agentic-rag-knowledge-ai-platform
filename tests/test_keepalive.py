@@ -18,7 +18,7 @@ def test_api_url_adds_health():
 def test_localhost_stores_are_skipped():
     env = {"KEEPALIVE_API_URL": "http://127.0.0.1:8000",
            "QDRANT_URL": "http://localhost:6333", "GRAPH_PROVIDER": "neo4j",
-           "NEO4J_URL": "http://0.0.0.0:7474"}
+           "NEO4J_URL": "http://[::1]:7474"}  # IPv6 localhost too
     assert _names(env) == []
 
 

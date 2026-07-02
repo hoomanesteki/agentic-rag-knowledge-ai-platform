@@ -37,13 +37,13 @@ What is and is not wired matters here, so it is stated plainly:
 
 ## 2. Build and deploy the API (Cloud Run)
 
-Put the production values in `env.yaml` (a flat `KEY: value` map; it is gitignored via `.env.*`
-only if named `.env.*`, so keep secrets in `env.yaml` and never commit it). Using a file avoids the
-shell-quoting traps of `--set-env-vars` when a value contains a space (JWT_SECRET) or a comma
-(ALLOWED_ORIGINS).
+Put the production values in `.env.yaml` (a flat `KEY: value` map). The `.env.` prefix matters: it
+is what `.gitignore` (`.env.*`) and `.dockerignore` (`**/.env.*`) exclude, so the secrets file
+cannot be committed or baked into the image. Using a file also avoids the shell-quoting traps of
+`--set-env-vars` when a value contains a space (JWT_SECRET) or a comma (ALLOWED_ORIGINS).
 
 ```yaml
-# env.yaml  (do not commit)
+# .env.yaml  (gitignored and dockerignored; never commit it)
 SKEIN_ENV: production            # refuses to boot without a real JWT + Turnstile secret + non-default creds
 JWT_SECRET: <a random string of at least 32 characters>
 TURNSTILE_SECRET_KEY: <cloudflare turnstile secret>
@@ -72,7 +72,7 @@ gcloud run deploy skein-api \
   --region us-central1 \
   --allow-unauthenticated \
   --min-instances 0 --max-instances 2 --concurrency 20 \
-  --env-vars-file env.yaml
+  --env-vars-file .env.yaml
 ```
 
 `--source .` uses the `Dockerfile`. `--allow-unauthenticated` is required or the public demo gets a
@@ -94,15 +94,22 @@ make ingest && make graph-load     # DOMAIN=apparel_ecommerce (or saas_support)
 ```
 
 To also serve governed **metric** answers, the DuckDB gold tables must be inside the image, because
-DuckDB is an embedded file with no hosted target. Build them and bake them in:
+DuckDB is an embedded file with no hosted target. The `.dockerignore` already allows it in; the one
+extra step is telling `gcloud --source .` to upload it (it derives its ignore list from
+`.gitignore`, which excludes `.lakehouse.duckdb`). Create a `.gcloudignore` that keeps the
+`.gitignore` defaults and un-ignores just the lakehouse:
 
 ```bash
-make lakehouse                     # writes .lakehouse.duckdb
-# add a .gcloudignore that un-ignores it (gcloud --source . uses .gitignore, which excludes it):
-printf '!.lakehouse.duckdb\n' >> .gcloudignore
+make lakehouse                     # writes .lakehouse.duckdb (synthetic seed data only)
+cat > .gcloudignore <<'EOF'
+#!include:.gitignore
+!.lakehouse.duckdb
+EOF
 ```
 
-Without this the demo runs chat + graph and logs that metric answers are disabled (`api/deps.py`).
+The `#!include:.gitignore` line preserves gcloud's default exclusions (so `.env`, `.venv`, and the
+local SQLite files are still kept out of the upload) while letting the lakehouse through. Without
+this the demo runs chat + graph and logs that metric answers are disabled (`api/deps.py`).
 
 ## 4. Deploy the web app (Vercel)
 

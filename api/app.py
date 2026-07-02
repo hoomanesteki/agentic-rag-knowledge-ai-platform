@@ -149,13 +149,14 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def client_key(request: Request) -> str:
         # request.client.host is the direct peer; behind Cloud Run that is the proxy hop, so every
         # caller would share one bucket and a single abuser would lock everyone out. In production
-        # key on the client IP from X-Forwarded-For (GCP documents the first entry as the original
-        # client). Best effort: a client can spoof its own entry, but only ever widens its own
-        # bucket, never takes someone else's. The hard cost ceiling is the Cloud Run instance cap.
+        # key on the client IP from X-Forwarded-For. Cloud Run's front end appends the verified
+        # client IP as the LAST entry and does not strip client-supplied ones, so the last entry is
+        # the trustworthy hop (the leftmost is attacker-controlled). Assumes direct run.app; a
+        # fronting load balancer adds another hop. The hard cost ceiling is the instance cap.
         if production:
-            first = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            if first:
-                return first
+            last = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+            if last:
+                return last
         return request.client.host if request.client else "anon"
 
     def current_user(authorization: str | None = Header(default=None)) -> dict:

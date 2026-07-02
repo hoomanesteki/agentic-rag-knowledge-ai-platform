@@ -1,6 +1,7 @@
 """Adapter interfaces. These are the seams the whole engine is built on."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -37,6 +38,10 @@ class LLMClient(Protocol):
     # Returns text plus token usage so every request can be traced and costed.
     def generate(self, prompt: str, *, system: str | None = None,
                  max_tokens: int = 512) -> LLMResult: ...
+
+    # Yields answer text incrementally for streaming responses.
+    def stream(self, prompt: str, *, system: str | None = None,
+               max_tokens: int = 512) -> Iterator[str]: ...
 
 
 @runtime_checkable

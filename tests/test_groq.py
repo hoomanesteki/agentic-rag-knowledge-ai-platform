@@ -1,4 +1,7 @@
 """M1.3 Groq client: HTTP mocked, so this asserts the real request shape offline."""
+import io
+import urllib.request
+
 import pytest
 
 import adapters.groq as groq_mod
@@ -30,3 +33,29 @@ def test_missing_key_raises():
     client.api_key = ""  # force empty regardless of any .env on the machine
     with pytest.raises(RuntimeError):
         client.generate("q")
+
+
+def test_stream_parses_sse(monkeypatch):
+    chunks = b"".join([
+        b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n',
+        b": keepalive comment\n",
+        b"\n",
+        b'data: {"choices":[{"delta":{"content":" [1]"}}]}\r\n',
+        b'data: {"choices":[{"delta":{}}]}\n',      # finish chunk, empty delta
+        b'data: {"choices":[]}\n',                   # usage chunk, no choices
+        b"data: [DONE]\n",
+    ])
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: io.BytesIO(chunks))
+    out = list(GroqClient(model="m", api_key="k").stream("q", system="s"))
+    assert out == ["Hello", " [1]"]
+
+
+def test_stream_normalizes_midstream_error(monkeypatch):
+    class Stalling(io.BytesIO):
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"Hi"}}]}\n'
+            raise TimeoutError("read timed out")
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: Stalling(b""))
+    with pytest.raises(RuntimeError):
+        list(GroqClient(model="m", api_key="k").stream("q"))

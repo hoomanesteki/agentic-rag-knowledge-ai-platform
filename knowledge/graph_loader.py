@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import decimal
+import math
 import os
 import re
 
@@ -28,7 +29,13 @@ def _ident(name: str, kind: str) -> str:
 
 
 def _jsonable(value):
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        return None if math.isnan(value) else value  # NaN is not valid JSON
+    if isinstance(value, (str, int)):
         return value
     if isinstance(value, decimal.Decimal):
         return float(value)  # keep numeric so M5.3 property filters compare as numbers
@@ -43,13 +50,18 @@ def _fetch_rows(con, table: str, columns: list[str], key: str) -> list[dict]:
         _ident(col, "column")
     projection = ", ".join(quote_ident(c) for c in columns)
     # Skip null keys (Neo4j MERGE rejects a null key property) and coerce the key to a string, so
-    # node ids match the string-coerced edge endpoints and query values on every backend.
+    # node ids match the string-coerced edge endpoints and query values on every backend. Drop
+    # null/NaN properties so `SET n += row` never deletes a property on Neo4j (the fake matches).
     stmt = "SELECT {} FROM {} WHERE {} IS NOT NULL".format(
         projection, quote_ident(table), quote_ident(key))
     out = []
     for row in con.execute(stmt).fetchall():
-        record = {c: _jsonable(v) for c, v in zip(columns, row)}
-        record[key] = str(record[key])
+        record = {}
+        for c, v in zip(columns, row):
+            jv = _jsonable(v)
+            if jv is not None:
+                record[c] = jv
+        record[key] = str(record[key])  # key is non-null by the WHERE, so present
         out.append(record)
     return out
 

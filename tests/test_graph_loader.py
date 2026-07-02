@@ -82,6 +82,12 @@ def test_load_graph_missing_lakehouse_raises(tmp_path):
         load_graph("apparel_ecommerce", str(tmp_path / "nope.duckdb"), make_graph("memory"))
 
 
+def test_unknown_direction_raises(tmp_path):
+    store, _ = _loaded("apparel_ecommerce", tmp_path)
+    with pytest.raises(ValueError):
+        store.neighbors("Product", "product_id", "P002", direction="sideways")
+
+
 def test_identifier_allowlist_blocks_injection():
     for bad in ["", "Product; DROP", "1abc", "a b", "a-b", "`x`", "a)-[:X]-("]:
         with pytest.raises(ValueError):

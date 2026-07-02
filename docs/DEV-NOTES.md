@@ -108,6 +108,17 @@ To record the M5.3 done-when number (does the graph help), run `make eval` twice
 index, once with `GRAPH_PROVIDER=neo4j` and once with `GRAPH_PROVIDER=memory` (graph off), and
 compare the relational-question scores. Only the real run counts; paste the delta here.
 
+Two review findings were deferred to their natural milestone on purpose:
+- A query that merely names an entity currently suppresses abstain even when the question is not
+  relational (asking an attribute the graph does not hold). A lexical guard would regress common
+  synonyms ("how much does X cost" vs a `price` property, "makes" vs `SUPPLIES`), so the honest
+  fix is intent routing at M6, where a node classifies relational vs qualitative before deciding.
+  Until then the grounded prompt still makes the model say it lacks the fact; only the tier label
+  is optimistic.
+- The metric router's per-query LLM pre-call is not counted in the trace, so an abstain trace can
+  report cost 0.0 while a small routing call happened. Fold full token accounting in at M8 when
+  the trace feeds MLflow and cost is the point.
+
 Known follow-ups (not blocking M5):
 - The retriever builds its entity name index once at construction and `get_components` caches it
   for the process, so a graph reloaded while the API runs serves stale names until restart. Add

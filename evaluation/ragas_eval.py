@@ -110,7 +110,7 @@ def ragas_scores(item: dict, judge) -> dict:
         scores["faithfulness"] = _judge(
             judge, _FAITHFULNESS,
             "<context>{}</context>\n<answer>{}</answer>".format(context_block, safe_answer))
-    if answer:
+    if answer and not item.get("abstained"):
         scores["answer_relevance"] = _judge(
             judge, _ANSWER_RELEVANCE,
             "<question>{}</question>\n<answer>{}</answer>".format(question, safe_answer))

@@ -47,5 +47,7 @@ ingest: ## Ingest the active DOMAIN into Qdrant (needs keys in .env and make up)
 ask: ## Ask a question, e.g. make ask q="What do customers say about sizing?"
 	PYTHONPATH=. uv run python scripts/ask.py
 
+eval: ## Score retrieval and the abstain gate against the domain golden set
+	PYTHONPATH=. uv run python scripts/run_eval.py
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask
+.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask eval

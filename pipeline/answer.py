@@ -17,7 +17,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from adapters.base import Embedder, HybridStore, LLMClient
+from adapters.base import Embedder, HybridStore, LLMClient, Reranker
 from retrieval.sparse import SparseEncoder, tokenize
 
 _STOPWORDS = {
@@ -107,12 +107,31 @@ def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
     return cited or contexts  # fall back if the model cited nothing
 
 
-def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8) -> list[dict]:
-    """Hybrid retrieval used by both the answer pipeline and the eval harness."""
+def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
+             reranker: Reranker | None = None, top_k_in: int = 50) -> list[dict]:
+    """Hybrid retrieval used by both the answer pipeline and the eval harness.
+
+    With a reranker, fetch a wider pool (top_k_in) then rerank down to top_k; the hit score
+    becomes the reranker score. Without one, return the hybrid top_k directly.
+    """
     dense_q = embedder.embed([query], input_type="query")[0]
     sparse_q = SparseEncoder().encode(query)
-    return store.hybrid_search(
-        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=top_k)
+    fetch = top_k_in if reranker is not None else top_k
+    hits = store.hybrid_search(
+        dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=fetch)
+    if reranker is None or not hits:
+        return hits[:top_k]
+    texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs
+    reordered = []
+    for index, score in reranker.rerank(query, texts, top_n=min(top_k, len(hits))):
+        if not 0 <= index < len(hits):
+            raise RuntimeError(
+                "reranker returned out-of-range index {} for {} hits".format(index, len(hits)))
+        hit = dict(hits[index])
+        hit["rerank_score"] = score
+        hit["score"] = score
+        reordered.append(hit)
+    return reordered[:top_k]
 
 
 def _write_trace(trace: dict, path: str) -> None:
@@ -122,10 +141,11 @@ def _write_trace(trace: dict, path: str) -> None:
 
 
 def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
-                    top_k: int = 8, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+                    reranker: Reranker | None = None, top_k: int = 8, top_k_in: int = 50,
+                    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                     trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     started = time.perf_counter()
-    hits = retrieve(query, embedder, store, top_k)
+    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
     contexts = []
     for i, h in enumerate(hits):
         payload = h.get("payload") or {}
@@ -141,6 +161,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     trace = {
         "ts": time.time(),
         "query": query,
+        "reranked": reranker is not None,
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }

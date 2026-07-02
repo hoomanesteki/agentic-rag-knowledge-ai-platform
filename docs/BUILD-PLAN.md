@@ -190,6 +190,11 @@ Fold M1 to M5 into the real state machine.
   human answer becomes retrievable and grows the golden set. Size M.
 - [ ] M7.4 Read-only views. Knowledge-gap list, ontology, metric, and dbt lineage viewers, plus
   a link to MLflow. Done when: each renders from real data. Size M.
+- [ ] M7.5 Operational monitoring view. An admin page that reads the M1.3 per-request traces
+  and shows live platform health: p95 latency, throughput, error rate, cost per request, and
+  retrieval-quality trend, stratified by language. This is the continuous-monitoring surface
+  that pairs with MLflow (M8.1) and the drift monitors (M8.3). Done when: the page shows real
+  numbers from recent traffic. Size M.
 
 ### M8. MLOps
 

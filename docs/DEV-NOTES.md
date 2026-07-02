@@ -196,6 +196,19 @@ this matters at scale. grow_verified_eval reads-then-appends, so two concurrent 
 could duplicate a row; the endpoint is admin-triggered and rare, so it is left unserialized for
 now (add a lock if it becomes automated).
 
+## M8 MLOps
+
+MLflow uses mlflow-skinny (no server/scipy/pandas) so it stays light; the sink logs the existing
+traces to a ./mlruns file store locally or the compose MLflow server via MLFLOW_TRACKING_URI.
+
+The RAGAS metrics (faithfulness, answer relevance, context precision, context recall) are computed
+through the app's LLM adapter as a judge, not the ragas package: it stays offline-testable (fake
+judge) and light on disk, and the real ragas package is a drop-in for the judge if its exact
+rubric is wanted. Two correctness points: the judge should be independent (set JUDGE_MODEL, else
+the app LLM judges its own answers and inflates scores), and retrieved text plus the answer are
+sanitized and fenced before the judge so a poisoned document cannot rig the score. Context
+precision is per-chunk rank-weighted (canonical), not a single whole-block judgment.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

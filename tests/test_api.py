@@ -241,6 +241,23 @@ def test_admin_quality_requires_admin_and_returns_shape():
     assert "overall" in body and "by_language" in body
 
 
+def test_admin_flywheel_reindexes_a_resolved_answer(tmp_path):
+    from rag.hitl import ReviewQueue
+    queue = ReviewQueue(str(tmp_path / "rq.db"))
+    # empty domain so the run writes the verified eval to the gitignored traces/, not a real pack
+    item_id = queue.enqueue("how long is the refund window", domain="")
+    queue.resolve(item_id, "Refunds within 30 days.", "operator")
+    components = _components()
+    components["review_queue"] = queue
+    components["domain"] = ""
+    client = _client(components)
+    assert client.post("/api/admin/flywheel", headers=_AUTH).status_code == 403
+    resp = client.post("/api/admin/flywheel", headers=_ADMIN)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["closed_items"] == 1 and body["indexed"] == 1 and "threshold" in body
+
+
 def test_chat_rejects_forged_token():
     forged = "Bearer " + create_access_token("demo", "customer", "a-different-secret")
     resp = _client(_components()).post("/api/chat", json={"query": "hi"},

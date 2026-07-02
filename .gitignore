@@ -217,6 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Skein Lite: per-request traces and the local auth database are local artifacts
+# Skein Lite: local runtime artifacts
 traces/
 .auth.db
+*.duckdb

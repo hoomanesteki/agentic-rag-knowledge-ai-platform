@@ -16,14 +16,18 @@ import yaml
 from adapters.factory import make_embedder, make_llm, make_store
 from data.contracts import check_contracts
 from data.lakehouse import build_lakehouse
+from data.metrics import MetricResolver
 from ingest.chunk import chunk_records
 from pipeline.answer import answer_question
 from retrieval.sparse import SparseEncoder
 
-# (domain, an in-domain question that overlaps the seed text, an out-of-domain question).
+# (domain, in-domain question, out-of-domain question, a lowercased substring the answer's
+# evidence must contain so the in-domain assertion checks real retrieval, not a fallback).
 DOMAINS = [
-    ("apparel_ecommerce", "does the flow legging run small", "what is the capital of france"),
-    ("saas_support", "how do I reset my Northwind Cloud password", "what is the capital of france"),
+    ("apparel_ecommerce", "does the flow legging run small", "what is the capital of france",
+     "small"),
+    ("saas_support", "how do I reset my Northwind Cloud password", "what is the capital of france",
+     "reset"),
 ]
 
 
@@ -63,9 +67,9 @@ def _seed_store(chunks):
     return embedder, store
 
 
-@pytest.mark.parametrize("domain, in_domain_q, out_of_domain_q", DOMAINS)
+@pytest.mark.parametrize("domain, in_domain_q, out_of_domain_q, evidence", DOMAINS)
 def test_same_engine_answers_and_abstains_per_domain(
-        domain, in_domain_q, out_of_domain_q, tmp_path):
+        domain, in_domain_q, out_of_domain_q, evidence, tmp_path):
     chunks = _pack_chunks(domain)
     assert chunks, "domain {} has no unstructured chunks to ingest".format(domain)
     embedder, store = _seed_store(chunks)
@@ -73,23 +77,42 @@ def test_same_engine_answers_and_abstains_per_domain(
     answered = answer_question(in_domain_q, embedder=embedder, store=store, llm=make_llm("fake"),
                                trace_path=str(tmp_path / "t.jsonl"))
     assert answered.tier == "auto", "{}: expected an in-domain answer".format(domain)
-    assert answered.citations, "{}: an answer must cite its sources".format(domain)
+    # Non-vacuous: the offline fake LLM cites nothing, so asserting on citations alone would pass
+    # on the all-contexts fallback. Assert retrieval actually surfaced the relevant chunk.
+    assert any(evidence in (c["text"] or "").lower() for c in answered.contexts), \
+        "{}: retrieval did not surface evidence '{}'".format(domain, evidence)
 
     abstained = answer_question(out_of_domain_q, embedder=embedder, store=store,
                                 llm=make_llm("fake"), trace_path=str(tmp_path / "t.jsonl"))
     assert abstained.abstained, "{}: an out-of-domain question must abstain".format(domain)
 
 
-@pytest.mark.parametrize("domain, _q, _ood", DOMAINS)
-def test_lakehouse_builds_with_passing_contracts_per_domain(domain, _q, _ood, tmp_path):
+@pytest.mark.parametrize("domain, _q, _ood, _ev", DOMAINS)
+def test_lakehouse_builds_with_passing_contracts_per_domain(domain, _q, _ood, _ev, tmp_path):
     db = str(tmp_path / "lh.duckdb")
     built = build_lakehouse(domain, db)
     assert built, "{}: no gold tables built".format(domain)
     assert check_contracts(domain, db) == [], "{}: data contracts failed".format(domain)
 
 
-@pytest.mark.parametrize("domain, _q, _ood", DOMAINS)
-def test_declared_pii_is_masked_in_gold_per_domain(domain, _q, _ood, tmp_path):
+@pytest.mark.parametrize("domain, _q, _ood, _ev", DOMAINS)
+def test_governed_metric_layer_resolves_per_domain(domain, _q, _ood, _ev, tmp_path):
+    # The governed metric layer must serve any pack: build the lakehouse, then resolve the
+    # pack's first declared metric with no params (the "$x is null or ..." guard returns all
+    # groups). Proves metrics are domain-agnostic, not just the first domain's.
+    db = str(tmp_path / "lh.duckdb")
+    build_lakehouse(domain, db)
+    resolver = MetricResolver(domain, db)
+    names = resolver.names()
+    assert names, "{}: pack declares no metrics".format(domain)
+    result = resolver.resolve(names[0])
+    assert result.rows, "{}: metric {} returned no rows".format(domain, names[0])
+    assert any(cell is not None for row in result.rows for cell in row), \
+        "{}: metric {} produced only nulls".format(domain, names[0])
+
+
+@pytest.mark.parametrize("domain, _q, _ood, _ev", DOMAINS)
+def test_declared_pii_is_masked_in_gold_per_domain(domain, _q, _ood, _ev, tmp_path):
     db = str(tmp_path / "lh.duckdb")
     build_lakehouse(domain, db)
     con = duckdb.connect(db, read_only=True)

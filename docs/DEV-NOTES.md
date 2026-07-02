@@ -55,6 +55,18 @@ zero-width bypasses, not every phrasing. The grounding score measures citation d
 faithfulness (RAGAS at M8). Two follow-ups for M8: compute the gate on sanitized text so an
 injection cannot inflate confidence, and add an adversarial question to the golden set.
 
+## M2.4 chunking (scope and follow-ups)
+
+The seed reviews are single sentences, so the sentence packer produces one chunk each and is
+a retrieval no-op on this corpus; it is exercised by unit tests, and the real recall delta is
+recorded via the M2.5 ablation on a real index. The contextual prefix is opt-in per pack
+(`context_fields` in the manifest) and is embedded with the text but kept out of the stored
+and displayed text, so it cannot pollute citations or the abstain gate. Whether the prefix
+helps is measured, not assumed. Tracked follow-ups (M4, when data grows): delete points by
+`record_id` before re-upsert so a record that shrinks from N to fewer chunks does not orphan
+old points; an intra-sentence window fallback for a single sentence over the token budget;
+and preserving paragraph structure.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

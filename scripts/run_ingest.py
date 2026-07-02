@@ -58,16 +58,19 @@ def main() -> int:
             lang_field=src.get("lang_field"),
             meta_fields=src.get("meta_fields", []),
             doc_type=src.get("doc_type", "doc"),
+            context_fields=src.get("context_fields", []),
         ))
     if not chunks:
         print("no unstructured records to ingest")
         return 0
 
-    texts = [c.text for c in chunks]
+    # Embed the context prefix plus the text, but store and display the clean text only, so
+    # the prefix helps retrieval without polluting citations or the confidence gate.
+    embed_texts = [(c.metadata.get("context", "") + " " + c.text).strip() for c in chunks]
     embedder = VoyageEmbedder()
-    dense = embedder.embed(texts, input_type="document")
+    dense = embedder.embed(embed_texts, input_type="document")
     sparse_encoder = SparseEncoder()
-    sparse = [sparse_encoder.encode(t) for t in texts]
+    sparse = [sparse_encoder.encode(t) for t in embed_texts]
 
     collection = collection_name(settings.domain, embedder.model)
     store = make_store("qdrant", collection=collection)

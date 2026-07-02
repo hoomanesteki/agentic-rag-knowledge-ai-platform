@@ -209,6 +209,14 @@ the app LLM judges its own answers and inflates scores), and retrieved text plus
 sanitized and fenced before the judge so a poisoned document cannot rig the score. Context
 precision is per-chunk rank-weighted (canonical), not a single whole-block judgment.
 
+Drift (M8.3): PSI has a constant-reference fallback (fraction of current values that moved off the
+constant) so a downward shift on a pinned signal is not missed. The by-language PSI monitors feed
+the drift flag, so drift in one language is not averaged away. Two proxies are MVP-good and noted:
+query-embedding drift is centroid-cosine (two opposing new clusters could cancel; per-query PSI
+to the reference centroid is the stronger form), and by-language covers the two numeric monitors
+(embedding and feedback stay overall). The CI eval gate defaults to min_score 1.0 (any failed
+fixture blocks) and writes traces to a temp path so it never touches the workspace.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

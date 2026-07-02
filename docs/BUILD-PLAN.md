@@ -259,16 +259,18 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
 
 ### M8. MLOps
 
-- [ ] M8.1 MLflow as viewer. Point the existing M1.3 trace schema at MLflow (tracing already
-  exists, this just routes it). Done when: a run shows a full trace with retrieval, tokens, and
-  cost. Size M.
-- [ ] M8.2 RAGAS on the golden set. Faithfulness, context precision and recall, answer
-  relevance, in both languages. Done when: an eval report is produced and matches the M2.5
-  scorecard shape. Size M.
-- [ ] M8.3 Drift and CI gate. Four named drift monitors (query-embedding drift, retrieval-score
-  distribution, confidence distribution, feedback rate), stratified by language, and a CI eval
-  gate on recorded fixtures with a cheap judge that blocks a deliberate regression. Done when:
-  the gate fails on a seeded regression and passes otherwise. Size L.
+- [x] M8.1 MLflow as viewer. A sink (mlflow-skinny) routes the existing per-request traces into
+  MLflow runs (route/model/tier params, latency/tokens/cost/grounding metrics), deduped by
+  trace_id and paginated. `make mlflow-log` to ./mlruns or MLFLOW_TRACKING_URI (server in compose).
+  Done: a run shows the full trace. Size M.
+- [x] M8.2 RAGAS on the golden set. The four canonical metrics (faithfulness, answer relevance,
+  per-chunk context precision, context recall) via an LLM judge, by language, matching the
+  scorecard shape. Judge-injection hardened, independent JUDGE_MODEL option. `make ragas`. Done:
+  the eval report is produced. Size M.
+- [x] M8.3 Drift and CI gate. Four monitors (query-embedding centroid distance, retrieval-score
+  and confidence PSI, feedback rate) by language, and an offline CI eval gate on recorded neutral
+  fixtures with a lexical judge, wired into GitHub Actions. Done: the gate blocks a seeded
+  regression (a dropped corpus doc) and passes otherwise. Size L.
 
 ### M9. Voice, story, deploy, second domain
 

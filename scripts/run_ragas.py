@@ -50,7 +50,7 @@ def main() -> int:
             "contexts": [c["text"] for c in result.contexts],
             "ground_truth": "; ".join(g.get("expected_answer_contains", []) or []),
             "lang": g.get("lang", "unknown")})
-    print(json.dumps(evaluate_ragas(items, judge), indent=2, ensure_ascii=False))
+    print(json.dumps(evaluate_ragas(items, judge, embedder), indent=2, ensure_ascii=False))
     return 0
 
 

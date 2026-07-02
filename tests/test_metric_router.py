@@ -115,6 +115,18 @@ def test_streaming_path_uses_metric_block(tmp_path):
     assert any(c["id"].startswith("metric:") for c in final["citations"])
 
 
+def test_value_less_metric_does_not_suppress_abstain(tmp_path):
+    # A return rate for a size we do not sell resolves to zero rows: it must not be treated as
+    # authoritative, so with no vector evidence the pipeline abstains instead of answering.
+    resolver = _resolver(tmp_path)
+    llm = JsonLLM('{"metric": "return_rate_by_size", "params": {"size": "ZZZ"}}')
+    result = answer_question(_RATE_Q, embedder=make_embedder("fake"), store=make_store("memory"),
+                             llm=llm, metric_resolver=resolver,
+                             trace_path=str(tmp_path / "t.jsonl"))
+    assert result.trace["metric"] is False
+    assert result.tier == "abstain"
+
+
 def test_pipeline_without_resolver_is_unchanged(tmp_path):
     embedder = make_embedder("fake")
     encoder = SparseEncoder()

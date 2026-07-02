@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [flywheel, setFlywheel] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -86,6 +87,17 @@ export default function AdminPage() {
     else setError("Could not submit the answer (claim it first, or it was taken).");
   }
 
+  async function runFlywheel() {
+    setFlywheel("Running...");
+    const res = await fetch(`${API_BASE}/api/admin/flywheel`, { method: "POST", headers: auth });
+    if (!res.ok) {
+      setFlywheel("Flywheel failed.");
+      return;
+    }
+    const r = await res.json();
+    setFlywheel(`Indexed ${r.indexed} answer(s), grew eval by ${r.grown}. Suggested gate: ${r.threshold.suggested}.`);
+  }
+
   if (!mounted) return null;
 
   if (!token) {
@@ -110,6 +122,10 @@ export default function AdminPage() {
   return (
     <main className="admin">
       <h1>Review queue ({items.length})</h1>
+      <div className="row">
+        <button onClick={runFlywheel}>Run flywheel</button>
+        {flywheel && <span className="meta">{flywheel}</span>}
+      </div>
       {error && <p className="error">{error}</p>}
       {items.length === 0 && <p>No open questions. The system is confident right now.</p>}
       {items.map((it) => (

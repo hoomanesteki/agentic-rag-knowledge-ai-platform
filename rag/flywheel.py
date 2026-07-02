@@ -69,9 +69,9 @@ def grow_verified_eval(items: list[dict], path: str) -> int:
             if gid in existing:
                 continue
             f.write(json.dumps({
-                "id": gid, "lang": "en", "question": item["question"], "answer": item["answer"],
-                "type": "answerable", "route": "factual", "source": "hitl"},
-                ensure_ascii=False) + "\n")
+                "id": gid, "lang": item.get("lang") or "unknown", "question": item["question"],
+                "answer": item["answer"], "type": "answerable", "route": "factual",
+                "source": "hitl"}, ensure_ascii=False) + "\n")
             written += 1
     return written
 

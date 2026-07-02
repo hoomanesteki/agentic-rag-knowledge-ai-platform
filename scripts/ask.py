@@ -11,7 +11,7 @@ import os
 import sys
 
 from adapters.config import get_settings
-from adapters.factory import make_embedder, make_llm, make_store
+from adapters.factory import make_embedder, make_llm, make_reranker, make_store
 from ingest.naming import collection_name
 from pipeline.answer import answer_question
 
@@ -30,7 +30,8 @@ def main() -> int:
 
     store = make_store(collection=collection_name(settings.domain, settings.embed_model))
     try:
-        result = answer_question(query, embedder=make_embedder(), store=store, llm=make_llm())
+        result = answer_question(query, embedder=make_embedder(), store=store, llm=make_llm(),
+                                 reranker=make_reranker())
     except RuntimeError as exc:
         print("error: {}".format(exc), file=sys.stderr)
         print("hint: is Qdrant up (make up) and ingested (make ingest), and are keys set in .env?",

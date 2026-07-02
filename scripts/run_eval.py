@@ -12,7 +12,7 @@ import sys
 import yaml
 
 from adapters.config import get_settings
-from adapters.factory import make_embedder, make_store
+from adapters.factory import make_embedder, make_reranker, make_store
 from evaluation.golden import load_golden
 from evaluation.harness import evaluate, format_scorecard
 from ingest.naming import collection_name
@@ -38,17 +38,23 @@ def main() -> int:
               "retrieval will be zero and abstain_recall will trivially read 1.0. "
               "Set VECTOR_PROVIDER=qdrant and run make ingest.", file=sys.stderr)
 
+    no_rerank = "--no-rerank" in sys.argv  # ablation switch: score hybrid without reranking
+    reranker = None if no_rerank else make_reranker()
+    label = "{} rerank={}".format(
+        settings.domain, "off" if reranker is None else settings.rerank_provider)
+
     golden = load_golden(pack)
     store = make_store(collection=collection_name(settings.domain, settings.embed_model))
     try:
         scorecard = evaluate(golden, embedder=make_embedder(), store=store,
-                             entity_fields=_entity_fields(pack))
+                             reranker=reranker, entity_fields=_entity_fields(pack))
     except RuntimeError as exc:
         print("error: {}".format(exc), file=sys.stderr)
-        print("hint: is Qdrant up (make up) and ingested (make ingest)?", file=sys.stderr)
+        print("hint: is Qdrant up (make up) and ingested (make ingest), and are the hosted "
+              "APIs (Voyage/Groq) reachable and not rate-limited?", file=sys.stderr)
         return 1
 
-    print(format_scorecard(scorecard, label=settings.domain))
+    print(format_scorecard(scorecard, label=label))
     return 0
 
 

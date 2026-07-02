@@ -89,6 +89,35 @@ Three were deferred on purpose:
   while structured PII is masked in the lakehouse. Revisit with a retention/repro policy at M8
   (trace to MLflow) so query logging is a governance decision, not an accident.
 
+## M5 knowledge graph (local run and follow-ups)
+
+The graph layer is fully tested on the in-memory fake, so `make check` proves the loader,
+linking, and retriever logic with no database. The real path is a local step:
+
+```bash
+make up                 # starts Neo4j (neo4j:5-community) alongside qdrant/postgres
+make lakehouse          # builds gold (the graph loads from it)
+make graph-load         # loads nodes + typed edges into Neo4j, then links mentions
+```
+
+Then open http://localhost:7474 (neo4j / skein_password) and confirm a traversal, for example
+`MATCH (s:Supplier)-[:SUPPLIES]->(p:Product) RETURN s.name, p.name LIMIT 5`. `make graph-load`
+prints node and edge counts; paste them back so the real load can be checked against the fake.
+
+To record the M5.3 done-when number (does the graph help), run `make eval` twice on a real
+index, once with `GRAPH_PROVIDER=neo4j` and once with `GRAPH_PROVIDER=memory` (graph off), and
+compare the relational-question scores. Only the real run counts; paste the delta here.
+
+Known follow-ups (not blocking M5):
+- The retriever builds its entity name index once at construction and `get_components` caches it
+  for the process, so a graph reloaded while the API runs serves stale names until restart. Add
+  a rebuild hook when the flywheel (M7.3) starts writing to the graph.
+- `find_nodes(label)` scans a label; the retriever does it per label at startup and `neighbors`
+  runs per resolved entity per query. Fine at demo scale; add a Neo4j full-text index on names
+  and cap fan-out if a domain's catalog grows large.
+- Entity linking calls the LLM per doc at build time. Fine for these packs; batch and cache by
+  text if a corpus grows.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

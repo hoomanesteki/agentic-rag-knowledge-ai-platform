@@ -1,9 +1,28 @@
-# Tool configuration only. Dependencies live in requirements*.txt so a plain venv
-# plus pip is all you need. No packaging backend to fight with.
+# Project metadata and dependencies, managed by uv. The exact versions are pinned in
+# uv.lock (committed), so installs are reproducible. This file holds the ranges.
+
+[project]
+name = "skein-lite"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+# This is an application, not a library. Do not try to build or install it as a package.
+[tool.uv]
+package = false
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

@@ -49,6 +49,10 @@ class FeedbackRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class AnswerRequest(BaseModel):
+    answer: str = Field(min_length=1, max_length=8000)
+
+
 class LoginRequest(BaseModel):
     username: str = Field(max_length=64)
     password: str = Field(max_length=72)  # bcrypt only uses the first 72 bytes
@@ -73,9 +77,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
     store = UserStore(auth_db_path or settings.auth_db_path)
     seed_demo_user(store, settings.demo_username, settings.demo_password)
+    seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
 
     if settings.jwt_secret == _INSECURE_JWT_SECRET:
-        _log.warning("JWT_SECRET is the insecure default; tokens are forgeable. Set JWT_SECRET.")
+        _log.error("JWT_SECRET is the insecure default: anyone can forge a token, including an "
+                   "admin one. Set JWT_SECRET before exposing this (enforced at deploy, M9.3).")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
 
@@ -94,6 +100,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
             raise HTTPException(status_code=401, detail="invalid or expired token",
                                 headers={"WWW-Authenticate": "Bearer"})
         return {"username": payload.get("sub"), "role": payload.get("role")}
+
+    def require_admin(user: dict = Depends(current_user)) -> dict:
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="admin only")
+        return user
 
     @app.get("/health")
     def health():
@@ -185,6 +196,32 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         with open(_FEEDBACK_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         return {"status": "recorded"}
+
+    @app.get("/api/admin/queue")
+    def admin_queue(comp: dict = Depends(get_components), user: dict = Depends(require_admin)):
+        # open items to claim plus the caller's own claimed items to answer
+        return {"items": comp["review_queue"].list_actionable(user["username"])}
+
+    @app.post("/api/admin/queue/{item_id}/claim")
+    def admin_claim(item_id: str, comp: dict = Depends(get_components),
+                    user: dict = Depends(require_admin)):
+        queue = comp["review_queue"]
+        if queue.get(item_id) is None:
+            raise HTTPException(status_code=404, detail="no such item")
+        if not queue.claim(item_id, user["username"]):
+            raise HTTPException(status_code=409, detail="already claimed or closed")
+        return {"status": "claimed", "id": item_id, "by": user["username"]}
+
+    @app.post("/api/admin/queue/{item_id}/answer")
+    def admin_answer(item_id: str, body: AnswerRequest, comp: dict = Depends(get_components),
+                     user: dict = Depends(require_admin)):
+        queue = comp["review_queue"]
+        if queue.get(item_id) is None:
+            raise HTTPException(status_code=404, detail="no such item")
+        if not queue.resolve(item_id, body.answer, user["username"]):
+            raise HTTPException(status_code=409,
+                                detail="not open, or claimed by another operator")
+        return {"status": "closed", "id": item_id}
 
     return app
 

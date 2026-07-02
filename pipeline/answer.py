@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from adapters.base import Embedder, HybridStore, LLMClient, Reranker
 from data.metrics import MetricResolver
 from pipeline.sanitize import sanitize_context
+from retrieval.graph import GraphRetriever
 from retrieval.metric_router import metric_context, route_metric
 from retrieval.sparse import SparseEncoder, tokenize
 
@@ -190,6 +191,24 @@ def with_metric_evidence(query: str, contexts: list[dict], llm: LLMClient,
     return combined, True
 
 
+def with_graph_evidence(query: str, contexts: list[dict],
+                        graph_retriever: GraphRetriever | None) -> tuple[list[dict], bool, bool]:
+    """Prepend a knowledge-graph block if an entity named in the query (or in the top retrieved
+    text) resolves to a node. Returns (contexts, has_graph, authoritative). Only an entity named
+    in the query itself is authoritative (relational grounding that may suppress abstain); an
+    entity merely mentioned in retrieved text enriches the block but does not rescue a weak
+    answer. Renders from allowlisted traversals, not free Cypher."""
+    if graph_retriever is None:
+        return contexts, False, False
+    block, from_query = graph_retriever.evidence(query, tuple(c["text"] for c in contexts[:3]))
+    if block is None:
+        return contexts, False, False
+    combined = [block] + contexts
+    for i, c in enumerate(combined):
+        c["n"] = i + 1
+    return combined, True, from_query
+
+
 def build_contexts(hits: list[dict]) -> list[dict]:
     contexts = []
     for i, h in enumerate(hits):
@@ -213,21 +232,26 @@ def write_trace(trace: dict, path: str) -> None:
 
 def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
                     reranker: Reranker | None = None, metric_resolver: MetricResolver | None = None,
+                    graph_retriever: GraphRetriever | None = None,
                     top_k: int = 8, top_k_in: int = 50,
                     min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                     trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     started = time.perf_counter()
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
-    contexts, has_metric = with_metric_evidence(
-        query, build_contexts(hits), llm, metric_resolver)
-    abstained, confidence = should_abstain(query, contexts, min_confidence)
-    if has_metric:
-        abstained = False  # a governed metric number is authoritative evidence
+    # Gate on the vector evidence alone, before injecting authoritative blocks, so a graph or
+    # metric block can never inflate the confidence it is about to override.
+    abstained, confidence = should_abstain(query, build_contexts(hits), min_confidence)
+    contexts, has_graph, graph_auth = with_graph_evidence(
+        query, build_contexts(hits), graph_retriever)
+    contexts, has_metric = with_metric_evidence(query, contexts, llm, metric_resolver)
+    if has_metric or graph_auth:
+        abstained = False  # a governed metric or a query-named graph fact is authoritative
     trace = {
         "ts": time.time(),
         "query": query,
         "reranked": reranker is not None,
         "metric": has_metric,
+        "graph": has_graph,
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }
@@ -259,6 +283,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
 
 def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LLMClient,
                   reranker: Reranker | None = None, metric_resolver: MetricResolver | None = None,
+                  graph_retriever: GraphRetriever | None = None,
                   top_k: int = 8, top_k_in: int = 50,
                   min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None):
@@ -269,17 +294,19 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     started = time.perf_counter()
     message_id = message_id or uuid.uuid4().hex
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
-    contexts, has_metric = with_metric_evidence(
-        query, build_contexts(hits), llm, metric_resolver)
-    abstained, confidence = should_abstain(query, contexts, min_confidence)
-    if has_metric:
-        abstained = False  # a governed metric number is authoritative evidence
+    abstained, confidence = should_abstain(query, build_contexts(hits), min_confidence)
+    contexts, has_graph, graph_auth = with_graph_evidence(
+        query, build_contexts(hits), graph_retriever)
+    contexts, has_metric = with_metric_evidence(query, contexts, llm, metric_resolver)
+    if has_metric or graph_auth:
+        abstained = False  # a governed metric or a query-named graph fact is authoritative
     trace = {
         "ts": time.time(),
         "message_id": message_id,
         "query": query,
         "reranked": reranker is not None,
         "metric": has_metric,
+        "graph": has_graph,
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }

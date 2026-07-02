@@ -4,6 +4,7 @@ import json
 from adapters.base import LLMResult
 from adapters.factory import make_embedder, make_llm, make_store
 from pipeline.answer import _build_prompt, answer_question, overlap_confidence
+from pipeline.sanitize import sanitize_context
 from retrieval.sparse import SparseEncoder
 
 
@@ -76,7 +77,8 @@ def test_citations_align_with_used_markers(tmp_path):
     assert len(result.citations) == 1           # only the marker the model used
     assert result.citations[0]["n"] == 1
     assert result.citations[0]["id"] == result.contexts[0]["id"]
-    assert "[1] " + result.contexts[0]["text"] in llm.prompt  # numbering matches the blocks
+    # numbering matches the blocks (context is sanitized before it enters the prompt)
+    assert "[1] " + sanitize_context(result.contexts[0]["text"]) in llm.prompt
 
 
 def test_french_question_answers(tmp_path):

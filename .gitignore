@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Skein Lite: per-request traces are local artifacts
+traces/

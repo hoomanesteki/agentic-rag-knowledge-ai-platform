@@ -18,7 +18,7 @@ metrics:
           / nullif(count(*), 0) as return_rate
       from sales s
       join products p on p.product_id = s.product_id
-      where (:size is null or p.size = :size)
+      where ($size is null or p.size = $size)
       group by p.size
 
   - name: units_sold
@@ -32,5 +32,5 @@ metrics:
         s.product_id,
         sum(s.quantity) as units_sold
       from sales s
-      where (:product_id is null or s.product_id = :product_id)
+      where ($product_id is null or s.product_id = $product_id)
       group by s.product_id

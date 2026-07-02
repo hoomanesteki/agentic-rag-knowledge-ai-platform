@@ -207,9 +207,11 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   and returns a structured, self-scored finding. Size M.
 - [ ] M6.3 Supervisor and agent-to-agent consensus. The supervisor (the orchestrator, the
   "omniagent") decomposes a query, dispatches to the relevant specialists in parallel, then a
-  reconciliation step makes them agree: it detects conflicts (a metric number contradicting a
-  text claim, two sources disagreeing), resolves by evidence rank or by asking a specialist to
-  revise, and commits only agreed, grounded evidence, otherwise abstains or escalates. All
+  reconciliation step makes them agree: a reconciler node (an LLM judge given each specialist's
+  claim plus its evidence) flags contradictions (a metric number contradicting a text claim, two
+  sources disagreeing), resolves by evidence rank (governed metric over text over model prior)
+  or by asking a specialist to revise, and commits only agreed, grounded evidence, otherwise
+  abstains or escalates. All
   bounded by step and token caps; the fan-out fires only for multi-source questions. Done when:
   a mixed number-and-text question is answered by two specialists agreeing, a planted conflict
   is caught and reconciled or escalated, and consensus is shown to beat single-pass on the

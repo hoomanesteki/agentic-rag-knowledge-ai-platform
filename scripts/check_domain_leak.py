@@ -16,7 +16,7 @@ import sys
 
 # Folders that must stay domain agnostic. Only the ones that exist are scanned.
 ENGINE_DIRS = ["adapters", "ingest", "retrieval", "pipeline", "rag", "api", "data", "mlops",
-               "knowledge", "scripts", "web/app", "web/components", "web/lib"]
+               "knowledge", "evaluation", "scripts", "web/app", "web/components", "web/lib"]
 CODE_EXT = (".py", ".ts", ".tsx", ".js", ".jsx", ".sql", ".yaml", ".yml")
 
 # Generic words that are legitimate in engine code even though a domain might use them.

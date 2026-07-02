@@ -2,17 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useTurnstile } from "./turnstile";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-
-type Turnstile = {
-  render: (el: HTMLElement, opts: Record<string, unknown>) => string;
-  remove: (id: string) => void;
-};
-
-function turnstileApi(): Turnstile | undefined {
-  return (window as unknown as { turnstile?: Turnstile }).turnstile;
-}
 
 type Citation = { n: number; id: string; doc_type?: string | null };
 
@@ -65,47 +57,7 @@ export default function Home() {
 function Login({ onToken }: { onToken: (t: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const captchaRef = useRef<HTMLDivElement | null>(null);
-  const widgetId = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!SITE_KEY) return;
-    function render() {
-      const ts = turnstileApi();
-      if (!ts || !captchaRef.current || widgetId.current !== undefined) return;
-      widgetId.current = ts.render(captchaRef.current, {
-        sitekey: SITE_KEY,
-        callback: (t: string) => setCaptchaToken(t),
-        "expired-callback": () => setCaptchaToken(null),
-      });
-    }
-    if (turnstileApi()) {
-      render(); // script already loaded (e.g. a remount after sign-out)
-    } else {
-      let script = document.querySelector("script[data-turnstile]") as HTMLScriptElement | null;
-      if (!script) {
-        script = document.createElement("script");
-        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-        script.async = true;
-        script.defer = true;
-        script.setAttribute("data-turnstile", "1");
-        document.head.appendChild(script);
-      }
-      script.addEventListener("load", render, { once: true });
-    }
-    return () => {
-      const ts = turnstileApi();
-      if (ts && widgetId.current !== undefined) {
-        try {
-          ts.remove(widgetId.current);
-        } catch {
-          /* widget already gone */
-        }
-        widgetId.current = undefined;
-      }
-    };
-  }, []);
+  const { token: captchaToken, widget: captchaWidget, reset: resetCaptcha } = useTurnstile();
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -127,10 +79,13 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         onToken((await res.json()).access_token);
       } else if (res.status === 401) {
         setError("Wrong username or password.");
+        resetCaptcha(); // the token was consumed; a fresh one is needed for the retry
       } else if (res.status === 403) {
         setError("Captcha check failed. Please try again.");
+        resetCaptcha();
       } else {
         setError("Could not sign in. Please try again.");
+        resetCaptcha();
       }
     } catch {
       setError("Could not reach the server.");
@@ -149,7 +104,7 @@ function Login({ onToken }: { onToken: (t: string) => void }) {
         aria-label="Password"
         autoComplete="current-password"
       />
-      {SITE_KEY && <div ref={captchaRef} />}
+      {captchaWidget}
       <button type="submit" disabled={busy}>
         {busy ? "..." : "Sign in"}
       </button>

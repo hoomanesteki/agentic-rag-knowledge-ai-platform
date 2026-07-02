@@ -40,8 +40,17 @@ _ALLOWED_AUDIO_MIME = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "au
                        "audio/wav", "audio/x-wav", "audio/flac"}
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-_INSECURE_JWT_SECRET = "dev-insecure-change-me"
+# Placeholders that must never sign real tokens. The length check below catches anything else
+# too short, but the shipped .env.example value is 33 chars, so it has to be named explicitly.
+_INSECURE_JWT_SECRETS = {"dev-insecure-change-me", "change-me", "change-me-to-a-long-random-string"}
+_MIN_JWT_SECRET_LEN = 32
+_DEFAULT_ADMIN_PASSWORD = "skein-admin-2026"  # the value committed in .env.example / config.py
+_DEFAULT_DEMO_PASSWORD = "skein-demo-2026"
 _log = logging.getLogger("skein.api")
+
+
+def _is_production(app_env: str) -> bool:
+    return app_env in ("production", "prod")
 
 
 class ChatRequest(BaseModel):
@@ -104,15 +113,50 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
 
-    if settings.jwt_secret == _INSECURE_JWT_SECRET:
-        _log.error("JWT_SECRET is the insecure default: anyone can forge a token, including an "
-                   "admin one. Set JWT_SECRET before exposing this (enforced at deploy, M9.3).")
+    production = _is_production(settings.app_env)
+    # A secret is unsafe if it is a known placeholder or simply too short to resist brute force.
+    weak_jwt = (settings.jwt_secret in _INSECURE_JWT_SECRETS
+                or len(settings.jwt_secret) < _MIN_JWT_SECRET_LEN)
+    if weak_jwt:
+        msg = ("JWT_SECRET is weak or a placeholder: anyone can forge a token, including an admin "
+               "one. Set JWT_SECRET to a random string of at least {} characters.".format(
+                   _MIN_JWT_SECRET_LEN))
+        if production:
+            # Fail fast instead of booting a forgeable-auth server on a public URL.
+            raise RuntimeError(msg + " Refusing to start with SKEIN_ENV=production.")
+        _log.error(msg)
+    if production and not settings.turnstile_secret:
+        raise RuntimeError("TURNSTILE_SECRET_KEY is empty but SKEIN_ENV=production; the login "
+                           "captcha would be bypassed. Set it or unset SKEIN_ENV.")
+    if production:
+        # The default credentials are committed in .env.example, so a public deploy that keeps
+        # them is wide open (admin dashboards leak ops data even with DEMO_READONLY on).
+        if settings.admin_password == _DEFAULT_ADMIN_PASSWORD:
+            raise RuntimeError("ADMIN_PASSWORD is the documented default; set a real one before "
+                               "SKEIN_ENV=production.")
+        if settings.demo_password == _DEFAULT_DEMO_PASSWORD:
+            raise RuntimeError("DEMO_PASSWORD is the documented default; set a real one before "
+                               "SKEIN_ENV=production.")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
+    if settings.demo_readonly:
+        _log.info("DEMO_READONLY is on; mutating admin endpoints are disabled.")
+
+    def deny_if_readonly() -> None:
+        if settings.demo_readonly:
+            raise HTTPException(status_code=403, detail="this is a read-only demo")
 
     def client_key(request: Request) -> str:
-        # request.client.host is the direct peer; behind a proxy (Cloud Run, M9.3) this is the
-        # proxy hop, so trusted X-Forwarded-For parsing must be added at deploy time.
+        # request.client.host is the direct peer; behind Cloud Run that is the proxy hop, so every
+        # caller would share one bucket and a single abuser would lock everyone out. In production
+        # key on the client IP from X-Forwarded-For. Cloud Run's front end appends the verified
+        # client IP as the LAST entry and does not strip client-supplied ones, so the last entry is
+        # the trustworthy hop (the leftmost is attacker-controlled). Assumes direct run.app; a
+        # fronting load balancer adds another hop. The hard cost ceiling is the instance cap.
+        if production:
+            last = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+            if last:
+                return last
         return request.client.host if request.client else "anon"
 
     def current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -273,6 +317,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
     @app.post("/api/admin/flywheel")
     def admin_flywheel(comp: dict = Depends(get_components), _: dict = Depends(require_admin)):
+        deny_if_readonly()  # re-embedding costs money; off in the public demo
         queue = comp["review_queue"]
         domain = comp.get("domain") or ""
         # only items for this domain, resolved since the last run, so re-embedding is not repeated
@@ -296,6 +341,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     @app.post("/api/admin/queue/{item_id}/claim")
     def admin_claim(item_id: str, comp: dict = Depends(get_components),
                     user: dict = Depends(require_admin)):
+        deny_if_readonly()
         queue = comp["review_queue"]
         if queue.get(item_id) is None:
             raise HTTPException(status_code=404, detail="no such item")
@@ -306,6 +352,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     @app.post("/api/admin/queue/{item_id}/answer")
     def admin_answer(item_id: str, body: AnswerRequest, comp: dict = Depends(get_components),
                      user: dict = Depends(require_admin)):
+        deny_if_readonly()
         queue = comp["review_queue"]
         if not body.answer.strip():
             raise HTTPException(status_code=400, detail="answer is required")

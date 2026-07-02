@@ -12,6 +12,8 @@ load_dotenv()
 
 @dataclass(frozen=True)
 class Settings:
+    app_env: str
+    demo_readonly: bool
     domain: str
     llm_provider: str
     transcribe_provider: str
@@ -46,6 +48,11 @@ class Settings:
 def get_settings() -> Settings:
     # Providers default to offline ("fake"/"memory") so a fresh checkout runs with no keys.
     return Settings(
+        # "production" hard-enforces a real JWT secret; dev/test only warn (see api/app.py).
+        app_env=os.getenv("SKEIN_ENV", "dev").strip().lower(),
+        # On a public demo, block the mutating admin endpoints so the documented default admin
+        # password cannot be used to drain paid APIs (flywheel re-embed) or corrupt the store.
+        demo_readonly=os.getenv("DEMO_READONLY", "false").strip().lower() == "true",
         domain=os.getenv("DOMAIN", "apparel_ecommerce"),
         llm_provider=os.getenv("LLM_PROVIDER", "fake"),
         transcribe_provider=os.getenv("TRANSCRIBE_PROVIDER", "fake"),

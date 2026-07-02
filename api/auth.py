@@ -1,8 +1,9 @@
 """Auth: SQLite-backed users, bcrypt password hashing, JWT sessions, Turnstile verification.
 
-SQLite runs anywhere with no infra; the same schema runs on Postgres at deploy (swap the
-connection, M9.3). Tokens travel in the Authorization header, so there are no cookies and no
-CSRF surface. One connection per call keeps it thread-safe under the server's threadpool.
+SQLite runs anywhere with no infra and stays SQLite through deploy (ephemeral on Cloud Run,
+re-seeded per cold start); a Postgres user store is future work. Tokens travel in the
+Authorization header, so there are no cookies and no CSRF surface. One connection per call keeps
+it thread-safe under the server's threadpool.
 """
 from __future__ import annotations
 

@@ -7,12 +7,12 @@ What is measured here (no LLM):
 - The gate: abstain recall on unanswerable/out-of-domain questions, and the false-abstain
   rate on measurable answerable questions (so an always-abstain gate cannot look perfect).
 
-Relevance is decided only against the entity fields the domain manifest declares (entity_ref),
-not against every payload value. Answer quality (RAGAS) comes at M8.
+Each question is retrieved exactly once, then aggregated overall and by language, so a real
+run makes the minimum number of paid embed/rerank calls. Answer quality (RAGAS) is M8.
 """
 from __future__ import annotations
 
-from adapters.base import Embedder, HybridStore
+from adapters.base import Embedder, HybridStore, Reranker
 from evaluation.metrics import hit_at_k, mean, reciprocal_rank
 from pipeline.answer import DEFAULT_MIN_CONFIDENCE, retrieve, should_abstain
 
@@ -62,35 +62,40 @@ def _contexts(hits: list[dict]) -> list[dict]:
     return [{"text": (h.get("payload") or {}).get("text", "")} for h in hits]
 
 
-def _retrieval_block(items, embedder, store, top_k, entity_fields, min_confidence):
-    hit_rates, entity_recalls, rrs, false_abstains = [], [], [], []
-    total_hits = 0
-    for g in items:
-        hits = retrieve(g["question"], embedder, store, top_k)
-        total_hits += len(hits)
-        flags = _relevance_flags(hits, g["expected_entities"], entity_fields)
-        hit_rates.append(hit_at_k(flags))
-        rrs.append(reciprocal_rank(flags))
-        entity_recalls.append(_entity_recall(hits, g["expected_entities"], entity_fields))
-        abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
-        false_abstains.append(1.0 if abstained else 0.0)
+def _score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields, min_confidence,
+                     reranker) -> dict:
+    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    flags = _relevance_flags(hits, g["expected_entities"], entity_fields)
+    abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
     return {
-        "hit_rate_at_k": round(mean(hit_rates), 3),
-        "entity_recall_at_k": round(mean(entity_recalls), 3),
-        "mrr": round(mean(rrs), 3),
-        "false_abstain_rate": round(mean(false_abstains), 3),
-        "n": len(items),
-        "total_hits": total_hits,
+        "lang": g.get("lang", "unknown"),
+        "hit": hit_at_k(flags),
+        "rr": reciprocal_rank(flags),
+        "erecall": _entity_recall(hits, g["expected_entities"], entity_fields),
+        "false_abstain": 1.0 if abstained else 0.0,
+        "nhits": len(hits),
     }
 
 
-def _gate_block(items, embedder, store, top_k, min_confidence):
-    abstained_flags = []
-    for g in items:
-        hits = retrieve(g["question"], embedder, store, top_k)
-        abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
-        abstained_flags.append(1.0 if abstained else 0.0)
-    return {"abstain_recall": round(mean(abstained_flags), 3), "n": len(items)}
+def _score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker) -> dict:
+    hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
+    return {"lang": g.get("lang", "unknown"), "abstained": 1.0 if abstained else 0.0}
+
+
+def _agg_retrieval(records: list[dict]) -> dict:
+    return {
+        "hit_rate_at_k": round(mean([r["hit"] for r in records]), 3),
+        "entity_recall_at_k": round(mean([r["erecall"] for r in records]), 3),
+        "mrr": round(mean([r["rr"] for r in records]), 3),
+        "false_abstain_rate": round(mean([r["false_abstain"] for r in records]), 3),
+        "n": len(records),
+        "total_hits": sum(r["nhits"] for r in records),
+    }
+
+
+def _agg_gate(records: list[dict]) -> dict:
+    return {"abstain_recall": round(mean([r["abstained"] for r in records]), 3), "n": len(records)}
 
 
 def _route_counts(items: list[dict]) -> dict:
@@ -102,28 +107,28 @@ def _route_counts(items: list[dict]) -> dict:
 
 
 def evaluate(golden: list[dict], *, embedder: Embedder, store: HybridStore,
-             entity_fields: list[str], top_k: int = 8,
-             min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> dict:
+             entity_fields: list[str], reranker: Reranker | None = None, top_k: int = 8,
+             top_k_in: int = 50, min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> dict:
     measurable, deferred, abstain = _partition(golden)
-    overall_retrieval = _retrieval_block(
-        measurable, embedder, store, top_k, entity_fields, min_confidence)
+    m_records = [_score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields,
+                                  min_confidence, reranker) for g in measurable]
+    a_records = [_score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker)
+                 for g in abstain]
+    overall = _agg_retrieval(m_records)
     scorecard = {
         "top_k": top_k,
+        "top_k_in": top_k_in,
+        "reranked": reranker is not None,
         "coverage": {"measured": len(measurable), "deferred": len(deferred),
                      "deferred_by_route": _route_counts(deferred), "abstain_set": len(abstain)},
-        "degenerate": bool(measurable) and overall_retrieval["total_hits"] == 0,
-        "overall": {
-            "retrieval": overall_retrieval,
-            "gate": _gate_block(abstain, embedder, store, top_k, min_confidence),
-        },
+        "degenerate": bool(m_records) and overall["total_hits"] == 0,
+        "overall": {"retrieval": overall, "gate": _agg_gate(a_records)},
         "by_language": {},
     }
-    for lang in sorted({g.get("lang", "unknown") for g in golden}):
-        m = [g for g in measurable if g.get("lang", "unknown") == lang]
-        a = [g for g in abstain if g.get("lang", "unknown") == lang]
+    for lang in sorted({r["lang"] for r in m_records} | {r["lang"] for r in a_records}):
         scorecard["by_language"][lang] = {
-            "retrieval": _retrieval_block(m, embedder, store, top_k, entity_fields, min_confidence),
-            "gate": _gate_block(a, embedder, store, top_k, min_confidence),
+            "retrieval": _agg_retrieval([r for r in m_records if r["lang"] == lang]),
+            "gate": _agg_gate([r for r in a_records if r["lang"] == lang]),
         }
     return scorecard
 
@@ -135,7 +140,8 @@ def _fmt(value, n: int) -> str:
 def format_scorecard(scorecard: dict, label: str = "current") -> str:
     cov = scorecard["coverage"]
     lines = [
-        "Eval scorecard ({}), top_k={}".format(label, scorecard["top_k"]),
+        "Eval scorecard ({}), top_k={}, top_k_in={}, reranked={}".format(
+            label, scorecard["top_k"], scorecard["top_k_in"], scorecard.get("reranked", False)),
         "coverage: measured {}, deferred {} {}, abstain-set {}".format(
             cov["measured"], cov["deferred"], cov["deferred_by_route"], cov["abstain_set"]),
     ]

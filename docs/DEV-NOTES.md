@@ -45,6 +45,16 @@ overlap, the same signal as the sparse leg and the abstain gate, so its "delta" 
 and must not be recorded as the M2.2 number. Paste the two scorecards and the delta here once
 you have run them (this environment has no network, so the numbers come from your machine).
 
+## M2.3 grounding and injection (known limits)
+
+The abstain gate holds unchanged, so abstain precision holds by construction; still run
+`make eval` on a real index and record the number here to close the done-when. The injection
+sanitizer is defense in depth next to the system prompt: it redacts to sentence end (a payload
+split into a separate sentence from its trigger survives), and covers English and French plus
+zero-width bypasses, not every phrasing. The grounding score measures citation discipline, not
+faithfulness (RAGAS at M8). Two follow-ups for M8: compute the gate on sanitized text so an
+injection cannot inflate confidence, and add an adversarial question to the golden set.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

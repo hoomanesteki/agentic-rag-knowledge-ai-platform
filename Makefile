@@ -40,4 +40,7 @@ down: ## Stop local infrastructure (data volumes are kept)
 ps: ## Show infrastructure status
 	docker compose ps
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps
+ingest: ## Ingest the active DOMAIN into Qdrant (needs keys in .env and make up)
+	uv run python scripts/ingest.py
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest

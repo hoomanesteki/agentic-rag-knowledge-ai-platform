@@ -13,6 +13,8 @@ from retrieval.sparse import SparseEncoder
 
 _AUTH = {"Authorization": "Bearer " + create_access_token(
     "demo", "customer", get_settings().jwt_secret)}
+_ADMIN = {"Authorization": "Bearer " + create_access_token(
+    "admin", "admin", get_settings().jwt_secret)}
 
 
 def _components(llm=None):
@@ -182,6 +184,52 @@ def test_login_unknown_user_same_as_bad_password(tmp_path):
     resp = client.post("/api/login", json={"username": "nobody", "password": "wrong"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "invalid credentials"  # no user enumeration
+
+
+def _queue_client(tmp_path, *seed):
+    from rag.hitl import ReviewQueue
+    queue = ReviewQueue(str(tmp_path / "rq.db"))
+    ids = [queue.enqueue(q, domain="apparel_ecommerce") for q in seed]
+    components = _components()
+    components["review_queue"] = queue
+    return _client(components), queue, ids
+
+
+def test_admin_queue_requires_admin_role(tmp_path):
+    client, _queue, _ids = _queue_client(tmp_path, "what is the SLA?")
+    assert client.get("/api/admin/queue").status_code == 401           # no token
+    assert client.get("/api/admin/queue", headers=_AUTH).status_code == 403   # customer, not admin
+    assert client.get("/api/admin/queue", headers=_ADMIN).status_code == 200
+
+
+def _claim(client, item_id):
+    return client.post("/api/admin/queue/{}/claim".format(item_id), headers=_ADMIN)
+
+
+def test_admin_claims_then_answers(tmp_path):
+    client, queue, ids = _queue_client(tmp_path, "what is the SLA?")
+    items = client.get("/api/admin/queue", headers=_ADMIN).json()["items"]
+    assert items[0]["id"] == ids[0] and items[0]["status"] == "open"
+    assert _claim(client, ids[0]).status_code == 200
+    # the claimed item stays visible to its claimer (so it can be answered), now marked claimed
+    items = client.get("/api/admin/queue", headers=_ADMIN).json()["items"]
+    assert items[0]["status"] == "claimed"
+    resp = client.post("/api/admin/queue/{}/answer".format(ids[0]),
+                       json={"answer": "The SLA is 99.9 percent."}, headers=_ADMIN)
+    assert resp.status_code == 200
+    assert queue.get(ids[0])["status"] == "closed"
+
+
+def test_double_claim_conflicts(tmp_path):
+    client, _queue, ids = _queue_client(tmp_path, "what is the SLA?")
+    assert _claim(client, ids[0]).status_code == 200
+    assert _claim(client, ids[0]).status_code == 409
+
+
+def test_admin_answer_unknown_item_is_404(tmp_path):
+    client, _queue, _ids = _queue_client(tmp_path, "what is the SLA?")
+    resp = client.post("/api/admin/queue/nope/answer", json={"answer": "x"}, headers=_ADMIN)
+    assert resp.status_code == 404
 
 
 def test_chat_rejects_forged_token():

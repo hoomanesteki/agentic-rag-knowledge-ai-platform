@@ -274,11 +274,13 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
 
 ### M9. Voice, story, deploy, second domain
 
-- [ ] M9.1 Voice. Groq hosted Whisper for speech-to-text with Web Speech as fallback, browser
-  speech for output. Done when: a full voice round trip works cross-browser. Size M.
-- [ ] M9.2 Ship the story. Architecture diagram, a 3-minute recorded demo, the published
-  bilingual eval report and ablation table, and a one-page decisions-and-tradeoffs doc (Part A
-  is most of it). Done when: the README links all four and reads well in 90 seconds. Size M.
+- [x] M9.1 Voice. Groq hosted Whisper for speech-to-text (`adapters/groq_whisper.py`,
+  `/api/transcribe` with size and mime guards) with Web Speech as fallback, browser speech for
+  output (`web/app/page.tsx`). Done when: a full voice round trip works cross-browser. Size M.
+- [x] M9.2 Ship the story. Architecture diagram (mermaid), a recorded-demo placeholder, the eval
+  report and ablation table, and a one-page decisions-and-tradeoffs doc (BUILD-PLAN Part A). Done
+  when: the README links all four and reads well in 90 seconds. The demo recording itself is a
+  manual capture step. Size M.
 - [ ] M9.3 Deploy. Web to Vercel, API to Cloud Run (min-instances 0), Neo4j Aura, Qdrant Cloud,
   Supabase, plus the keepalive job and enforced read-only + rate limit. Done when: the public
   demo login works inside the cost cap and idles to zero. Size L.

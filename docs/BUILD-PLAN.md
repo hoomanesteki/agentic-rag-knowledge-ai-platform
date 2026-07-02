@@ -140,9 +140,12 @@ Keep it linear, no LangGraph yet.
 
 ### M4. Structured side, and continuous reproducibility
 
-- [ ] M4.1 Bronze to gold in DuckDB. Generic bronze load driven by the manifest, then
-  dbt-duckdb models for silver (clean, mask PII) and gold (curated), with dbt tests. Done
-  when: gold builds and `dbt test` passes. Size L.
+- [x] M4.1 Bronze to gold in DuckDB. A manifest-driven medallion (bronze raw, silver typed +
+  PII-masked, gold curated) built with plain DuckDB, plus manifest-driven data contracts
+  (primary key non-null/unique, declared columns present). dbt-duckdb was dropped on purpose:
+  dbt models are per-domain SQL, which fights the one-engine-many-domains thesis; the contracts
+  cover the dbt generic tests that matter here. dbt can overlay as a lineage/docs artifact
+  later. Done: gold builds for two domains and contracts pass. Size L.
 - [ ] M4.2 Metrics, read-only. Metrics from `metrics.yaml`, a slot-filling resolver that
   validates params and runs on a DuckDB read-only connection rejecting any non-SELECT. Done
   when: a metric call returns a correct governed number and a write attempt is refused. Size M.

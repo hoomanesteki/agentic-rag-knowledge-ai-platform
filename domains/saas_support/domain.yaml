@@ -1,6 +1,8 @@
 # Domain pack: a fictional SaaS help desk for a project-management product. Synthetic data.
-# This is the second domain (M4.4). It exists to prove the same engine serves a different
-# shape of data with no engine code change. The engine reads only this pack.
+# This is the second domain: a stub at M4.4, fleshed out into a full case study at M9.4 (plan-
+# specific bilingual articles, an Article-ABOUT-Plan graph, two governed metrics, and a 20-item
+# golden set spanning every route in English and French). It proves the same engine serves a
+# different shape of data with no engine code change. The engine reads only this pack.
 
 name: saas_support
 brand: Northwind Cloud

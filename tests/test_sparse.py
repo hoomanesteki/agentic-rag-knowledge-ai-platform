@@ -1,23 +1,23 @@
-"""M1.2 sparse encoder: aligned vectors, sensible weights, deterministic output."""
-from retrieval.sparse import Bm25SparseEncoder, SparseVector
+"""M1.2 sparse encoder: stateless, aligned, saturating term frequency (Qdrant adds idf)."""
+from retrieval.sparse import SparseEncoder, SparseVector
 
 
-def test_encode_returns_aligned_vector():
-    encoder = Bm25SparseEncoder().fit(["the quick brown fox", "the lazy dog"])
-    vec = encoder.encode("quick fox")
+def test_encode_returns_aligned_sorted_vector():
+    vec = SparseEncoder().encode("quick brown fox")
     assert isinstance(vec, SparseVector)
     assert len(vec.indices) == len(vec.values)
+    assert vec.indices == sorted(vec.indices)
     assert all(v > 0 for v in vec.values)
 
 
-def test_rare_term_outweighs_common_term():
-    corpus = ["common word here"] * 5 + ["rareunicorn"]
-    encoder = Bm25SparseEncoder().fit(corpus)
-    common = encoder.encode("common")
-    rare = encoder.encode("rareunicorn")
-    assert max(rare.values) > max(common.values)
+def test_term_frequency_saturates():
+    encoder = SparseEncoder(k1=1.5)
+    one = encoder.encode("word").values[0]
+    two = encoder.encode("word word").values[0]
+    assert two > one          # repeating helps
+    assert two < 2 * one      # but sublinearly
 
 
 def test_encoding_is_deterministic():
-    encoder = Bm25SparseEncoder().fit(["alpha beta", "beta gamma"])
+    encoder = SparseEncoder()
     assert encoder.encode("alpha beta").values == encoder.encode("alpha beta").values

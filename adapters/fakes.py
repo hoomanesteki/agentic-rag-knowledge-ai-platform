@@ -177,6 +177,19 @@ class InMemoryGraphStore:
             return None
         return self._nodes.get((label, str(value)))
 
+    def find_nodes(self, label: str, where: dict | None = None,
+                   limit: int = 1000) -> list[GraphNode]:
+        out = []
+        for (node_label, _id), node in self._nodes.items():
+            if node_label != label:
+                continue
+            if where and any(node.properties.get(k) != v for k, v in where.items()):
+                continue
+            out.append(node)
+            if len(out) >= limit:
+                break
+        return out
+
     def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
                   direction: str = "both", to_label: str | None = None,
                   limit: int = 50) -> list[GraphNeighbor]:

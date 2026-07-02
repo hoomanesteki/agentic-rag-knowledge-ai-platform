@@ -102,6 +102,11 @@ class GraphStore(Protocol):
 
     def get_node(self, label: str, key: str, value: str) -> "GraphNode | None": ...
 
+    # All nodes of a label, optionally filtered by exact property matches. Powers entity-linking
+    # candidate lookup (M5.2) and graph-first relational queries (M5.3).
+    def find_nodes(self, label: str, where: dict | None = None,
+                   limit: int = 1000) -> "list[GraphNode]": ...
+
     def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
                   direction: str = "both", to_label: str | None = None,
                   limit: int = 50) -> "list[GraphNeighbor]": ...

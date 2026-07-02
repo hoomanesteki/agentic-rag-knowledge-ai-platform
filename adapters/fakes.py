@@ -140,3 +140,7 @@ class EchoLLM:
         return LLMResult(text="offline-fake-response",
                          prompt_tokens=max(len(prompt) // 4, 1),
                          completion_tokens=3, model="fake")
+
+    def stream(self, prompt: str, *, system: str | None = None, max_tokens: int = 512):
+        for word in ("offline-fake-response",):
+            yield word

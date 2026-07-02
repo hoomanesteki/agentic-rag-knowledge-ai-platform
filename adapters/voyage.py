@@ -8,6 +8,7 @@ from .config import get_settings
 
 _API = "https://api.voyageai.com/v1/embeddings"
 _MODEL_DIMS = {"voyage-3-large": 1024, "voyage-3": 1024, "voyage-3.5": 1024}
+_BATCH = 128  # Voyage caps input at 1000 per call and a per-request token budget; stay well under
 
 
 class VoyageEmbedder:
@@ -24,7 +25,13 @@ class VoyageEmbedder:
     def embed(self, texts: list[str], input_type: str = "document") -> list[list[float]]:
         if not self.api_key:
             raise RuntimeError("VOYAGE_API_KEY is not set; put it in .env")
-        body = {"model": self.model, "input": list(texts), "input_type": input_type}
-        resp = request_json("POST", _API, body,
-                            {"Authorization": "Bearer " + self.api_key})
-        return [row["embedding"] for row in resp["data"]]
+        texts = list(texts)
+        out: list[list[float]] = []
+        for start in range(0, len(texts), _BATCH):
+            batch = texts[start:start + _BATCH]
+            body = {"model": self.model, "input": batch, "input_type": input_type}
+            resp = request_json("POST", _API, body,
+                                {"Authorization": "Bearer " + self.api_key})
+            rows = sorted(resp["data"], key=lambda r: r["index"])  # do not trust array order
+            out.extend(row["embedding"] for row in rows)
+        return out

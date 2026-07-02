@@ -17,10 +17,10 @@ import sys
 import yaml
 
 from adapters.config import get_settings
-from adapters.qdrant_store import QdrantStore
+from adapters.factory import make_store
 from adapters.voyage import VoyageEmbedder
 from ingest.chunk import chunk_records
-from retrieval.sparse import Bm25SparseEncoder
+from retrieval.sparse import SparseEncoder
 
 
 def _load_jsonl(path: str) -> list[dict]:
@@ -71,11 +71,11 @@ def main() -> int:
     texts = [c.text for c in chunks]
     embedder = VoyageEmbedder()
     dense = embedder.embed(texts, input_type="document")
-    sparse_encoder = Bm25SparseEncoder().fit(texts)
+    sparse_encoder = SparseEncoder()
     sparse = [sparse_encoder.encode(t) for t in texts]
 
     collection = _collection_name(settings.domain, embedder.model)
-    store = QdrantStore(collection=collection)
+    store = make_store("qdrant", collection=collection)
     store.ensure_collection(embedder.dim)
     store.upsert([
         {"id": c.id, "text": c.text, "payload": c.metadata,

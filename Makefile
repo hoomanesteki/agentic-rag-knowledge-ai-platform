@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := help
 DOMAIN ?= apparel_ecommerce
+export q  # pass the ask question through the environment, not the shell command line
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
@@ -41,6 +42,10 @@ ps: ## Show infrastructure status
 	docker compose ps
 
 ingest: ## Ingest the active DOMAIN into Qdrant (needs keys in .env and make up)
-	uv run python scripts/ingest.py
+	PYTHONPATH=. uv run python scripts/run_ingest.py
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest
+ask: ## Ask a question, e.g. make ask q="What do customers say about sizing?"
+	PYTHONPATH=. uv run python scripts/ask.py
+
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask

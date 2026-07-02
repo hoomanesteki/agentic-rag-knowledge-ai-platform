@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Ask the active domain a question. Retrieves hybrid, grounds, answers with citations, or
+abstains, and writes a trace.
+
+Run: make ask q="What do customers say about sizing?"
+Needs keys in .env, Qdrant up (make up), and an ingest done (make ingest).
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+from adapters.config import get_settings
+from adapters.factory import make_embedder, make_llm, make_store
+from ingest.naming import collection_name
+from pipeline.answer import answer_question
+
+
+def main() -> int:
+    query = " ".join(sys.argv[1:]).strip() or os.getenv("q", "").strip()
+    if not query:
+        print('usage: make ask q="your question"')
+        return 2
+
+    settings = get_settings()
+    if settings.vector_provider in ("memory", "fake", ""):
+        print("warning: VECTOR_PROVIDER is offline and the in-memory store is empty. "
+              "Set VECTOR_PROVIDER=qdrant and run make ingest for real answers.",
+              file=sys.stderr)
+
+    store = make_store(collection=collection_name(settings.domain, settings.embed_model))
+    try:
+        result = answer_question(query, embedder=make_embedder(), store=store, llm=make_llm())
+    except RuntimeError as exc:
+        print("error: {}".format(exc), file=sys.stderr)
+        print("hint: is Qdrant up (make up) and ingested (make ingest), and are keys set in .env?",
+              file=sys.stderr)
+        return 1
+
+    print("\nTier: {}   Confidence: {:.2f}\n".format(result.tier, result.confidence))
+    print(result.answer + "\n")
+    if result.citations:
+        print("Sources:")
+        for c in result.citations:
+            print("  [{}] {} ({})".format(c["n"], c["id"], c.get("doc_type") or "doc"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

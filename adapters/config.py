@@ -23,6 +23,11 @@ class Settings:
     voyage_api_key: str
     qdrant_url: str
     rate_limit: str
+    jwt_secret: str
+    turnstile_secret: str
+    auth_db_path: str
+    demo_username: str
+    demo_password: str
 
 
 @lru_cache
@@ -40,4 +45,9 @@ def get_settings() -> Settings:
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         rate_limit=os.getenv("RATE_LIMIT", "30/minute"),
+        jwt_secret=os.getenv("JWT_SECRET", "dev-insecure-change-me"),
+        turnstile_secret=os.getenv("TURNSTILE_SECRET_KEY", ""),
+        auth_db_path=os.getenv("AUTH_DB_PATH", ".auth.db"),
+        demo_username=os.getenv("DEMO_USERNAME", "demo"),
+        demo_password=os.getenv("DEMO_PASSWORD", "skein-demo-2026"),
     )

@@ -42,6 +42,16 @@ cd web && npm install && npm run dev   # web chat on http://localhost:3000
 The web app reads the API URL from `NEXT_PUBLIC_API_URL` and the API allows the web origin via
 `ALLOWED_ORIGINS` (see `.env.example`).
 
+Sign in with the seeded demo account (override via `DEMO_USERNAME` / `DEMO_PASSWORD`):
+
+```
+username: demo
+password: skein-demo-2026
+```
+
+The captcha is bypassed when `TURNSTILE_SECRET_KEY` is empty (dev). Set it plus
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` (in `web/.env.local`) to enable Turnstile.
+
 ## Development workflow
 
 Work happens on short-lived branches, roughly one milestone step per branch, and merges to

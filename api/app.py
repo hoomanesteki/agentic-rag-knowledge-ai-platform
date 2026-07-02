@@ -1,16 +1,27 @@
 """Customer-facing FastAPI app: streaming chat and feedback, with rate limiting and a
 degraded-mode fallback when hosted APIs are unavailable."""
 import json
+import logging
 import os
 import time
 import uuid
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+import jwt
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
+from api.auth import (
+    DUMMY_HASH,
+    UserStore,
+    create_access_token,
+    decode_token,
+    seed_demo_user,
+    verify_password,
+    verify_turnstile,
+)
 from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
@@ -19,6 +30,8 @@ from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
 _FEEDBACK_PATH = os.getenv("FEEDBACK_PATH", "traces/feedback.jsonl")
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+_INSECURE_JWT_SECRET = "dev-insecure-change-me"
+_log = logging.getLogger("skein.api")
 
 
 class ChatRequest(BaseModel):
@@ -33,29 +46,73 @@ class FeedbackRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(max_length=64)
+    password: str = Field(max_length=72)  # bcrypt only uses the first 72 bytes
+    turnstile_token: str | None = Field(default=None, max_length=4096)
+
+
 def _sse(event: dict) -> str:
     return "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
 
 
-def create_app(rate_limit: str | None = None) -> FastAPI:
+def create_app(rate_limit: str | None = None, auth_db_path: str | None = None) -> FastAPI:
     app = FastAPI(title="Skein Lite API")
-    limiter = RateLimiter(rate_limit or get_settings().rate_limit)
+    settings = get_settings()
+    limiter = RateLimiter(rate_limit or settings.rate_limit)
     origins = [o.strip() for o in
                os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins,
                        allow_methods=["POST", "GET", "OPTIONS"], allow_headers=["*"])
+
+    login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
+    store = UserStore(auth_db_path or settings.auth_db_path)
+    seed_demo_user(store, settings.demo_username, settings.demo_password)
+
+    if settings.jwt_secret == _INSECURE_JWT_SECRET:
+        _log.warning("JWT_SECRET is the insecure default; tokens are forgeable. Set JWT_SECRET.")
+    if not settings.turnstile_secret:
+        _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
 
     def client_key(request: Request) -> str:
         # request.client.host is the direct peer; behind a proxy (Cloud Run, M9.3) this is the
         # proxy hop, so trusted X-Forwarded-For parsing must be added at deploy time.
         return request.client.host if request.client else "anon"
 
+    def current_user(authorization: str | None = Header(default=None)) -> dict:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="not authenticated",
+                                headers={"WWW-Authenticate": "Bearer"})
+        try:
+            payload = decode_token(authorization.split(" ", 1)[1], settings.jwt_secret)
+        except jwt.PyJWTError:
+            raise HTTPException(status_code=401, detail="invalid or expired token",
+                                headers={"WWW-Authenticate": "Bearer"})
+        return {"username": payload.get("sub"), "role": payload.get("role")}
+
     @app.get("/health")
     def health():
         return {"status": "ok"}
 
+    @app.post("/api/login")
+    def login(body: LoginRequest, request: Request):
+        if not login_limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="too many attempts",
+                                headers={"Retry-After": "30"})
+        if not verify_turnstile(body.turnstile_token, settings.turnstile_secret):
+            raise HTTPException(status_code=403, detail="captcha verification failed")
+        user = store.get(body.username)
+        # Always run a bcrypt compare (dummy hash for unknown users) so timing does not leak
+        # whether a username exists.
+        password_hash = user["password_hash"] if user else DUMMY_HASH
+        if not verify_password(body.password, password_hash) or not user:
+            raise HTTPException(status_code=401, detail="invalid credentials")
+        token = create_access_token(user["username"], user["role"], settings.jwt_secret)
+        return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+
     @app.post("/api/chat")
-    def chat(req: ChatRequest, request: Request, comp: dict = Depends(get_components)):
+    def chat(req: ChatRequest, request: Request, comp: dict = Depends(get_components),
+             user: dict = Depends(current_user)):
         if not limiter.allow(client_key(request)):
             raise HTTPException(status_code=429, detail="rate limit exceeded",
                                 headers={"Retry-After": "10"})
@@ -90,7 +147,7 @@ def create_app(rate_limit: str | None = None) -> FastAPI:
                                  headers=_SSE_HEADERS)
 
     @app.post("/api/feedback")
-    def feedback(fb: FeedbackRequest, request: Request):
+    def feedback(fb: FeedbackRequest, request: Request, user: dict = Depends(current_user)):
         if not limiter.allow(client_key(request)):
             raise HTTPException(status_code=429, detail="rate limit exceeded",
                                 headers={"Retry-After": "10"})

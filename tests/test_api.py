@@ -241,6 +241,15 @@ def test_admin_quality_requires_admin_and_returns_shape():
     assert "overall" in body and "by_language" in body
 
 
+def test_admin_domain_and_gaps_require_admin():
+    client = _client(_components())
+    for path in ("/api/admin/domain", "/api/admin/gaps"):
+        assert client.get(path, headers=_AUTH).status_code == 403
+        assert client.get(path, headers=_ADMIN).status_code == 200
+    body = client.get("/api/admin/domain", headers=_ADMIN).json()
+    assert "ontology" in body and "metrics" in body and "lineage" in body
+
+
 def test_admin_flywheel_reindexes_a_resolved_answer(tmp_path):
     from rag.hitl import ReviewQueue
     queue = ReviewQueue(str(tmp_path / "rq.db"))

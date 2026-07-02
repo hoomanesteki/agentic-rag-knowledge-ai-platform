@@ -25,7 +25,8 @@ from api.auth import (
 from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
-from evaluation.monitoring import aggregate_quality, read_jsonl
+from data.introspect import lineage_view, metrics_view, ontology_view
+from evaluation.monitoring import aggregate_gaps, aggregate_quality, read_jsonl
 from pipeline.answer import DEFAULT_MIN_CONFIDENCE, DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
@@ -206,6 +207,19 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
         feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
         return aggregate_quality(traces, feedback)
+
+    @app.get("/api/admin/gaps")
+    def admin_gaps(_: dict = Depends(require_admin)):
+        # questions the system could not answer well: the worklist for what to teach it next
+        return {"gaps": aggregate_gaps(read_jsonl(DEFAULT_TRACE_PATH, limit=5000))}
+
+    @app.get("/api/admin/domain")
+    def admin_domain(_: dict = Depends(require_admin)):
+        # read-only structure of the active domain, plus a link to MLflow (wired at M8)
+        domain = settings.domain
+        return {"domain": domain, "ontology": ontology_view(domain),
+                "metrics": metrics_view(domain), "lineage": lineage_view(domain),
+                "mlflow_url": settings.mlflow_url or None}
 
     @app.post("/api/admin/flywheel")
     def admin_flywheel(comp: dict = Depends(get_components), _: dict = Depends(require_admin)):

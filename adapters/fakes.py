@@ -193,6 +193,8 @@ class InMemoryGraphStore:
     def neighbors(self, label: str, key: str, value: str, *, edge_type: str | None = None,
                   direction: str = "both", to_label: str | None = None,
                   limit: int = 50) -> list[GraphNeighbor]:
+        if direction not in ("out", "in", "both"):
+            raise ValueError("unknown direction: {!r}".format(direction))
         anchor = (label, str(value))
         out: list[GraphNeighbor] = []
         for etype, src, dst in self._edges:

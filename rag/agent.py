@@ -83,10 +83,12 @@ def _context_ids(findings: list) -> set:
 def answer_with_agent(query: str, *, components: dict, history: list | None = None,
                       message_id: str | None = None, max_steps: int = _MAX_STEPS,
                       min_confidence: float = DEFAULT_MIN_CONFIDENCE, min_grounding: float = 0.0,
+                      review_queue=None, domain: str | None = None,
                       trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     """Run the supervisor with the gate and bounded agent loop, returning an AnswerResult whose
     tier is auto or escalate. min_grounding (calibrated on real infra, off by default) makes a
-    weakly-grounded auto answer take another pass."""
+    weakly-grounded auto answer take another pass. On escalate, if a review_queue is given, the
+    question is enqueued for a human and the queue id is in the trace."""
     started = time.perf_counter()
     llm = components["llm"]
     message_id = message_id or uuid.uuid4().hex
@@ -127,10 +129,16 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
     if tier == "escalate" and result["tier"] == "abstain":
         answer, citations = _ESCALATED, []  # honest hand-off, not a guessed answer
 
+    escalation_id = None
+    if tier == "escalate" and review_queue is not None:
+        escalation_id = review_queue.enqueue(rewritten, domain=domain, message_id=message_id,
+                                             route=route)
+
     trace = {
         "ts": time.time(), "message_id": message_id, "raw_query": query, "query": rewritten,
         "route": route, "specialists": sorted({f.specialist for f in findings}),
-        "tier": tier, "agent_steps": step, "conflict": result["conflict"],
+        "tier": tier, "agent_steps": step, "escalation_id": escalation_id,
+        "conflict": result["conflict"],
         "conflict_resolved": result["conflict_resolved"],
         "metric": any(f.kind == "metric" for f in findings),
         "graph": any(f.kind == "graph" for f in findings),

@@ -73,6 +73,7 @@ sources:
       lang_field: lang
       meta_fields: [product_id, rating, date]
       entity_ref: [product_id]
+      context_fields: [product_id]   # embedded with the text as a contextual prefix (M2.4)
 
 defaults:
   top_k_in: 50

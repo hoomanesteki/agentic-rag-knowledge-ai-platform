@@ -7,12 +7,23 @@ import os
 from functools import lru_cache
 
 from adapters.config import get_settings
-from adapters.factory import make_embedder, make_llm, make_reranker, make_store
+from adapters.factory import make_embedder, make_graph, make_llm, make_reranker, make_store
 from api.resilience import ResilientEmbedder
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
+from retrieval.graph import make_graph_retriever
 
 _log = logging.getLogger("skein.api")
+
+
+def _build_graph_retriever(domain: str):
+    # Builds a name index by scanning the graph, so a graph that is down or unbuilt must not take
+    # the whole app down; degrade to no graph evidence and log it.
+    try:
+        return make_graph_retriever(domain, make_graph())
+    except Exception as exc:  # noqa: BLE001 - any backend error should degrade, not crash chat
+        _log.warning("graph retriever unavailable (%s); answers will not use the graph", exc)
+        return None
 
 
 @lru_cache
@@ -30,4 +41,5 @@ def get_components() -> dict:
         "llm": make_llm(),
         "reranker": make_reranker(),
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),
+        "graph_retriever": _build_graph_retriever(settings.domain),
     }

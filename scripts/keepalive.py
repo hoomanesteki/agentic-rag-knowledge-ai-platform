@@ -1,12 +1,14 @@
 """Keep the free-tier hosted services warm so they do not idle out between demos.
 
-Neo4j Aura Free pauses after a few days and is deleted around 30; Supabase free pauses after about
-a week; Qdrant Cloud free clusters also suspend when idle. This job touches each configured target
-with the lightest possible real request and reports a summary. It runs on a schedule from
-.github/workflows/keepalive.yml, and is safe to run by hand: `uv run python -m scripts.keepalive`.
+Neo4j Aura Free pauses after a few days and is deleted around 30; Qdrant Cloud free clusters also
+suspend when idle. This job touches each configured target with the lightest possible real request
+and reports a summary. It runs on a schedule from .github/workflows/keepalive.yml, and is safe to
+run by hand: `uv run python -m scripts.keepalive`.
 
-Only targets whose env vars are set are checked, so the same script works for any subset of the
-hosted stack. It exits non-zero if any checked target fails, so a paused free tier is visible.
+Users live in a local SQLite file (see api/auth.py), not a hosted database, so there is nothing to
+keep warm for auth. Only targets whose env vars are set are checked, so the same script works for
+any subset of the hosted stack. It exits non-zero if any checked target fails, so a paused free
+tier is visible.
 """
 from __future__ import annotations
 
@@ -18,29 +20,25 @@ import httpx
 
 Check = Callable[[], "tuple[bool, str]"]
 
+# A reachability check is healthy only on a 2xx/3xx; a 404 on a wrong URL is a failure, not "ok".
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+
+
+def _is_local(url: str) -> bool:
+    host = url.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+    return host in _LOCAL_HOSTS
+
 
 def _get(url: str, headers: dict | None = None) -> tuple[bool, str]:
     try:
         resp = httpx.get(url, headers=headers, timeout=20.0)
-        return resp.status_code < 500, "HTTP {}".format(resp.status_code)
+        return 200 <= resp.status_code < 400, "HTTP {}".format(resp.status_code)
     except httpx.HTTPError as exc:
         return False, str(exc)[:120]
 
 
 def _touch_api_health(base: str) -> tuple[bool, str]:
     return _get(base.rstrip("/") + "/health")
-
-
-def _touch_postgres_via_login(base: str, username: str, password: str) -> tuple[bool, str]:
-    # A login runs a SELECT on the users table, which lives in Supabase Postgres on deploy. Wrong
-    # credentials are fine: the query still executes and keeps the database warm. A 401/403/429 all
-    # mean the endpoint answered, so the database was reached.
-    try:
-        resp = httpx.post(base.rstrip("/") + "/api/login",
-                          json={"username": username, "password": password}, timeout=20.0)
-        return resp.status_code < 500, "HTTP {}".format(resp.status_code)
-    except httpx.HTTPError as exc:
-        return False, str(exc)[:120]
 
 
 def _touch_qdrant(url: str, api_key: str | None) -> tuple[bool, str]:
@@ -50,11 +48,11 @@ def _touch_qdrant(url: str, api_key: str | None) -> tuple[bool, str]:
 
 def _touch_neo4j() -> tuple[bool, str]:
     # Reuse the real adapter so this exercises the same HTTP Cypher path the app uses.
-    from adapters.neo4j_store import Neo4jStore
     try:
-        Neo4jStore()._run("RETURN 1 AS ok")
+        from adapters.neo4j_store import Neo4jGraphStore
+        Neo4jGraphStore()._run("RETURN 1 AS ok")
         return True, "RETURN 1 ok"
-    except Exception as exc:  # noqa: BLE001 - any backend failure is a failed keepalive
+    except Exception as exc:  # noqa: BLE001 - any backend/config failure is a failed keepalive
         return False, str(exc)[:120]
 
 
@@ -62,16 +60,15 @@ def plan(env: dict) -> list[tuple[str, Check]]:
     """Build the list of (name, check) targets from the environment. Pure, so it is testable."""
     targets: list[tuple[str, Check]] = []
     api = env.get("KEEPALIVE_API_URL")
-    if api:
+    if api and not _is_local(api):
         targets.append(("api-health", lambda: _touch_api_health(api)))
-        targets.append(("supabase-postgres", lambda: _touch_postgres_via_login(
-            api, env.get("DEMO_USERNAME", "demo"), "keepalive-not-a-real-password")))
     qdrant = env.get("QDRANT_URL")
-    if qdrant and not qdrant.startswith("http://localhost"):
+    if qdrant and not _is_local(qdrant):
         targets.append(("qdrant", lambda: _touch_qdrant(qdrant, env.get("QDRANT_API_KEY"))))
-    if env.get("GRAPH_PROVIDER") == "neo4j" and env.get("NEO4J_URL", "").startswith("http"):
-        if not env.get("NEO4J_URL", "").startswith("http://localhost"):
-            targets.append(("neo4j", _touch_neo4j))
+    neo4j_url = env.get("NEO4J_URL", "")
+    if env.get("GRAPH_PROVIDER") == "neo4j" and neo4j_url.startswith("http") \
+            and not _is_local(neo4j_url):
+        targets.append(("neo4j", _touch_neo4j))
     return targets
 
 

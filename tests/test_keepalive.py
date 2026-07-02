@@ -11,14 +11,14 @@ def test_empty_env_has_no_targets():
     assert plan({}) == []
 
 
-def test_api_url_adds_health_and_postgres():
-    names = _names({"KEEPALIVE_API_URL": "https://api.example.com"})
-    assert names == ["api-health", "supabase-postgres"]
+def test_api_url_adds_health():
+    assert _names({"KEEPALIVE_API_URL": "https://api.example.com"}) == ["api-health"]
 
 
 def test_localhost_stores_are_skipped():
-    env = {"QDRANT_URL": "http://localhost:6333", "GRAPH_PROVIDER": "neo4j",
-           "NEO4J_URL": "http://localhost:7474"}
+    env = {"KEEPALIVE_API_URL": "http://127.0.0.1:8000",
+           "QDRANT_URL": "http://localhost:6333", "GRAPH_PROVIDER": "neo4j",
+           "NEO4J_URL": "http://0.0.0.0:7474"}
     assert _names(env) == []
 
 

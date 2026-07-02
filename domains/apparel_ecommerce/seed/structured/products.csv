@@ -1,0 +1,9 @@
+product_id,name,category,size,price,supplier_id
+P001,Aster Flow Legging,leggings,S,98.0,SUP01
+P002,Aster Flow Legging,leggings,M,98.0,SUP01
+P003,Aster Flow Legging,leggings,L,98.0,SUP01
+P004,Aster Vent Tech Tee,tops,M,78.0,SUP02
+P005,Aster Vent Tech Tee,tops,L,78.0,SUP02
+P006,Aster Daytrip Belt Bag,bags,OS,38.0,SUP01
+P007,Aster Cloud Hoodie,hoodies,M,118.0,SUP01
+P008,Aster Cloud Hoodie,hoodies,L,118.0,SUP01

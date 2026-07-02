@@ -1,0 +1,17 @@
+{"id": "G001", "lang": "en", "question": "How much does the Aster Flow Legging cost?", "type": "answerable", "route": "factual", "expected_answer_contains": ["98"], "expected_entities": ["P001", "P002", "P003"]}
+{"id": "G002", "lang": "en", "question": "Which supplier makes the Aster Cloud Hoodie?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Northloom"], "expected_entities": ["SUP01"]}
+{"id": "G003", "lang": "en", "question": "Do customers say the Flow Legging runs small?", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["small"], "expected_entities": ["P002"]}
+{"id": "G004", "lang": "en", "question": "Is the Cloud Hoodie true to size?", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["tight", "shoulders"], "expected_entities": ["P007"]}
+{"id": "G005", "lang": "en", "question": "What is the return rate for size M?", "type": "answerable", "route": "analytical", "expected_answer_contains": ["50"]}
+{"id": "G006", "lang": "en", "question": "Which stores are in Canada?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Toronto", "Vancouver"], "expected_entities": ["ST01", "ST02"]}
+{"id": "G007", "lang": "en", "question": "How much is the Daytrip Belt Bag?", "type": "answerable", "route": "factual", "expected_answer_contains": ["38"], "expected_entities": ["P006"]}
+{"id": "G008", "lang": "en", "question": "Is the Vent Tech Tee good for hot yoga?", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["breathable"], "expected_entities": ["P004"]}
+{"id": "G009", "lang": "en", "question": "What is the warranty period on the Cloud Hoodie?", "type": "unanswerable"}
+{"id": "G010", "lang": "en", "question": "Does the Flow Legging come in a petite length?", "type": "unanswerable"}
+{"id": "G011", "lang": "en", "question": "What is the capital of France?", "type": "out_of_domain"}
+{"id": "G012", "lang": "en", "question": "Can you write me a Python script to sort a list?", "type": "out_of_domain"}
+{"id": "G013", "lang": "fr", "question": "Combien coute le legging Flow?", "type": "answerable", "route": "factual", "expected_answer_contains": ["98"], "expected_entities": ["P001"]}
+{"id": "G014", "lang": "fr", "question": "Est-ce que le legging Flow taille petit?", "type": "answerable", "route": "qualitative", "expected_answer_contains": ["petit"], "expected_entities": ["P002"]}
+{"id": "G015", "lang": "fr", "question": "Quel magasin se trouve a Vancouver?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Gastown"], "expected_entities": ["ST02"]}
+{"id": "G016", "lang": "fr", "question": "Quelle est la garantie du Cloud Hoodie?", "type": "unanswerable"}
+{"id": "G017", "lang": "fr", "question": "Quelle est la capitale du Canada?", "type": "out_of_domain"}

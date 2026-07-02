@@ -65,7 +65,13 @@ mlflow-log: ## Log the request traces to MLflow (./mlruns locally, or MLFLOW_TRA
 ragas: ## RAGAS-style answer-quality eval on the golden set (needs keys, make up, an ingest)
 	PYTHONPATH=. uv run python scripts/run_ragas.py
 
+gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
+	PYTHONPATH=. uv run python scripts/run_gate.py
+
+drift: ## Report drift across the four monitors from recent traffic
+	PYTHONPATH=. uv run python scripts/run_drift.py
+
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse graph-load ingest ask eval ablation mlflow-log ragas serve
+.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse graph-load ingest ask eval ablation mlflow-log ragas gate drift serve

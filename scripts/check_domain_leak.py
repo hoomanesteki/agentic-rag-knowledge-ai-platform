@@ -36,11 +36,11 @@ def vocab_for_pack(pack):
     terms = set()
     dom = load_yaml(os.path.join(pack, "domain.yaml"))
 
-    # brand and other free-text identity values
-    for key in ("brand", "name"):
-        v = dom.get(key)
-        if isinstance(v, str):
-            terms.add(v)
+    # The brand is domain content and must not leak. The domain `name` (slug) is the selector
+    # the engine uses to load a pack (for example a default DOMAIN), so it is allowed.
+    brand = dom.get("brand")
+    if isinstance(brand, str):
+        terms.add(brand)
 
     # glossary canonical keys (domain jargon)
     terms.update((dom.get("glossary") or {}).keys())

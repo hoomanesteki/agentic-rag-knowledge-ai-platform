@@ -1,0 +1,16 @@
+{
+  "description": "Recorded regression fixtures for the CI eval gate. Neutral synthetic content (no domain vocabulary) so the offline pipeline can be checked deterministically: a query either retrieves the expected fact or correctly abstains. A dropped corpus doc or a broken retriever makes a retrieves-fixture fail and the gate blocks.",
+  "corpus": [
+    "the sample gadget ships in two business days after the order is placed",
+    "our return window is thirty days for unused items in the original packaging",
+    "the premium tier includes twenty user licenses and priority support",
+    "invoices are emailed on the first of each month to the billing contact"
+  ],
+  "fixtures": [
+    {"id": "F1", "query": "how many business days does the gadget ship in", "expect": "retrieves", "value": "business days"},
+    {"id": "F2", "query": "what is the return window for unused items", "expect": "retrieves", "value": "thirty days"},
+    {"id": "F3", "query": "how many user licenses does the premium tier include", "expect": "retrieves", "value": "twenty user licenses"},
+    {"id": "F4", "query": "when are invoices emailed each month", "expect": "retrieves", "value": "first of each month"},
+    {"id": "F5", "query": "what is the boiling point of water", "expect": "abstain", "value": ""}
+  ]
+}

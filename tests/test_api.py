@@ -120,6 +120,12 @@ def test_empty_query_rejected():
     assert _client(_components()).post("/api/chat", json={"query": "   "}).status_code == 400
 
 
+def test_cors_allows_configured_origin(monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:3000")
+    resp = _client(_components()).get("/health", headers={"Origin": "http://localhost:3000"})
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
 def test_feedback_records(tmp_path, monkeypatch):
     import api.app as app_mod
     monkeypatch.setattr(app_mod, "_FEEDBACK_PATH", str(tmp_path / "fb.jsonl"))

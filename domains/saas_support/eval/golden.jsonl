@@ -1,0 +1,12 @@
+{"id": "S001", "lang": "en", "question": "How do I reset my Northwind Cloud password?", "type": "answerable", "route": "factual", "expected_answer_contains": ["reset"], "expected_entities": []}
+{"id": "S002", "lang": "en", "question": "How many seats does the Team plan include?", "type": "answerable", "route": "factual", "expected_answer_contains": ["10"], "expected_entities": ["PL02"]}
+{"id": "S003", "lang": "fr", "question": "Comment reinitialiser mon mot de passe ?", "type": "answerable", "route": "factual", "expected_answer_contains": ["mot de passe"], "expected_entities": []}
+{"id": "S004", "lang": "en", "question": "Does the Business plan support SSO?", "type": "answerable", "route": "factual", "expected_answer_contains": ["SSO"], "expected_entities": ["PL03"]}
+{"id": "S005", "lang": "en", "question": "What is the Northwind Cloud API rate limit?", "type": "answerable", "route": "factual", "expected_answer_contains": ["100"], "expected_entities": []}
+{"id": "S006", "lang": "fr", "question": "Quelle est la limite de l'API Northwind Cloud ?", "type": "answerable", "route": "factual", "expected_answer_contains": ["100"], "expected_entities": []}
+{"id": "S007", "lang": "en", "question": "What uptime SLA does the Starter plan guarantee?", "type": "unanswerable", "route": "factual", "expected_answer_contains": [], "expected_entities": []}
+{"id": "S008", "lang": "en", "question": "What is the capital of France?", "type": "out_of_domain", "route": "factual", "expected_answer_contains": [], "expected_entities": []}
+{"id": "S009", "lang": "en", "question": "What is the resolution rate for high priority tickets?", "type": "answerable", "route": "metric", "expected_answer_contains": ["0.75"], "expected_entities": []}
+{"id": "S010", "lang": "en", "question": "How do I download past invoices?", "type": "answerable", "route": "factual", "expected_answer_contains": ["invoice"], "expected_entities": []}
+{"id": "S011", "lang": "en", "question": "How do I export my workspace data?", "type": "answerable", "route": "factual", "expected_answer_contains": ["export"], "expected_entities": []}
+{"id": "S012", "lang": "en", "question": "Which programming languages does the mobile SDK support?", "type": "unanswerable", "route": "factual", "expected_answer_contains": [], "expected_entities": []}

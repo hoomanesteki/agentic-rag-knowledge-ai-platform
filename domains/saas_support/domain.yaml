@@ -1,0 +1,65 @@
+# Domain pack: a fictional SaaS help desk for a project-management product. Synthetic data.
+# This is the second domain (M4.4). It exists to prove the same engine serves a different
+# shape of data with no engine code change. The engine reads only this pack.
+
+name: saas_support
+brand: Northwind Cloud
+languages: [en, fr]
+
+# Terms the understand step normalizes before retrieval. Keep these domain-specific: generic
+# app words (like "sign in") belong to the engine UI, not a domain glossary.
+glossary:
+  seat: [seats, license, licence]
+  sso: [single sign-on, single sign on]
+  workspace: [tenant, organization, org]
+
+# Canonical node labels. Every one also appears in ontology.cypher.
+entity_types:
+  - Plan
+  - Ticket
+  - Article
+
+# The manifest. Same contract as the first domain, different schema, so ingestion,
+# the lakehouse, and metrics all stay domain agnostic.
+sources:
+  structured:
+    - file: seed/structured/plans.csv
+      role: plans
+      primary_key: plan_id
+      grain: one row per subscription plan
+      columns:
+        plan_id: string
+        name: string
+        tier: string
+        monthly_price: float
+        seats: int
+      pii_columns: []
+    - file: seed/structured/tickets.csv
+      role: tickets
+      primary_key: ticket_id
+      grain: one row per support ticket
+      columns:
+        ticket_id: string
+        plan_id: string
+        customer_email: string
+        priority: string
+        status: string
+        resolved: bool
+        opened_at: date
+      # customer_email is masked out of silver and gold; the raw value never leaves bronze.
+      pii_columns: [customer_email]
+  unstructured:
+    - file: seed/unstructured/articles.jsonl
+      doc_type: article
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [plan_id, category]
+      entity_ref: [plan_id]
+      context_fields: [plan_id]   # embedded with the text as a contextual prefix (M2.4)
+
+defaults:
+  top_k_in: 50
+  top_n_out: 8
+  confidence_high: 0.7
+  confidence_low: 0.4

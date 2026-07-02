@@ -83,7 +83,7 @@ def _context_ids(findings: list) -> set:
 def answer_with_agent(query: str, *, components: dict, history: list | None = None,
                       message_id: str | None = None, max_steps: int = _MAX_STEPS,
                       min_confidence: float = DEFAULT_MIN_CONFIDENCE, min_grounding: float = 0.0,
-                      review_queue=None, domain: str | None = None,
+                      review_queue=None, domain: str | None = None, lang: str | None = None,
                       trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     """Run the supervisor with the gate and bounded agent loop, returning an AnswerResult whose
     tier is auto or escalate. min_grounding (calibrated on real infra, off by default) makes a
@@ -136,7 +136,7 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
 
     trace = {
         "ts": time.time(), "message_id": message_id, "raw_query": query, "query": rewritten,
-        "route": route, "specialists": sorted({f.specialist for f in findings}),
+        "lang": lang, "route": route, "specialists": sorted({f.specialist for f in findings}),
         "tier": tier, "agent_steps": step, "escalation_id": escalation_id,
         "conflict": result["conflict"],
         "conflict_resolved": result["conflict_resolved"],

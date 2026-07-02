@@ -234,7 +234,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
                     reranker: Reranker | None = None, metric_resolver: MetricResolver | None = None,
                     graph_retriever: GraphRetriever | None = None,
                     top_k: int = 8, top_k_in: int = 50,
-                    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+                    min_confidence: float = DEFAULT_MIN_CONFIDENCE, lang: str | None = None,
                     trace_path: str = DEFAULT_TRACE_PATH) -> AnswerResult:
     started = time.perf_counter()
     hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
@@ -249,6 +249,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     trace = {
         "ts": time.time(),
         "query": query,
+        "lang": lang,
         "reranked": reranker is not None,
         "metric": has_metric,
         "graph": has_graph,
@@ -286,7 +287,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   graph_retriever: GraphRetriever | None = None,
                   top_k: int = 8, top_k_in: int = 50,
                   min_confidence: float = DEFAULT_MIN_CONFIDENCE,
-                  trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None):
+                  trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None,
+                  lang: str | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
@@ -304,6 +306,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         "ts": time.time(),
         "message_id": message_id,
         "query": query,
+        "lang": lang,
         "reranked": reranker is not None,
         "metric": has_metric,
         "graph": has_graph,

@@ -43,7 +43,10 @@ def chunk_records(
     chunks: list[Chunk] = []
     for rec in records:
         record_id = str(rec[id_field])
-        pieces = split_text(rec[text_field], max_words, overlap)
+        text = (rec.get(text_field) or "").strip()
+        if not text:
+            continue  # skip empty or whitespace-only records
+        pieces = split_text(text, max_words, overlap)
         for i, piece in enumerate(pieces):
             chunk_id = record_id if len(pieces) == 1 else "{}#{}".format(record_id, i)
             metadata = {

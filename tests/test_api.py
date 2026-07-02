@@ -339,22 +339,52 @@ def _env(**overrides):
         config.get_settings.cache_clear()
 
 
+# A real production secret: not a placeholder and at least 32 characters.
+_STRONG_SECRET = "a-long-random-production-jwt-secret-0123456789"
+# Explicit non-default credentials so the production credential gate does not fire on these tests.
+_REAL_CREDS = {"ADMIN_PASSWORD": "a-real-admin-password", "DEMO_PASSWORD": "a-real-demo-password"}
+
+
 def test_production_refuses_insecure_jwt_secret():
     # A public deploy with a forgeable admin token must fail to boot, not just warn.
-    with _env(SKEIN_ENV="production", TURNSTILE_SECRET_KEY="a-secret"):
+    with _env(SKEIN_ENV="production", JWT_SECRET="dev-insecure-change-me",
+              TURNSTILE_SECRET_KEY="a-secret", **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            create_app()
+
+
+def test_production_refuses_the_shipped_placeholder_secret():
+    # The .env.example value is 33 chars, so the length check alone misses it; it is denylisted.
+    with _env(SKEIN_ENV="production", JWT_SECRET="change-me-to-a-long-random-string",
+              TURNSTILE_SECRET_KEY="a-secret", **_REAL_CREDS):
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            create_app()
+
+
+def test_production_refuses_short_secret():
+    with _env(SKEIN_ENV="production", JWT_SECRET="too-short", TURNSTILE_SECRET_KEY="a-secret",
+              **_REAL_CREDS):
         with pytest.raises(RuntimeError, match="JWT_SECRET"):
             create_app()
 
 
 def test_production_refuses_missing_turnstile():
-    with _env(SKEIN_ENV="production", JWT_SECRET="a-long-random-production-secret"):
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="",
+              **_REAL_CREDS):
         with pytest.raises(RuntimeError, match="TURNSTILE"):
             create_app()
 
 
+def test_production_refuses_default_admin_password():
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
+              ADMIN_PASSWORD="skein-admin-2026", DEMO_PASSWORD="a-real-demo-password"):
+        with pytest.raises(RuntimeError, match="ADMIN_PASSWORD"):
+            create_app()
+
+
 def test_production_boots_with_real_secret_and_captcha(tmp_path):
-    with _env(SKEIN_ENV="production", JWT_SECRET="a-long-random-production-secret",
-              TURNSTILE_SECRET_KEY="a-secret"):
+    with _env(SKEIN_ENV="production", JWT_SECRET=_STRONG_SECRET, TURNSTILE_SECRET_KEY="a-secret",
+              **_REAL_CREDS):
         app = create_app(auth_db_path=str(tmp_path / "auth.db"))
         assert TestClient(app).get("/health").json()["status"] == "ok"
 

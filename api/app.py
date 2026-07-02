@@ -40,8 +40,17 @@ _ALLOWED_AUDIO_MIME = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "au
                        "audio/wav", "audio/x-wav", "audio/flac"}
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-_INSECURE_JWT_SECRET = "dev-insecure-change-me"
+# Placeholders that must never sign real tokens. The length check below catches anything else
+# too short, but the shipped .env.example value is 33 chars, so it has to be named explicitly.
+_INSECURE_JWT_SECRETS = {"dev-insecure-change-me", "change-me", "change-me-to-a-long-random-string"}
+_MIN_JWT_SECRET_LEN = 32
+_DEFAULT_ADMIN_PASSWORD = "skein-admin-2026"  # the value committed in .env.example / config.py
+_DEFAULT_DEMO_PASSWORD = "skein-demo-2026"
 _log = logging.getLogger("skein.api")
+
+
+def _is_production(app_env: str) -> bool:
+    return app_env in ("production", "prod")
 
 
 class ChatRequest(BaseModel):
@@ -104,17 +113,30 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
 
-    insecure_secret = settings.jwt_secret in (_INSECURE_JWT_SECRET, "", "change-me")
-    if insecure_secret:
-        msg = ("JWT_SECRET is the insecure default: anyone can forge a token, including an admin "
-               "one. Set JWT_SECRET to a long random string before exposing this.")
-        if settings.app_env == "production":
+    production = _is_production(settings.app_env)
+    # A secret is unsafe if it is a known placeholder or simply too short to resist brute force.
+    weak_jwt = (settings.jwt_secret in _INSECURE_JWT_SECRETS
+                or len(settings.jwt_secret) < _MIN_JWT_SECRET_LEN)
+    if weak_jwt:
+        msg = ("JWT_SECRET is weak or a placeholder: anyone can forge a token, including an admin "
+               "one. Set JWT_SECRET to a random string of at least {} characters.".format(
+                   _MIN_JWT_SECRET_LEN))
+        if production:
             # Fail fast instead of booting a forgeable-auth server on a public URL.
             raise RuntimeError(msg + " Refusing to start with SKEIN_ENV=production.")
         _log.error(msg)
-    if settings.app_env == "production" and not settings.turnstile_secret:
+    if production and not settings.turnstile_secret:
         raise RuntimeError("TURNSTILE_SECRET_KEY is empty but SKEIN_ENV=production; the login "
                            "captcha would be bypassed. Set it or unset SKEIN_ENV.")
+    if production:
+        # The default credentials are committed in .env.example, so a public deploy that keeps
+        # them is wide open (admin dashboards leak ops data even with DEMO_READONLY on).
+        if settings.admin_password == _DEFAULT_ADMIN_PASSWORD:
+            raise RuntimeError("ADMIN_PASSWORD is the documented default; set a real one before "
+                               "SKEIN_ENV=production.")
+        if settings.demo_password == _DEFAULT_DEMO_PASSWORD:
+            raise RuntimeError("DEMO_PASSWORD is the documented default; set a real one before "
+                               "SKEIN_ENV=production.")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
     if settings.demo_readonly:
@@ -125,8 +147,15 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
             raise HTTPException(status_code=403, detail="this is a read-only demo")
 
     def client_key(request: Request) -> str:
-        # request.client.host is the direct peer; behind a proxy (Cloud Run, M9.3) this is the
-        # proxy hop, so trusted X-Forwarded-For parsing must be added at deploy time.
+        # request.client.host is the direct peer; behind Cloud Run that is the proxy hop, so every
+        # caller would share one bucket and a single abuser would lock everyone out. In production
+        # key on the client IP from X-Forwarded-For (GCP documents the first entry as the original
+        # client). Best effort: a client can spoof its own entry, but only ever widens its own
+        # bucket, never takes someone else's. The hard cost ceiling is the Cloud Run instance cap.
+        if production:
+            first = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            if first:
+                return first
         return request.client.host if request.client else "anon"
 
     def current_user(authorization: str | None = Header(default=None)) -> dict:

@@ -50,8 +50,9 @@ High:
   fixture set with a cheap judge, checked into `rag/eval/fixtures/`. Design it at M8, do not
   assume the full stack runs in CI.
 - Free-tier decay. Neo4j Aura Free pauses after a few days idle and is deleted around 30 days;
-  Supabase free pauses after about a week. Fix: one keepalive job pings both, plus a one
-  command reseed. Provision hosted services late (M9) so nothing rots between milestones.
+  Qdrant Cloud free clusters suspend when idle. Fix: one keepalive job pings the hosted stores
+  (`scripts/keepalive.py`), plus a one command reseed. Provision hosted services late (M9) so
+  nothing rots between milestones.
 - Public demo abuse. Real Groq/Voyage keys behind a public URL drain in an afternoon. Fix:
   read-only + rate limit + cached demo answers + a hard request cap, wired at M3 and enforced
   at deploy.
@@ -157,8 +158,9 @@ Keep it linear, no LangGraph yet.
   Calm layout, one accent color. Done when: you can ask and read a streamed cited answer in
   the browser. Size L.
 - [x] M3.3 Real auth. JWT sessions, hashed passwords, seeded demo login, Turnstile on login,
-  protected endpoints. Users live in SQLite for now; swap to Postgres at M9.3 (same schema).
-  Done: login gates chat and feedback, demo creds in the README.
+  protected endpoints. Users live in SQLite (`api/auth.py` reads `AUTH_DB_PATH`); a Postgres swap
+  is future work, so it stays SQLite through M9.3. Done: login gates chat and feedback, demo creds
+  in the README.
 
 ### M4. Structured side, and continuous reproducibility
 
@@ -281,11 +283,13 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   report and ablation table, and a one-page decisions-and-tradeoffs doc (BUILD-PLAN Part A). Done
   when: the README links all four and reads well in 90 seconds. The demo recording itself is a
   manual capture step. Size M.
-- [x] M9.3 Deploy. Web to Vercel, API to Cloud Run (min-instances 0) via the `Dockerfile`, Neo4j,
-  Qdrant Cloud, Supabase, plus the keepalive job (`scripts/keepalive.py` +
-  `.github/workflows/keepalive.yml`) and enforced read-only (`DEMO_READONLY`) + rate limit +
-  production JWT/Turnstile enforcement (`SKEIN_ENV=production`). The runbook is `docs/DEPLOY.md`.
-  Done when: the public demo login works inside the cost cap and idles to zero. Size L.
+- [x] M9.3 Deploy. Web to Vercel, API to Cloud Run (min-instances 0) via the `Dockerfile`, Neo4j
+  (HTTP), Qdrant Cloud, plus the keepalive job (`scripts/keepalive.py` +
+  `.github/workflows/keepalive.yml`) and enforced read-only (`DEMO_READONLY`) + best-effort
+  per-client rate limit + production JWT/Turnstile/credential enforcement (`SKEIN_ENV=production`).
+  Users stay on SQLite (ephemeral on Cloud Run, re-seeded per cold start); a Postgres swap is future
+  work. The runbook is `docs/DEPLOY.md`. Done when: the public demo login works inside the cost cap
+  and idles to zero. Size L.
 - [ ] M9.4 Second domain, full. Flesh out `domains/saas_support/` and switch `DOMAIN`.
   Reproducibility is already proven in CI (M4.4); this makes the second case study real. Done
   when: the same engine answers support questions with no engine code change. Size L.

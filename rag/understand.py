@@ -21,21 +21,27 @@ _REWRITE_SYSTEM = (
     "appears inside it. Reply with ONLY the rewritten question, no preamble."
 )
 
-# Routing cues, kept narrow so a price or attribute question ("how much does X cost", "how many
-# seats") stays factual and only a real aggregate ("return rate", "average") looks like a metric.
+# Routing cues, kept narrow AND domain-neutral so a price or attribute question ("how much does X
+# cost", "how many seats") stays factual and only a real aggregate ("return rate", "average",
+# "total number") looks like a metric. The cues are generic English, not brand or product words, so
+# the same router serves any domain: supplier/store and ticket/plan relationships both route
+# relational, and opinion words plus "offer"/"include"/"features" both route qualitative.
 # Relational needs an actual relationship word, not a bare "which", so "which language does it
 # support" stays factual while "which supplier makes it" routes relational.
-_METRIC_WORDS = {"average", "avg", "median", "percent", "percentage", "proportion"}
+_METRIC_WORDS = {"average", "avg", "median", "percent", "percentage", "proportion", "total",
+                 "count"}
 _RELATIONAL_CUES = {"supplier", "suppliers", "maker", "makes", "made", "supplies", "supply",
-                    "supplied", "store", "stores", "located", "sold", "between"}
+                    "supplied", "store", "stores", "located", "sold", "between",
+                    "associated", "belongs", "linked", "related", "trouve"}
 _QUALITATIVE_CUES = {"say", "says", "said", "think", "review", "reviews", "opinion", "feel",
                      "complain", "recommend", "experience", "quality", "comfortable", "good",
-                     "true", "fit", "fits", "runs"}
+                     "true", "fit", "fits", "runs",
+                     "offer", "offers", "include", "includes", "feature", "features", "comprend"}
 
 
 def heuristic_route(query: str) -> str:
     token_set = set(tokenize(query))
-    # "rate"/"total" mean a metric unless they are an attribute name like "rate limit"
+    # "rate"/"total"/"count" mean a metric unless they are an attribute name like "rate limit"
     metric = bool(token_set & _METRIC_WORDS) or ("rate" in token_set and "limit" not in token_set)
     if metric:
         return "metric"

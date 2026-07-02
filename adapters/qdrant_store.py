@@ -60,19 +60,25 @@ class QdrantStore:
                      body)
 
     def hybrid_search(self, dense_query: list[float], sparse_query: dict,
-                      top_k: int = 8, where: dict | None = None) -> list[dict]:
+                      top_k: int = 8, where: dict | None = None,
+                      dense_only: bool = False) -> list[dict]:
+        flt = _to_filter(where) if where else None
+        url = "{}/collections/{}/points/query".format(self.url, self.collection)
+        if dense_only:
+            body = {"query": dense_query, "using": "dense", "limit": top_k, "with_payload": True}
+            if flt:
+                body["filter"] = flt
+            return request_json("POST", url, body).get("result", {}).get("points", [])
+
         prefetch_limit = top_k * 4
         prefetch = [
             {"query": dense_query, "using": "dense", "limit": prefetch_limit},
             {"query": {"indices": sparse_query["indices"], "values": sparse_query["values"]},
              "using": "sparse", "limit": prefetch_limit},
         ]
-        if where:
-            flt = _to_filter(where)
+        if flt:
             for branch in prefetch:
                 branch["filter"] = flt
         body = {"prefetch": prefetch, "query": {"fusion": "rrf"},
                 "limit": top_k, "with_payload": True}
-        resp = request_json(
-            "POST", "{}/collections/{}/points/query".format(self.url, self.collection), body)
-        return resp.get("result", {}).get("points", [])
+        return request_json("POST", url, body).get("result", {}).get("points", [])

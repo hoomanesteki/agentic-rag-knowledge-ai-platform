@@ -60,6 +60,24 @@ def test_upsert_builds_named_vectors_with_uuid_id(monkeypatch):
     assert point["payload"]["text"] == "hi"
 
 
+def test_dense_only_is_a_plain_query_no_fusion(monkeypatch):
+    seen = {}
+
+    def fake(method, url, payload=None, headers=None, timeout=60):
+        seen.update(url=url, payload=payload)
+        return {"result": {"points": [{"id": "x", "payload": {"text": "t"}}]}}
+
+    monkeypatch.setattr(qs_mod, "request_json", fake)
+    QdrantStore(collection="c", url="http://q").hybrid_search(
+        [0.1], {"indices": [3], "values": [0.5]}, top_k=5, where={"lang": "fr"}, dense_only=True)
+    body = seen["payload"]
+    assert body["query"] == [0.1]          # a bare vector = plain kNN
+    assert body["using"] == "dense"
+    assert "prefetch" not in body          # no fusion for dense-only
+    assert body["limit"] == 5
+    assert body["filter"] == {"must": [{"key": "lang", "match": {"value": "fr"}}]}
+
+
 def test_hybrid_search_uses_rrf_and_must_match_filter(monkeypatch):
     seen = {}
 

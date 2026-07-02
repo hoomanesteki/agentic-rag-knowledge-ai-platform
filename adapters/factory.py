@@ -6,7 +6,7 @@ groq) are config swaps, not code changes.
 from __future__ import annotations
 
 from . import fakes
-from .base import Embedder, HybridStore, LLMClient, VectorStore
+from .base import Embedder, HybridStore, LLMClient, Reranker, VectorStore
 from .config import get_settings
 
 
@@ -28,6 +28,18 @@ def make_llm(provider: str | None = None) -> LLMClient:
         from .groq import GroqClient
         return GroqClient()
     raise ValueError("unknown LLM_PROVIDER: {}".format(provider))
+
+
+def make_reranker(provider: str | None = None) -> Reranker | None:
+    provider = provider or get_settings().rerank_provider
+    if provider in ("none", ""):
+        return None
+    if provider == "fake":
+        return fakes.LexicalReranker()
+    if provider == "voyage":
+        from .voyage_rerank import VoyageReranker
+        return VoyageReranker()
+    raise ValueError("unknown RERANK_PROVIDER: {}".format(provider))
 
 
 def make_store(provider: str | None = None, collection: str | None = None) -> HybridStore:

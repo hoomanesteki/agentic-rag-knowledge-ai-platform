@@ -15,6 +15,7 @@ class Settings:
     domain: str
     llm_provider: str
     embed_provider: str
+    embed_model: str
     rerank_provider: str
     vector_provider: str
     groq_api_key: str
@@ -29,6 +30,7 @@ def get_settings() -> Settings:
         domain=os.getenv("DOMAIN", "apparel_ecommerce"),
         llm_provider=os.getenv("LLM_PROVIDER", "fake"),
         embed_provider=os.getenv("EMBED_PROVIDER", "fake"),
+        embed_model=os.getenv("EMBED_MODEL", "voyage-3-large"),
         rerank_provider=os.getenv("RERANK_PROVIDER", "fake"),
         vector_provider=os.getenv("VECTOR_PROVIDER", "memory"),
         groq_api_key=os.getenv("GROQ_API_KEY", ""),

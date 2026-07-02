@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 
 import yaml
@@ -20,6 +19,7 @@ from adapters.config import get_settings
 from adapters.factory import make_store
 from adapters.voyage import VoyageEmbedder
 from ingest.chunk import chunk_records
+from ingest.naming import collection_name
 from retrieval.sparse import SparseEncoder
 
 
@@ -31,11 +31,6 @@ def _load_jsonl(path: str) -> list[dict]:
             if line:
                 rows.append(json.loads(line))
     return rows
-
-
-def _collection_name(domain: str, model: str) -> str:
-    safe = re.sub(r"[^a-z0-9]+", "_", "{}__{}".format(domain, model).lower()).strip("_")
-    return "{}__v1".format(safe)
 
 
 def main() -> int:
@@ -74,7 +69,7 @@ def main() -> int:
     sparse_encoder = SparseEncoder()
     sparse = [sparse_encoder.encode(t) for t in texts]
 
-    collection = _collection_name(settings.domain, embedder.model)
+    collection = collection_name(settings.domain, embedder.model)
     store = make_store("qdrant", collection=collection)
     store.ensure_collection(embedder.dim)
     store.upsert([

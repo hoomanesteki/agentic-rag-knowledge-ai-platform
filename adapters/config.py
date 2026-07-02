@@ -14,6 +14,8 @@ load_dotenv()
 class Settings:
     domain: str
     llm_provider: str
+    transcribe_provider: str
+    whisper_model: str
     embed_provider: str
     embed_model: str
     rerank_provider: str
@@ -46,6 +48,8 @@ def get_settings() -> Settings:
     return Settings(
         domain=os.getenv("DOMAIN", "apparel_ecommerce"),
         llm_provider=os.getenv("LLM_PROVIDER", "fake"),
+        transcribe_provider=os.getenv("TRANSCRIBE_PROVIDER", "fake"),
+        whisper_model=os.getenv("WHISPER_MODEL", "whisper-large-v3"),
         embed_provider=os.getenv("EMBED_PROVIDER", "fake"),
         embed_model=os.getenv("EMBED_MODEL", "voyage-3-large"),
         rerank_provider=os.getenv("RERANK_PROVIDER", "none"),

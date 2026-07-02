@@ -55,6 +55,13 @@ class VectorStore(Protocol):
 
 
 @runtime_checkable
+class Transcriber(Protocol):
+    # Speech to text for the voice input. Returns the transcript; language is an optional hint.
+    def transcribe(self, audio: bytes, *, mime: str = "audio/webm",
+                   language: str | None = None) -> str: ...
+
+
+@runtime_checkable
 class Reranker(Protocol):
     # Returns (original_index, score) pairs, highest score first, at most top_n of them.
     def rerank(self, query: str, documents: list[str],

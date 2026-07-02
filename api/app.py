@@ -26,7 +26,7 @@ from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from data.introspect import lineage_view, metrics_view, ontology_view
-from evaluation.monitoring import aggregate_gaps, aggregate_quality, read_jsonl
+from evaluation.monitoring import aggregate_gaps, aggregate_health, aggregate_quality, read_jsonl
 from pipeline.answer import DEFAULT_MIN_CONFIDENCE, DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
@@ -207,6 +207,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
         feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
         return aggregate_quality(traces, feedback)
+
+    @app.get("/api/admin/health")
+    def admin_health(_: dict = Depends(require_admin)):
+        # live platform health from recent traffic (p95 latency, throughput, error rate, cost)
+        return aggregate_health(read_jsonl(DEFAULT_TRACE_PATH, limit=5000))
 
     @app.get("/api/admin/gaps")
     def admin_gaps(_: dict = Depends(require_admin)):

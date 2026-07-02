@@ -8,9 +8,12 @@ uses aggregate_health.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from collections import Counter, defaultdict, deque
+
+_THROUGHPUT_WINDOW = 900.0  # seconds; throughput is measured over the most recent window
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
@@ -95,6 +98,97 @@ def aggregate_quality(traces: list[dict], feedback: list[dict]) -> dict:
     overall_out["unmatched_feedback"] = unmatched_feedback
     return {"overall": overall_out,
             "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())}}
+
+
+def _p95(values: list) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1)  # nearest-rank
+    return ordered[index]
+
+
+def _throughput_per_min(timestamps: list) -> float | None:
+    """Requests per minute over the most recent window, so buckets are comparable and it reflects
+    current load rather than the age of the whole trace file."""
+    if len(timestamps) < 2:
+        return None
+    latest = max(timestamps)
+    start = max(min(timestamps), latest - _THROUGHPUT_WINDOW)
+    minutes = (latest - start) / 60
+    if minutes <= 0:
+        return None
+    return round(sum(1 for t in timestamps if t >= start) / minutes, 2)
+
+
+def _grounding_trend(traces: list[dict]) -> dict:
+    """Average grounding of the earlier half vs the recent half of answered turns (ordered by
+    time, since traces are written at completion and can interleave), so a drift in retrieval
+    quality is visible rather than hidden in one flat average."""
+    grounded = sorted(
+        ((t.get("ts", 0.0), t["grounding"]) for t in traces
+         if t.get("tier") == "auto" and isinstance(t.get("grounding"), (int, float))),
+        key=lambda pair: pair[0])
+    values = [g for _, g in grounded]
+    if len(values) < 4:
+        return {"early": None, "recent": None, "delta": None}
+    mid = len(values) // 2
+    early = round(sum(values[:mid]) / mid, 3)
+    recent = round(sum(values[mid:]) / (len(values) - mid), 3)
+    return {"early": early, "recent": recent, "delta": round(recent - early, 3)}
+
+
+def aggregate_health(traces: list[dict]) -> dict:
+    """Operational health from the request traces: throughput, p95 latency, error rate, average
+    cost per request, and grounding, overall and by language, plus a retrieval-quality trend."""
+    def bucket() -> dict:
+        return {"total": 0, "latencies": [], "auto_latencies": [], "errors": 0, "cost_sum": 0.0,
+                "costed": 0, "grounding_sum": 0.0, "grounded": 0, "timestamps": []}
+
+    overall = bucket()
+    by_language: dict[str, dict] = defaultdict(bucket)
+    for trace in traces:
+        tier = trace.get("tier")
+        for target in (overall, by_language[_lang(trace)]):
+            target["total"] += 1
+            latency = trace.get("latency_ms")
+            if isinstance(latency, (int, float)):
+                target["latencies"].append(latency)
+                if tier == "auto":
+                    target["auto_latencies"].append(latency)
+            if tier in ("error", "degraded"):
+                target["errors"] += 1
+            cost = trace.get("cost")
+            if isinstance(cost, (int, float)):
+                target["cost_sum"] += cost
+                target["costed"] += 1
+            grounding = trace.get("grounding")
+            if tier == "auto" and isinstance(grounding, (int, float)):
+                target["grounding_sum"] += grounding
+                target["grounded"] += 1
+            ts = trace.get("ts")
+            if isinstance(ts, (int, float)):
+                target["timestamps"].append(ts)
+
+    def finalize(b: dict) -> dict:
+        total = b["total"] or 1
+        return {
+            "total": b["total"],
+            "p95_latency_ms": _p95(b["latencies"]),
+            # auto-only so slow answers are not masked by fast abstains
+            "p95_latency_auto_ms": _p95(b["auto_latencies"]),
+            "error_rate": round(b["errors"] / total, 3),
+            "avg_cost": round(b["cost_sum"] / b["costed"], 6) if b["costed"] else None,
+            "costed_turns": b["costed"],  # denominator is explicit; streaming omits cost (M8)
+            "avg_grounding": (round(b["grounding_sum"] / b["grounded"], 3)
+                              if b["grounded"] else None),
+            "throughput_per_min": _throughput_per_min(b["timestamps"]),
+        }
+
+    result = {"overall": finalize(overall),
+              "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())}}
+    result["overall"]["grounding_trend"] = _grounding_trend(traces)
+    return result
 
 
 def aggregate_gaps(traces: list[dict], limit: int = 50) -> list[dict]:

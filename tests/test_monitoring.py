@@ -1,5 +1,5 @@
-"""M7.2 quality aggregation over the request traces and thumbs feedback."""
-from evaluation.monitoring import aggregate_quality, read_jsonl
+"""M7.2 quality and M7.5 health aggregation over the request traces and thumbs feedback."""
+from evaluation.monitoring import aggregate_health, aggregate_quality, read_jsonl
 
 
 def test_read_jsonl_missing_and_bad_lines(tmp_path):
@@ -53,3 +53,26 @@ def test_feedback_without_a_trace_is_unmatched_not_a_phantom_language():
     assert q["overall"]["thumbs_up"] == 1
     assert q["overall"]["unmatched_feedback"] == 1
     assert q["by_language"] == {}  # no phantom bucket for a thumb with no trace
+
+
+def test_aggregate_health_computes_ops_metrics():
+    traces = [
+        {"lang": "en", "tier": "auto", "latency_ms": 100, "cost": 0.001, "grounding": 0.8,
+         "ts": 0.0},
+        {"lang": "en", "tier": "auto", "latency_ms": 200, "cost": 0.003, "grounding": 0.6,
+         "ts": 30.0},
+        {"lang": "en", "tier": "error", "latency_ms": 50, "ts": 60.0},
+    ]
+    h = aggregate_health(traces)
+    o = h["overall"]
+    assert o["total"] == 3
+    assert o["error_rate"] == round(1 / 3, 3)
+    assert o["p95_latency_ms"] == 200
+    assert o["avg_cost"] == 0.002               # only the two costed turns
+    assert o["throughput_per_min"] == 3.0       # 3 requests over a 60s span
+    assert "grounding_trend" in o
+
+
+def test_health_empty_is_safe():
+    h = aggregate_health([])
+    assert h["overall"]["total"] == 0 and h["overall"]["p95_latency_ms"] is None

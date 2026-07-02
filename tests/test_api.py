@@ -243,7 +243,7 @@ def test_admin_quality_requires_admin_and_returns_shape():
 
 def test_admin_domain_and_gaps_require_admin():
     client = _client(_components())
-    for path in ("/api/admin/domain", "/api/admin/gaps"):
+    for path in ("/api/admin/domain", "/api/admin/gaps", "/api/admin/health"):
         assert client.get(path, headers=_AUTH).status_code == 403
         assert client.get(path, headers=_ADMIN).status_code == 200
     body = client.get("/api/admin/domain", headers=_ADMIN).json()

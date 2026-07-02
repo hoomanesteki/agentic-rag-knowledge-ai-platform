@@ -17,7 +17,8 @@ import time
 import uuid
 
 _KEYS = ["id", "domain", "message_id", "question", "route", "status", "answer", "answered_by",
-         "created_at", "resolved_at"]
+         "created_at", "claimed_at", "resolved_at"]
+_STALE_CLAIM_SECONDS = 900.0  # a claim older than this is abandoned and can be taken over
 
 
 class ReviewQueue:
@@ -29,12 +30,17 @@ class ReviewQueue:
                 "CREATE TABLE IF NOT EXISTS review_queue ("
                 "id TEXT PRIMARY KEY, domain TEXT, message_id TEXT, question TEXT NOT NULL, "
                 "route TEXT, status TEXT NOT NULL DEFAULT 'open', answer TEXT, answered_by TEXT, "
-                "created_at REAL, resolved_at REAL)")
+                "created_at REAL, claimed_at REAL, resolved_at REAL)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_rq_status ON review_queue(status)")
             conn.commit()
 
     def _conn(self):
-        return contextlib.closing(sqlite3.connect(self.path))
+        # WAL + a busy timeout so concurrent admin writes wait briefly instead of raising
+        # "database is locked"
+        conn = sqlite3.connect(self.path, timeout=5.0)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return contextlib.closing(conn)
 
     def enqueue(self, question: str, *, domain: str | None = None, message_id: str | None = None,
                 route: str | None = None, now: float | None = None) -> str:
@@ -64,6 +70,34 @@ class ReviewQueue:
         return [{"id": r[0], "domain": r[1], "question": r[2], "route": r[3], "created_at": r[4]}
                 for r in rows]
 
+    def claim(self, item_id: str, operator: str, now: float | None = None) -> bool:
+        """Lock an item to one operator (open -> claimed). An abandoned claim (older than the
+        stale window) can be taken over. Returns False if it is fresh-claimed by someone else or
+        already closed, so two operators cannot both hold the same item."""
+        stamp = now if now is not None else time.time()
+        cutoff = stamp - _STALE_CLAIM_SECONDS
+        with self._conn() as conn:
+            row = conn.execute(
+                "UPDATE review_queue SET status = 'claimed', answered_by = ?, claimed_at = ? "
+                "WHERE id = ? AND (status = 'open' OR (status = 'claimed' AND claimed_at < ?)) "
+                "RETURNING id", (operator, stamp, item_id, cutoff)).fetchone()
+            conn.commit()
+        return row is not None
+
+    def list_actionable(self, operator: str, limit: int = 50, now: float | None = None) -> list:
+        """What an operator can act on: open items to claim, their own claimed items to answer,
+        and stale claims they can take over. Fixes the flow where a claimed item would vanish."""
+        cutoff = (now if now is not None else time.time()) - _STALE_CLAIM_SECONDS
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, domain, question, route, created_at, status, answered_by "
+                "FROM review_queue WHERE status = 'open' "
+                "OR (status = 'claimed' AND answered_by = ?) "
+                "OR (status = 'claimed' AND claimed_at < ?) "
+                "ORDER BY created_at LIMIT ?", (operator, cutoff, limit)).fetchall()
+        return [{"id": r[0], "domain": r[1], "question": r[2], "route": r[3], "created_at": r[4],
+                 "status": r[5], "claimed_by": r[6] if r[5] == "claimed" else None} for r in rows]
+
     def get(self, item_id: str) -> dict | None:
         with self._conn() as conn:
             row = conn.execute(
@@ -79,11 +113,14 @@ class ReviewQueue:
         stamp = now if now is not None else time.time()
         with self._conn() as conn:
             # RETURNING gives the question/domain from the same atomic UPDATE, so there is no race
-            # between closing the row and reading it back on a second connection
+            # between closing the row and reading it back on a second connection. An open item can
+            # be answered directly; a claimed one only by the operator who claimed it (row lock).
             row = conn.execute(
                 "UPDATE review_queue SET status = 'closed', answer = ?, answered_by = ?, "
-                "resolved_at = ? WHERE id = ? AND status = 'open' RETURNING question, domain",
-                (answer, answered_by, stamp, item_id)).fetchone()
+                "resolved_at = ? WHERE id = ? AND "
+                "(status = 'open' OR (status = 'claimed' AND answered_by = ?)) "
+                "RETURNING question, domain",
+                (answer, answered_by, stamp, item_id, answered_by)).fetchone()
             conn.commit()
         if row is None:
             return False

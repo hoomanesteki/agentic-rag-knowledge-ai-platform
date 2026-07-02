@@ -38,12 +38,16 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
-    print("\nTier: {}   Confidence: {:.2f}\n".format(result.tier, result.confidence))
+    print("\nTier: {}   Confidence: {:.2f}   Grounding: {:.2f}\n".format(
+        result.tier, result.confidence, result.grounding))
     print(result.answer + "\n")
     if result.citations:
         print("Sources:")
         for c in result.citations:
             print("  [{}] {} ({})".format(c["n"], c["id"], c.get("doc_type") or "doc"))
+    if result.tier == "auto" and result.grounding < 0.5:
+        print("note: parts of this answer may be weakly grounded (grounding {:.2f})".format(
+            result.grounding), file=sys.stderr)
     return 0
 
 

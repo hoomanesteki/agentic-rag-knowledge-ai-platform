@@ -174,6 +174,21 @@ JWT_SECRET must be refused in production (today it logs an error, since admin to
 with the default). A stale claim (older than 15 minutes) is auto-reclaimable so an abandoned item
 never sticks.
 
+The back office needs the agent brain: the review queue only fills when CHAT_BRAIN=agent (the
+linear streaming path has no escalate tier and no queue hook). With CHAT_BRAIN=linear the queue,
+flywheel, and quality-escalation views stay empty by design; the demo runs the agent brain.
+
+The flywheel's verified eval set grows under traces/ (gitignored), never into a git-tracked pack,
+and is deliberately NOT auto-loaded into make eval: a wrong human answer would poison eval, so
+promoting a verified entry into the curated golden set is a human step. The re-indexed verified
+chunks (retrievable knowledge) are the automatic part; the eval growth is a review queue for the
+golden set.
+
+Deferred M7 findings: refusing the default JWT secret for admin routes is deploy hardening (M9.3,
+which also adds admin Turnstile); admin endpoints are not rate limited (they are admin-gated and
+the flywheel watermark makes a repeat run cheap); the suggested gate threshold is advisory until a
+MIN_CONFIDENCE config knob is wired (M8); feedback is not deduped per (user, message_id).
+
 Flywheel (M7.3) follow-ups: a verified chunk stores the answer as its text but is embedded with
 the question, so a reranker (which sees only the answer text) could drop a hit that matched on the
 question; exempt doc_type=verified from rerank truncation or include the question in the text when

@@ -28,9 +28,10 @@ class ReviewQueue:
         with self._conn() as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS review_queue ("
-                "id TEXT PRIMARY KEY, domain TEXT, message_id TEXT, question TEXT NOT NULL, "
-                "route TEXT, status TEXT NOT NULL DEFAULT 'open', answer TEXT, answered_by TEXT, "
-                "created_at REAL, claimed_at REAL, resolved_at REAL)")
+                "id TEXT PRIMARY KEY, domain TEXT, lang TEXT, message_id TEXT, "
+                "question TEXT NOT NULL, route TEXT, status TEXT NOT NULL DEFAULT 'open', "
+                "answer TEXT, answered_by TEXT, created_at REAL, claimed_at REAL, "
+                "resolved_at REAL)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_rq_status ON review_queue(status)")
             # watermark of the last resolved item the flywheel processed, per domain, so a run
             # only re-indexes newly closed items instead of the whole history
@@ -47,7 +48,7 @@ class ReviewQueue:
         return contextlib.closing(conn)
 
     def enqueue(self, question: str, *, domain: str | None = None, message_id: str | None = None,
-                route: str | None = None, now: float | None = None) -> str:
+                route: str | None = None, lang: str | None = None, now: float | None = None) -> str:
         """Add an escalated question. A retry of the same turn (same message_id) returns the
         existing open item instead of enqueuing a duplicate."""
         with self._conn() as conn:
@@ -59,9 +60,9 @@ class ReviewQueue:
                     return existing[0]
             item_id = uuid.uuid4().hex
             conn.execute(
-                "INSERT INTO review_queue (id, domain, message_id, question, route, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (item_id, domain, message_id, question, route,
+                "INSERT INTO review_queue (id, domain, lang, message_id, question, route, "
+                "created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (item_id, domain, lang, message_id, question, route,
                  now if now is not None else time.time()))
             conn.commit()
         return item_id
@@ -138,8 +139,9 @@ class ReviewQueue:
         """Resolved items for the flywheel to re-index, straight from the durable rows so it does
         not depend on the verified JSONL cache. Filtered to one domain when given, so a shared
         queue does not cross-contaminate domains."""
-        query = ("SELECT id, question, answer, domain, answered_by, resolved_at FROM review_queue "
-                 "WHERE status = 'closed' AND resolved_at >= ?")
+        # strictly greater than the watermark, so a boundary item is not re-embedded every run
+        query = ("SELECT id, question, answer, domain, lang, answered_by, resolved_at "
+                 "FROM review_queue WHERE status = 'closed' AND resolved_at > ?")
         params: list = [ts]
         if domain is not None:
             query += " AND domain = ?"
@@ -147,8 +149,8 @@ class ReviewQueue:
         query += " ORDER BY resolved_at"
         with self._conn() as conn:
             rows = conn.execute(query, params).fetchall()
-        return [{"id": r[0], "question": r[1], "answer": r[2], "domain": r[3], "answered_by": r[4],
-                 "resolved_at": r[5]} for r in rows]
+        return [{"id": r[0], "question": r[1], "answer": r[2], "domain": r[3], "lang": r[4],
+                 "answered_by": r[5], "resolved_at": r[6]} for r in rows]
 
     def flywheel_watermark(self, domain: str) -> float:
         with self._conn() as conn:

@@ -51,6 +51,13 @@ def test_closed_items_are_re_exportable_from_the_db(tmp_path):
     assert len(closed) == 1 and closed[0]["answer"] == "Settings, Data, Export."
 
 
+def test_lang_flows_through_the_queue_to_closed_items(tmp_path):
+    queue = ReviewQueue(str(tmp_path / "rq.db"))
+    item_id = queue.enqueue("quelle est la limite", domain="saas_support", lang="fr", now=1.0)
+    queue.resolve(item_id, "100 par minute", "operator", now=2.0)
+    assert queue.closed_since(0.0)[0]["lang"] == "fr"  # lang is available for the flywheel
+
+
 def test_closed_since_filters_by_domain_and_tracks_a_watermark(tmp_path):
     queue = ReviewQueue(str(tmp_path / "rq.db"))
     a = queue.enqueue("qa", domain="A")

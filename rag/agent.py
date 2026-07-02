@@ -132,7 +132,7 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
     escalation_id = None
     if tier == "escalate" and review_queue is not None:
         escalation_id = review_queue.enqueue(rewritten, domain=domain, message_id=message_id,
-                                             route=route)
+                                             route=route, lang=lang)
 
     trace = {
         "ts": time.time(), "message_id": message_id, "raw_query": query, "query": rewritten,

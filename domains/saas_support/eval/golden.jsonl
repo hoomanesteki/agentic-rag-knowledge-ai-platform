@@ -11,7 +11,7 @@
 {"id": "S011", "lang": "fr", "question": "Sur quel plan se trouve le ticket T0007 ?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Enterprise"], "expected_entities": ["PL04"]}
 {"id": "S012", "lang": "en", "question": "Which plan is the audit log article linked to?", "type": "answerable", "route": "relational", "expected_answer_contains": ["Enterprise"], "expected_entities": ["PL04"]}
 {"id": "S013", "lang": "en", "question": "What is the resolution rate for high priority tickets?", "type": "answerable", "route": "metric", "expected_answer_contains": ["0.75"], "expected_entities": []}
-{"id": "S014", "lang": "en", "question": "What is the total number of open tickets on the Business plan?", "type": "answerable", "route": "metric", "expected_answer_contains": ["1"], "expected_entities": []}
+{"id": "S014", "lang": "en", "question": "What is the total number of open tickets on the Business plan?", "type": "answerable", "route": "metric", "expected_answer_contains": ["1 open"], "expected_entities": []}
 {"id": "S015", "lang": "en", "question": "What uptime SLA does the Starter plan guarantee?", "type": "unanswerable"}
 {"id": "S016", "lang": "en", "question": "Which programming languages does the mobile SDK support?", "type": "unanswerable"}
 {"id": "S017", "lang": "fr", "question": "Quelle est la politique de remboursement de Northwind Cloud ?", "type": "unanswerable"}

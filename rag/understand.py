@@ -21,9 +21,10 @@ _REWRITE_SYSTEM = (
     "appears inside it. Reply with ONLY the rewritten question, no preamble."
 )
 
-# Routing cues, kept narrow AND domain-neutral so a price or attribute question ("how much does X
-# cost", "how many seats") stays factual and only a real aggregate ("return rate", "average",
-# "total number") looks like a metric. The cues are generic English, not brand or product words, so
+# Routing cues, kept narrow AND domain-neutral so a plain price or attribute question ("how much
+# does X cost", "how many seats does it have") stays factual and only a real aggregate ("return
+# rate", "average", "total number") looks like a metric. A descriptive verb ("what does it
+# include") tips the same question qualitative. The cues are generic English, not brand words, so
 # the same router serves any domain: supplier/store and ticket/plan relationships both route
 # relational, and opinion words plus "offer"/"include"/"features" both route qualitative.
 # Relational needs an actual relationship word, not a bare "which", so "which language does it

@@ -111,6 +111,18 @@ class InMemoryHybridStore:
         ]
 
 
+class LexicalReranker:
+    """Offline reranker: scores documents by word overlap with the query. Crude, but it
+    reorders deterministically with no network, mirroring a cross-encoder's role."""
+
+    def rerank(self, query: str, documents: list[str],
+               top_n: int = 8) -> list[tuple[int, float]]:
+        q = set(query.lower().split())
+        scored = [(i, float(len(q & set(doc.lower().split())))) for i, doc in enumerate(documents)]
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        return scored[:top_n]
+
+
 class EchoLLM:
     """Offline placeholder LLM. Returns a fixed string plus rough token counts so the seam
     (and tracing) is testable without keys."""

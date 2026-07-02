@@ -50,6 +50,13 @@ class VectorStore(Protocol):
 
 
 @runtime_checkable
+class Reranker(Protocol):
+    # Returns (original_index, score) pairs, highest score first, at most top_n of them.
+    def rerank(self, query: str, documents: list[str],
+               top_n: int = 8) -> list[tuple[int, float]]: ...
+
+
+@runtime_checkable
 class HybridStore(Protocol):
     """Dense + sparse store with reciprocal-rank fusion. Implemented by the in-memory fake
     and by Qdrant, so retrieval code is written once and the backend is a config swap.

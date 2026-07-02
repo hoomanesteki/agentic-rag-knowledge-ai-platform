@@ -96,6 +96,8 @@ placeholder until a keyed run fills it).
 - **Decisions and tradeoffs:** [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) Part A (why DuckDB over
   Spark, Groq + Voyage, the supervisor over specialists, and the risks with their fixes).
 - **Build log and deliberate deferrals:** [docs/DEV-NOTES.md](docs/DEV-NOTES.md).
+- **Deploy:** [docs/DEPLOY.md](docs/DEPLOY.md) (Vercel, Cloud Run at min-instances 0, the hosted
+  stores, the cost cap, and the keepalive job that stops free tiers idling out).
 - **Demo:** a 3-minute recorded walkthrough (add the link once recorded).
 
 ## Development

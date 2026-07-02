@@ -53,4 +53,7 @@ eval: ## Score retrieval and the abstain gate against the domain golden set
 ablation: ## Write docs/eval-report.md comparing dense vs hybrid vs hybrid+rerank
 	PYTHONPATH=. uv run python scripts/run_ablation.py
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask eval ablation
+serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
+	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000
+
+.PHONY: help setup test lint validate validate-all leak-check check up down ps ingest ask eval ablation serve

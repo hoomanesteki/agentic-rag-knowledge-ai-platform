@@ -22,6 +22,7 @@ class Settings:
     groq_api_key: str
     voyage_api_key: str
     qdrant_url: str
+    rate_limit: str
 
 
 @lru_cache
@@ -38,4 +39,5 @@ def get_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY", ""),
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+        rate_limit=os.getenv("RATE_LIMIT", "30/minute"),
     )

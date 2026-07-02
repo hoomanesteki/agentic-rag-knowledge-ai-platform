@@ -1,0 +1,30 @@
+# Keep the build context small and free of secrets and local state.
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# secrets and local databases (never bake these into the image)
+.env
+.env.*
+!.env.example
+*.db
+.auth.db
+.review_queue.db
+.lakehouse.duckdb
+mlruns/
+traces/
+
+# the web app deploys separately (Vercel); it is not part of the API image
+web/node_modules
+web/.next
+node_modules
+
+# docs and scratch
+*.md
+docs/
+scratchpad/

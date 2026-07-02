@@ -26,8 +26,9 @@ from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from evaluation.monitoring import aggregate_quality, read_jsonl
-from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
+from pipeline.answer import DEFAULT_MIN_CONFIDENCE, DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.agent import answer_with_agent
+from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
 
 _FEEDBACK_PATH = os.getenv("FEEDBACK_PATH", "traces/feedback.jsonl")
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
@@ -205,6 +206,23 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
         feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
         return aggregate_quality(traces, feedback)
+
+    @app.post("/api/admin/flywheel")
+    def admin_flywheel(comp: dict = Depends(get_components), _: dict = Depends(require_admin)):
+        queue = comp["review_queue"]
+        domain = comp.get("domain") or ""
+        # only items for this domain, resolved since the last run, so re-embedding is not repeated
+        items = queue.closed_since(queue.flywheel_watermark(domain), domain=domain)
+        indexed = reindex_verified(items, comp["embedder"], comp["store"])
+        eval_path = (os.path.join("domains", domain, "eval", "verified.jsonl")
+                     if domain else "traces/verified_eval.jsonl")
+        grown = grow_verified_eval(items, eval_path)
+        if items:
+            queue.advance_flywheel_watermark(domain, max(it["resolved_at"] for it in items))
+        quality = aggregate_quality(read_jsonl(DEFAULT_TRACE_PATH, 5000),
+                                    read_jsonl(_FEEDBACK_PATH, 5000))
+        return {"closed_items": len(items), "indexed": indexed, "grown": grown,
+                "threshold": suggest_threshold(quality, DEFAULT_MIN_CONFIDENCE)}
 
     @app.get("/api/admin/queue")
     def admin_queue(comp: dict = Depends(get_components), user: dict = Depends(require_admin)):

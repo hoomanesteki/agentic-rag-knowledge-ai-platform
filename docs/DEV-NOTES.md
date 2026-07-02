@@ -174,6 +174,13 @@ JWT_SECRET must be refused in production (today it logs an error, since admin to
 with the default). A stale claim (older than 15 minutes) is auto-reclaimable so an abandoned item
 never sticks.
 
+Flywheel (M7.3) follow-ups: a verified chunk stores the answer as its text but is embedded with
+the question, so a reranker (which sees only the answer text) could drop a hit that matched on the
+question; exempt doc_type=verified from rerank truncation or include the question in the text when
+this matters at scale. grow_verified_eval reads-then-appends, so two concurrent flywheel runs
+could duplicate a row; the endpoint is admin-triggered and rare, so it is left unserialized for
+now (add a lock if it becomes automated).
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

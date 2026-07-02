@@ -11,10 +11,11 @@ import os
 import sys
 
 from adapters.config import get_settings
-from adapters.factory import make_embedder, make_llm, make_reranker, make_store
+from adapters.factory import make_embedder, make_graph, make_llm, make_reranker, make_store
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
 from pipeline.answer import answer_question
+from retrieval.graph import make_graph_retriever
 
 
 def main() -> int:
@@ -32,8 +33,15 @@ def main() -> int:
     store = make_store(collection=collection_name(settings.domain, settings.embed_model))
     resolver = MetricResolver(settings.domain, os.getenv("LAKEHOUSE_DB", ".lakehouse.duckdb"))
     try:
+        graph_retriever = make_graph_retriever(settings.domain, make_graph())
+    except Exception as exc:  # noqa: BLE001 - graph is optional; degrade to vector + metric
+        print("note: graph unavailable ({}); answering without graph facts".format(exc),
+              file=sys.stderr)
+        graph_retriever = None
+    try:
         result = answer_question(query, embedder=make_embedder(), store=store, llm=make_llm(),
-                                 reranker=make_reranker(), metric_resolver=resolver)
+                                 reranker=make_reranker(), metric_resolver=resolver,
+                                 graph_retriever=graph_retriever)
     except RuntimeError as exc:
         print("error: {}".format(exc), file=sys.stderr)
         print("hint: is Qdrant up (make up) and ingested (make ingest), and are keys set in .env?",

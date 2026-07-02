@@ -173,7 +173,7 @@ def reconcile(query: str, findings: list, llm, min_confidence: float) -> dict:
 
 
 def build_supervisor_graph(components: dict, *, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
-                           trace_path: str = DEFAULT_TRACE_PATH):
+                           trace_path: str = DEFAULT_TRACE_PATH, checkpointer=None):
     llm = components["llm"]
     reranked = components.get("reranker") is not None
 
@@ -221,7 +221,9 @@ def build_supervisor_graph(components: dict, *, min_confidence: float = DEFAULT_
     graph.add_edge("understand", "dispatch")
     graph.add_edge("dispatch", "reconcile")
     graph.add_edge("reconcile", END)
-    return graph.compile()
+    # a checkpointer (a LangGraph saver) persists each turn's state by thread_id, so an
+    # interrupted run (for example one waiting on a human) can be resumed
+    return graph.compile(checkpointer=checkpointer)
 
 
 def run_supervised(query: str, *, components: dict, history: list | None = None,

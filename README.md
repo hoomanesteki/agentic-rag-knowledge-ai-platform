@@ -32,6 +32,16 @@ make check            # lint, tests, domain validation, and the leak check
 
 Then follow [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) from milestone M0.
 
+### API and web
+
+```bash
+make serve                       # API on http://localhost:8000 (needs make up + make ingest)
+cd web && npm install && npm run dev   # web chat on http://localhost:3000
+```
+
+The web app reads the API URL from `NEXT_PUBLIC_API_URL` and the API allows the web origin via
+`ALLOWED_ORIGINS` (see `.env.example`).
+
 ## Development workflow
 
 Work happens on short-lived branches, roughly one milestone step per branch, and merges to

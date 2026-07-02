@@ -96,7 +96,7 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
     route = heuristic_route(rewritten)
 
     findings = dispatch(rewritten, components, min_confidence=min_confidence)
-    result = reconcile(rewritten, findings, llm, min_confidence)
+    result = reconcile(rewritten, findings, llm)
     confidence = _confidence(findings)
     seen_ids = _context_ids(findings)
     prior_queries: list[str] = []
@@ -116,7 +116,7 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
             break
         seen_ids |= _context_ids(fresh)
         findings = findings + fresh
-        result = reconcile(rewritten, findings, llm, min_confidence)
+        result = reconcile(rewritten, findings, llm)
         prompt_tokens += result["prompt_tokens"]
         completion_tokens += result["completion_tokens"]
         confidence = _confidence(findings, confidence)
@@ -140,6 +140,8 @@ def answer_with_agent(query: str, *, components: dict, history: list | None = No
         "tier": tier, "agent_steps": step, "escalation_id": escalation_id,
         "conflict": result["conflict"],
         "conflict_resolved": result["conflict_resolved"],
+        "reranked": components.get("reranker") is not None,
+        "retrieved": [{"id": c["id"], "score": c["score"]} for c in result["contexts"]],
         "metric": any(f.kind == "metric" for f in findings),
         "graph": any(f.kind == "graph" for f in findings),
         "confidence": confidence, "grounding": round(result["grounding"], 3),

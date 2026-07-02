@@ -134,8 +134,9 @@ Keep it linear, no LangGraph yet.
 - [ ] M3.2 Web chat. Minimal Next.js page: input, streaming answer, citation chips, thumbs.
   Calm layout, one accent color. Done when: you can ask and read a streamed cited answer in
   the browser. Size L.
-- [ ] M3.3 Real auth. JWT users in Postgres, seeded demo login, Turnstile on login. Done when:
-  login gates the chat and demo creds are in the README. Size M.
+- [x] M3.3 Real auth. JWT sessions, hashed passwords, seeded demo login, Turnstile on login,
+  protected endpoints. Users live in SQLite for now; swap to Postgres at M9.3 (same schema).
+  Done: login gates chat and feedback, demo creds in the README.
 
 ### M4. Structured side, and continuous reproducibility
 

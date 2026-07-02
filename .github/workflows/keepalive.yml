@@ -1,8 +1,8 @@
 name: keepalive
 
-# Free-tier hosted services idle out (Neo4j Aura in days, Supabase in about a week). This pings
-# each configured target so nothing is paused when it is time to demo. Runs every 3 days and can
-# be triggered by hand. Set the secrets in the repo (Settings -> Secrets and variables -> Actions);
+# Free-tier hosted stores idle out (Neo4j Aura in days, Qdrant Cloud when idle). This pings each
+# configured target so nothing is paused when it is time to demo. Runs every 3 days and can be
+# triggered by hand. Set the secrets in the repo (Settings -> Secrets and variables -> Actions);
 # targets with no secret are simply skipped, so a partial setup still works.
 on:
   schedule:

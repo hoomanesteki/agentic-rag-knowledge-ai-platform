@@ -21,11 +21,15 @@ import httpx
 Check = Callable[[], "tuple[bool, str]"]
 
 # A reachability check is healthy only on a 2xx/3xx; a 404 on a wrong URL is a failure, not "ok".
-_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
 
 
 def _is_local(url: str) -> bool:
-    host = url.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+    host = url.split("://", 1)[-1].split("/", 1)[0].rsplit("@", 1)[-1]  # netloc without creds
+    if host.startswith("["):
+        host = host[1:].split("]", 1)[0]  # IPv6 literal like [::1]:7474
+    else:
+        host = host.split(":", 1)[0]
     return host in _LOCAL_HOSTS
 
 

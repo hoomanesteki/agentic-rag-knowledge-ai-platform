@@ -13,9 +13,11 @@
 **/.env
 **/.env.*
 **/*.db
-.lakehouse.duckdb
 mlruns/
 traces/
+# NOTE: .lakehouse.duckdb is intentionally NOT excluded, so a locally-built lakehouse can be baked
+# into the image to serve governed metric answers (see docs/DEPLOY.md step 3). It is absent by
+# default, in which case metric answers are simply disabled.
 
 # the web app deploys separately (Vercel); it is not part of the API image at all
 web/

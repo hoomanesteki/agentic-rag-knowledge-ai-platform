@@ -1,66 +1,106 @@
-# agentic-rag-knowledge-ai-platform
+# Skein Lite
 
-Skein is an agentic AI platform that answers questions by weaving together structured and
-unstructured data, grounding every response in a knowledge graph, hybrid vector search, and
-a governed semantic layer. It escalates to humans when unsure. The infrastructure runs on
-your laptop in Docker, the models are hosted APIs, and the whole thing ports to the cloud by
-swapping adapters.
+A local-first, domain-swappable **agentic RAG platform**. It answers questions over a mix of
+structured and unstructured data, grounds every answer in citations (or abstains), routes hard
+questions through a supervisor that coordinates specialist agents, and hands off to a human when
+it is unsure, then learns from that answer. One engine serves any topic: a domain is a config
+folder, not code.
 
-## How this is built
+Built step by step, MVP first, each step reviewed by an independent model before it merged.
+Everything runs offline on fakes for tests and CI; the hosted models (Groq, Voyage) and the
+stores (Qdrant, DuckDB, Neo4j, Postgres) are config swaps.
 
-We build in small, demoable slices, MVP first. The plan lives in
-[docs/BUILD-PLAN.md](docs/BUILD-PLAN.md). Each step there is one focused work session with a
-runnable check for when it is done.
+## What it does
 
-The topic is a config folder, not code. A domain (for example apparel ecommerce or saas
-support) is a pack under `domains/<name>/`. To scaffold or check one, use the `domain-pack`
-skill in
-`.claude/skills/domain-pack/`. Switching topics means adding a folder and changing `DOMAIN`.
+- **Grounded or honest.** Hybrid retrieval (dense + sparse, RRF) with a reranker, sentence-level
+  citation checks, and an abstain gate. Retrieved text is sanitized against prompt injection.
+- **A brain, not a prompt.** A LangGraph state machine (understand, dispatch, reconcile) with a
+  **supervisor** that dispatches to three **specialists** (a Retriever, a governed **Metrics**
+  agent, and a knowledge-**Graph** agent) and reconciles their findings (a governed number beats a
+  contradicting review), wrapped by a gate and a bounded agent loop that retries the hard tail
+  before it escalates.
+- **Governed numbers.** A read-only DuckDB metric layer answers "what is the return rate for size
+  M" from a validated query, never free-form SQL, and the number is cited as its own evidence.
+- **A knowledge graph.** Neo4j nodes and typed edges built from the gold lakehouse; relational
+  questions ("which supplier makes X") answer from the graph.
+- **Human-in-the-loop flywheel.** Escalations land in a review queue; an operator answers; the
+  answer becomes a retrievable verified chunk and grows the eval set.
+- **MLOps.** MLflow run tracking, a faithful RAGAS answer-quality eval, four drift monitors, and
+  an offline CI eval gate that blocks a regression.
+- **Voice.** Groq hosted Whisper speech-to-text with a browser Web Speech fallback, and spoken
+  answers.
+- **One engine, two domains.** `apparel_ecommerce` and `saas_support`, proven in CI on every
+  commit so reproducibility is not a claim made at the end.
 
-Models are hosted so nothing heavy runs on your laptop: Groq for the LLM, Voyage for
-embeddings and reranking. Qdrant and Postgres run in Docker locally.
+## Architecture
 
-## Quick start (dev)
+```mermaid
+flowchart TD
+  user([User: text or voice]) --> api[FastAPI: auth, rate limit, SSE]
+  api -->|CHAT_BRAIN=agent| brain
 
-Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12 for you) and Docker.
+  subgraph brain [LangGraph brain]
+    understand[understand: rewrite + route] --> dispatch[supervisor: dispatch]
+    dispatch --> reconcile[reconcile: merge, resolve conflicts] --> gate{gate}
+    gate -->|auto| answer[grounded, cited answer]
+    gate -->|agent| dispatch
+    gate -->|escalate| queue[(review queue)]
+  end
+
+  dispatch --> retr[Retriever specialist] --> qdrant[(Qdrant: hybrid vectors)]
+  dispatch --> metrics[Metrics specialist] --> duckdb[(DuckDB: governed metrics)]
+  dispatch --> graph[Graph specialist] --> neo4j[(Neo4j: knowledge graph)]
+
+  queue --> admin[/admin: claim + answer/]
+  admin -->|flywheel| qdrant
+  api --> traces[(traces)] --> mlflow[MLflow / RAGAS / drift / CI gate]
+```
+
+The medallion lakehouse (bronze to gold in DuckDB) and the graph are built from each domain's
+manifest. Nothing under the engine names a product, metric, or brand; those live only in
+`domains/<name>/`, enforced by a leak linter in `make check`.
+
+## Quick start
+
+Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
-make setup            # create the venv and install locked dependencies
-cp .env.example .env  # then fill in your API keys
-make check            # lint, tests, domain validation, and the leak check
+make setup                 # venv + locked dependencies
+cp .env.example .env       # fill in GROQ_API_KEY and VOYAGE_API_KEY for real runs
+make check                 # lint, tests, domain validation, leak check (fully offline)
+make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
+make lakehouse && make ingest && make graph-load   # build the stores for the active DOMAIN
+make serve                 # API on :8000     (set CHAT_BRAIN=agent for the full brain)
+cd web && npm install && npm run dev             # web chat on :3000
 ```
 
-Then follow [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) from milestone M0.
+Demo login: `demo` / `skein-demo-2026`. Admin console at `/admin` (`admin` / `skein-admin-2026`).
+Switch topic with `DOMAIN=saas_support`. Voice needs `TRANSCRIBE_PROVIDER=groq`.
 
-### API and web
+## Evaluate
 
 ```bash
-make serve                       # API on http://localhost:8000 (needs make up + make ingest)
-cd web && npm install && npm run dev   # web chat on http://localhost:3000
+make eval        # hit@k, MRR, entity recall, abstain recall, false-abstain rate on the golden set
+make ablation    # dense vs hybrid vs +rerank, per language -> docs/eval-report.md
+make ragas       # faithfulness, answer relevance, context precision/recall (LLM judge)
+make gate        # the offline CI eval gate (also runs in CI)
+make drift       # drift across the four monitors from recent traffic
 ```
 
-The web app reads the API URL from `NEXT_PUBLIC_API_URL` and the API allows the web origin via
-`ALLOWED_ORIGINS` (see `.env.example`).
+Only real runs (keys + `make up` + `make ingest`) produce real numbers; offline they are zero by
+design. The ablation lands in [docs/eval-report.md](docs/eval-report.md) (currently the offline
+placeholder until a keyed run fills it).
 
-Sign in with the seeded demo account (override via `DEMO_USERNAME` / `DEMO_PASSWORD`):
+## The thinking
 
-```
-username: demo
-password: skein-demo-2026
-```
+- **Decisions and tradeoffs:** [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) Part A (why DuckDB over
+  Spark, Groq + Voyage, the supervisor over specialists, and the risks with their fixes).
+- **Build log and deliberate deferrals:** [docs/DEV-NOTES.md](docs/DEV-NOTES.md).
+- **Demo:** a 3-minute recorded walkthrough (add the link once recorded).
 
-The captcha is bypassed when `TURNSTILE_SECRET_KEY` is empty (dev). Set it plus
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` (in `web/.env.local`) to enable Turnstile.
+## Development
 
-## Development workflow
-
-Work happens on short-lived branches, roughly one milestone step per branch, and merges to
-`main` only when green.
-
-1. Branch: `git checkout -b build/<step>` (for example `build/m1-first-answer`).
-2. Build the step from [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md).
-3. Check: `make check` runs ruff lint, the tests, domain-pack validation, and the leak
-   check. This is the same gate CI runs. The `preflight` skill runs it and reports go or
-   no-go.
-4. Open a pull request. CI (`.github/workflows/ci.yml`) runs on every PR and on `main`.
-   Merge once it is green.
+Short-lived `build/<step>` branches, one milestone step each, merged to `main` only when
+`make check` is green and an independent review has passed. CI (`.github/workflows/ci.yml`) runs
+the same gate plus the eval gate and a dependency audit on every PR. The `ship`, `review`, and
+`preflight` skills in `.claude/skills/` encode the loop.

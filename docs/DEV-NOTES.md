@@ -67,6 +67,28 @@ helps is measured, not assumed. Tracked follow-ups (M4, when data grows): delete
 old points; an intra-sentence window fallback for a single sentence over the token budget;
 and preserving paragraph structure.
 
+## M4 review follow-ups (deliberate deferrals)
+
+An end-to-end review after M4 surfaced items fixed in place (broadened the SSE error catch so a
+non-RuntimeError cannot kill the stream silently, attributed feedback to the logged-in user,
+warned when the lakehouse is missing, dropped bare "how" from the metric pre-gate, and
+strengthened the dual-domain test to assert real retrieval plus the metric layer per domain).
+Three were deferred on purpose:
+
+- Pack `defaults` (confidence_high/low, top_k_in/top_n_out) are not read yet. This is not dead
+  config: the confidence bands feed the M6 tiered gate (auto/agent/escalate), which does not
+  exist yet, and the M1 gate is a single global threshold tuned against the golden set. Wiring
+  per-domain thresholds now would put unjustified numbers into the gate, against the rule that
+  no threshold ships without a golden-set number behind it. Wire them at M6, tuned per domain.
+- Metric SQL guard is regex plus a read-only, external-access-off connection. A pack author
+  could still reach a raw layer via a table function like `query_table('bronze_x')`, which the
+  regex misses. Out of the current threat model (the model fills params only; templates are
+  pack-authored and reviewed), so left as is. Harden at M6 by building gold into a separate
+  schema the resolver attaches, instead of denylisting.
+- Raw user queries persist unmasked in traces and feedback (needed for eval and debugging),
+  while structured PII is masked in the lakehouse. Revisit with a retention/repro policy at M8
+  (trace to MLflow) so query logging is a governance decision, not an accident.
+
 ## Git and attribution
 
 Commits use your own git identity. No assistant attribution goes into commit messages or PR

@@ -81,6 +81,14 @@ sources:
         edge_type: MENTIONS
         target_label: Product
         target_name_property: name
+    # Company knowledge: policies and guides (shipping, returns, sizing, care, payment). General
+    # store knowledge, not tied to one product, so no entity_ref or graph mentions.
+    - file: seed/unstructured/company_knowledge.jsonl
+      doc_type: guide
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [category]
 
 # Knowledge graph (M5): nodes come from gold tables, edges from foreign keys already in the
 # data. The engine reads this section and never hardcodes a label or relationship. Labels match

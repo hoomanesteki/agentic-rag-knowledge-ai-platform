@@ -18,3 +18,6 @@
 {"id": "S018", "lang": "en", "question": "What is the capital of France?", "type": "out_of_domain"}
 {"id": "S019", "lang": "en", "question": "Can you write me a Python script to sort a list?", "type": "out_of_domain"}
 {"id": "S020", "lang": "fr", "question": "Quelle est la capitale du Canada ?", "type": "out_of_domain"}
+{"id": "S021", "lang": "en", "question": "How do I invite a teammate to my workspace?", "type": "answerable", "route": "factual", "expected_answer_contains": ["invite"], "expected_entities": []}
+{"id": "S022", "lang": "en", "question": "How do I create an API key?", "type": "answerable", "route": "factual", "expected_answer_contains": ["Bearer"], "expected_entities": []}
+{"id": "S023", "lang": "fr", "question": "Comment configurer l'authentification unique ?", "type": "answerable", "route": "factual", "expected_answer_contains": ["SAML"], "expected_entities": []}

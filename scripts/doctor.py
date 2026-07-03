@@ -14,7 +14,10 @@ import re
 import subprocess
 import sys
 
-_GREEN, _RED, _YEL, _RST = "\033[32m", "\033[31m", "\033[33m", "\033[0m"
+# Color only on a real terminal (and not when NO_COLOR is set), so piped or CI logs stay clean.
+_COLOR = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+_GREEN, _RED, _YEL, _RST = (("\033[32m", "\033[31m", "\033[33m", "\033[0m") if _COLOR
+                            else ("", "", "", ""))
 _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -33,12 +36,13 @@ def check_docker(timeout: int = 8) -> bool:
         _line("FAIL", "Docker CLI not found. Install Docker Desktop (docker.com).")
         return False
     except subprocess.TimeoutExpired:
-        _line("FAIL", "Docker did not answer in {}s. Docker Desktop is starting or stuck; wait for "
-                      "the whale icon to settle, then retry.".format(timeout))
+        _line("FAIL", "Docker did not answer in {}s (Desktop is starting, or its engine is stuck). "
+                      "Wait for the whale icon to settle, or restart Docker Desktop.".format(
+                          timeout))
         return False
     if result.returncode != 0:
-        _line("FAIL", "Docker is installed but the daemon is not running. Open Docker Desktop and "
-                      "wait for it to be ready.")
+        _line("FAIL", "Docker is installed but the daemon is not responding (Desktop stopped, "
+                      "starting, or its engine is stuck). Open or restart Docker Desktop.")
         return False
     _line("ok", "Docker daemon is up")
     return True
@@ -83,7 +87,7 @@ def _load_env() -> dict:
 def check_keys() -> bool:
     env = _load_env()
     needs = []
-    if env.get("LLM_PROVIDER", "fake") == "groq":
+    if "groq" in (env.get("LLM_PROVIDER", "fake"), env.get("TRANSCRIBE_PROVIDER", "fake")):
         needs.append(("GROQ_API_KEY", "gsk_"))
     if "voyage" in (env.get("EMBED_PROVIDER", "fake"), env.get("RERANK_PROVIDER", "none")):
         needs.append(("VOYAGE_API_KEY", "pa-"))
@@ -106,10 +110,25 @@ def check_keys() -> bool:
 _CHECKS = {"docker": check_docker, "env": check_env_file, "keys": check_keys}
 
 
+def _requested(argv: list) -> list:
+    """Names from `--require a --require b` or `--require a,b`."""
+    names = []
+    for i, arg in enumerate(argv):
+        if arg == "--require" and i + 1 < len(argv):
+            names += [n for n in argv[i + 1].split(",") if n]
+    return names
+
+
 def main() -> int:
     if "--require" in sys.argv:
-        which = sys.argv[sys.argv.index("--require") + 1]
-        return 0 if _CHECKS[which]() else 1
+        names = _requested(sys.argv)
+        unknown = [n for n in names if n not in _CHECKS]
+        if not names or unknown:
+            print("doctor --require expects one or more of: {}".format(", ".join(_CHECKS)))
+            return 2
+        # run all requested checks (so make up reports both a down daemon and a broken .env)
+        results = [_CHECKS[n]() for n in names]
+        return 0 if all(results) else 1
     print("Skein doctor:")
     results = [check_env_file(), check_keys(), check_docker()]
     print()

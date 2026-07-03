@@ -41,7 +41,7 @@ doctor: ## Check the environment is ready (Docker, .env, keys) so nothing hangs 
 	@PYTHONPATH=. uv run python scripts/doctor.py
 
 up: ## Start local infrastructure (needs Docker Desktop running; preflighted so it never hangs)
-	@PYTHONPATH=. uv run python scripts/doctor.py --require docker
+	@PYTHONPATH=. uv run python scripts/doctor.py --require docker,env
 	docker compose up -d --wait
 
 down: ## Stop local infrastructure (data volumes are kept)

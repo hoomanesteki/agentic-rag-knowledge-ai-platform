@@ -1,6 +1,37 @@
-"""The doctor's .env sanity check. This is the guard for the exact corruption that broke
-`make up` twice: a stray word at the top of .env (which docker compose and dotenv both reject)."""
-from scripts.doctor import check_env_file
+"""The doctor's checks: the .env sanity guard (the exact corruption that broke `make up` twice)
+and the anti-hang Docker check (the whole point of the doctor, so its failure paths are pinned)."""
+import subprocess
+from unittest.mock import patch
+
+from scripts.doctor import check_docker, check_env_file
+
+
+def _run(returncode=0, side_effect=None):
+    if side_effect is not None:
+        return patch("scripts.doctor.subprocess.run", side_effect=side_effect)
+    return patch("scripts.doctor.subprocess.run",
+                 return_value=subprocess.CompletedProcess(args=[], returncode=returncode))
+
+
+def test_docker_up_returns_true():
+    with _run(returncode=0):
+        assert check_docker() is True
+
+
+def test_docker_daemon_down_returns_false():
+    with _run(returncode=1):
+        assert check_docker() is False
+
+
+def test_docker_timeout_does_not_hang_and_returns_false():
+    # the anti-hang guarantee: a blocking daemon must be bounded and return False, not hang
+    with _run(side_effect=subprocess.TimeoutExpired("docker", 8)):
+        assert check_docker(timeout=1) is False
+
+
+def test_docker_cli_missing_returns_false():
+    with _run(side_effect=FileNotFoundError):
+        assert check_docker() is False
 
 
 def _write(tmp_path, text):

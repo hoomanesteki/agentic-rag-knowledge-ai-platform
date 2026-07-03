@@ -1,0 +1,39 @@
+version: 2
+
+exposures:
+  - name: rag_assistant
+    type: application
+    maturity: high
+    owner:
+      name: Skein
+      email: data@skein.local
+    description: "The grounded RAG assistant answers over these gold tables via the governed metric layer."
+    depends_on:
+        - ref('products')
+        - ref('stores')
+        - ref('suppliers')
+        - ref('sales')
+  - name: admin_dashboard
+    type: dashboard
+    maturity: high
+    owner:
+      name: Skein
+      email: data@skein.local
+    description: "The backoffice dashboard reads quality, drift, and governed metrics from these tables."
+    depends_on:
+        - ref('products')
+        - ref('stores')
+        - ref('suppliers')
+        - ref('sales')
+  - name: offline_eval
+    type: analysis
+    maturity: high
+    owner:
+      name: Skein
+      email: data@skein.local
+    description: "The offline eval and RAGAS harness scores answers grounded in these tables."
+    depends_on:
+        - ref('products')
+        - ref('stores')
+        - ref('suppliers')
+        - ref('sales')

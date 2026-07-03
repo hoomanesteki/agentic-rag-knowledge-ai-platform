@@ -2,10 +2,11 @@
 """Ingest the active domain's unstructured text into Qdrant with dense + sparse vectors.
 
 Reads DOMAIN from .env, loads the pack manifest, chunks each unstructured source, embeds
-dense with Voyage and sparse with BM25, and upserts into a Qdrant collection named for the
-domain and embedding model. Idempotent: re-running overwrites the same points.
+dense with the configured embedder (EMBED_PROVIDER) and sparse with BM25, and upserts into a
+Qdrant collection named for the domain and embedding model. Idempotent: re-running overwrites
+the same points.
 
-Run: make ingest   (needs VOYAGE_API_KEY in .env and Qdrant up via make up)
+Run: make ingest   (needs the embedder API key in .env and Qdrant up via make up)
 """
 from __future__ import annotations
 
@@ -16,8 +17,7 @@ import sys
 import yaml
 
 from adapters.config import get_settings
-from adapters.factory import make_store
-from adapters.voyage import VoyageEmbedder
+from adapters.factory import make_embedder, make_store
 from ingest.chunk import chunk_records
 from ingest.naming import collection_name
 from retrieval.sparse import SparseEncoder
@@ -40,8 +40,8 @@ def main() -> int:
     if not os.path.isfile(manifest_path):
         print("no domain pack at {}".format(pack))
         return 1
-    if settings.embed_provider != "voyage" or not settings.voyage_api_key:
-        print("set EMBED_PROVIDER=voyage and VOYAGE_API_KEY in .env to ingest for real")
+    if settings.embed_provider in ("fake", ""):
+        print("set EMBED_PROVIDER (cohere or voyage) and its API key in .env to ingest for real")
         return 1
 
     with open(manifest_path, encoding="utf-8") as f:
@@ -67,7 +67,7 @@ def main() -> int:
     # Embed the context prefix plus the text, but store and display the clean text only, so
     # the prefix helps retrieval without polluting citations or the confidence gate.
     embed_texts = [(c.metadata.get("context", "") + " " + c.text).strip() for c in chunks]
-    embedder = VoyageEmbedder()
+    embedder = make_embedder()
     dense = embedder.embed(embed_texts, input_type="document")
     sparse_encoder = SparseEncoder()
     sparse = [sparse_encoder.encode(t) for t in embed_texts]

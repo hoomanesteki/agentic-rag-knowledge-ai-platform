@@ -178,6 +178,54 @@ def summaries(rows):
     return facts
 
 
+_REVIEWERS = ["Jordan", "Sam", "Alex", "Priya", "Maya", "Chris", "Taylor", "Noah", "Emma", "Liam",
+              "Sophia", "Ethan", "Olivia", "Jamal", "Wei", "Sofia", "Lucas", "Mia", "Ben", "Zoe",
+              "Kai", "Hana", "Diego", "Nina", "Omar", "Leah", "Ravi", "Grace", "Theo", "Yuki"]
+_POS = [
+    "The {name} fits true to size and feels amazing.",
+    "So comfortable, the {name} has become my go-to.",
+    "Great quality, the {name} holds up wash after wash.",
+    "Love the {name}, the fabric feels premium and soft.",
+    "The {name} is exactly what I hoped for, highly recommend.",
+    "Perfect for my daily {use}, the {name} moves with me.",
+    "The {color} {name} looks even better in person.",
+    "Lightweight and breathable, the {name} is worth every penny.",
+    "Bought the {name} and immediately ordered a second one.",
+    "The {name} is flattering and the fit is spot on.",
+]
+_MID = [
+    "The {name} is nice, but it runs a little small so I sized up.",
+    "Good piece, though the {name} has a relaxed fit for my taste.",
+    "The {name} is comfortable, I just wish it came in more colors.",
+    "Solid quality on the {name}, a touch pricey but I like it.",
+]
+
+
+def reviews(rows):
+    """Two to four reviews per product, mentioning the product by name so the graph links each
+    Review node to its Product. Deterministic via the module seed."""
+    prods = {}
+    for r in rows:
+        if r[1] not in prods:  # first variant carries the id we cite
+            prods[r[1]] = {"pid": r[0], "weather": r[8], "color": r[6]}
+    out, rid, day = [], 1, 0
+    for name, p in prods.items():
+        use = WEATHER_USE.get(p["weather"], "everyday wear").split(" and ")[0].split(",")[0]
+        n = random.choice([2, 3, 3, 4])
+        pool = random.sample(_POS, min(n, len(_POS)))
+        for k in range(n):
+            if k == n - 1 and random.random() < 0.3:
+                tmpl, rating = random.choice(_MID), random.choice([3, 4])
+            else:
+                tmpl, rating = pool[k], random.choice([5, 5, 5, 4, 4])
+            text = tmpl.format(name=name, use=use, color=p["color"].lower())
+            out.append({"id": "RG%04d" % rid, "lang": "en", "product_id": p["pid"],
+                        "text": "{} - {}".format(text, random.choice(_REVIEWERS)),
+                        "rating": rating, "date": "2026-{:02d}-{:02d}".format(1 + (day // 27) % 6, 1 + day % 27)})
+            rid, day = rid + 1, day + 2
+    return out
+
+
 def main():
     rows, docs = gen()
     with open(os.path.join(STRUCT, "products.csv"), "w", newline="") as f:
@@ -191,10 +239,15 @@ def main():
     with open(os.path.join(UNSTRUCT, "catalog_facts.jsonl"), "w") as f:
         for d in facts:
             f.write(json.dumps(d) + "\n")
+    revs = reviews(rows)
+    with open(os.path.join(UNSTRUCT, "reviews_generated.jsonl"), "w") as f:
+        for d in revs:
+            f.write(json.dumps(d) + "\n")
     products = len({r[1] for r in rows})
     print("wrote {} rows ({} products) to products.csv".format(len(rows), products))
     print("wrote {} descriptions to products_catalog.jsonl".format(len(docs)))
     print("wrote {} category facts to catalog_facts.jsonl".format(len(facts)))
+    print("wrote {} reviews to reviews_generated.jsonl".format(len(revs)))
 
 
 if __name__ == "__main__":

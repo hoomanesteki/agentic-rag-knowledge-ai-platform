@@ -8,6 +8,7 @@ import { colorHex, fetchProduct, fetchStore, ProductDetail } from "../../catalog
 import { useChat } from "../../ChatProvider";
 import { useRequireGate } from "../../gate";
 import ImageTile from "../../ImageTile";
+import StoreFooter from "../../StoreFooter";
 import StoreHeader from "../../StoreHeader";
 
 function cap(s: string): string {
@@ -69,7 +70,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
 
   const short = p.name.replace(/^Aster /, "");
   const stock = p.stock ?? 0;
-  const stockLabel = stock <= 0 ? "Out of stock" : stock < 10 ? `Low stock — ${stock} left` : "In stock";
+  const stockLabel = stock <= 0 ? "Out of stock" : stock < 10 ? `Low stock, ${stock} left` : "In stock";
 
   const addToCart = () => {
     add({ id: p.id, name: p.name, price: p.price || 0, color, size });
@@ -163,6 +164,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           )}
         </div>
       </main>
+      <StoreFooter brand={brand} />
     </>
   );
 }

@@ -5,7 +5,7 @@ import { CartProvider } from "./cart";
 import { ChatProvider } from "./ChatProvider";
 
 export const metadata = {
-  title: "Technical apparel — RAG demo",
+  title: "Technical apparel, a RAG demo",
   description: "A domain-swappable agentic RAG platform, shown as an apparel storefront.",
   // private demo link: keep it out of search engines and bot crawls
   robots: { index: false, follow: false, nocache: true },

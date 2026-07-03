@@ -26,6 +26,7 @@ class Settings:
     graph_provider: str
     groq_api_key: str
     voyage_api_key: str
+    cohere_api_key: str
     qdrant_url: str
     qdrant_api_key: str
     neo4j_url: str
@@ -60,13 +61,14 @@ def get_settings() -> Settings:
         transcribe_provider=os.getenv("TRANSCRIBE_PROVIDER", "fake"),
         whisper_model=os.getenv("WHISPER_MODEL", "whisper-large-v3"),
         embed_provider=os.getenv("EMBED_PROVIDER", "fake"),
-        embed_model=os.getenv("EMBED_MODEL", "voyage-3-large"),
+        embed_model=os.getenv("EMBED_MODEL", "embed-v4.0"),
         rerank_provider=os.getenv("RERANK_PROVIDER", "none"),
-        rerank_model=os.getenv("RERANK_MODEL", "rerank-2.5"),
+        rerank_model=os.getenv("RERANK_MODEL", "rerank-v3.5"),
         vector_provider=os.getenv("VECTOR_PROVIDER", "memory"),
         graph_provider=os.getenv("GRAPH_PROVIDER", "memory"),
         groq_api_key=os.getenv("GROQ_API_KEY", ""),
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
+        cohere_api_key=os.getenv("COHERE_API_KEY", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),  # required by Qdrant Cloud, empty locally
         neo4j_url=os.getenv("NEO4J_URL", "http://localhost:7474"),

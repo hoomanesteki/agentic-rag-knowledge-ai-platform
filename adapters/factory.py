@@ -17,6 +17,9 @@ def make_embedder(provider: str | None = None) -> Embedder:
     if provider == "voyage":
         from .voyage import VoyageEmbedder
         return VoyageEmbedder()
+    if provider == "cohere":
+        from .cohere import CohereEmbedder
+        return CohereEmbedder()
     raise ValueError("unknown EMBED_PROVIDER: {}".format(provider))
 
 
@@ -50,6 +53,9 @@ def make_reranker(provider: str | None = None) -> Reranker | None:
     if provider == "voyage":
         from .voyage_rerank import VoyageReranker
         return VoyageReranker()
+    if provider == "cohere":
+        from .cohere import CohereReranker
+        return CohereReranker()
     raise ValueError("unknown RERANK_PROVIDER: {}".format(provider))
 
 

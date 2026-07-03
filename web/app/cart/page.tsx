@@ -5,14 +5,17 @@ import { useEffect, useState } from "react";
 
 import { FREE_SHIP, useCart } from "../cart";
 import { fetchStore } from "../catalog";
+import { useRequireGate } from "../gate";
 import StoreHeader from "../StoreHeader";
 
 export default function CartPage() {
+  const gateOk = useRequireGate();
   const { lines, subtotal, setQty, remove } = useCart();
   const [brand, setBrand] = useState("");
   useEffect(() => {
     fetchStore().then((s) => setBrand(s.brand));
   }, []);
+  if (!gateOk) return null;
 
   const toFree = Math.max(0, FREE_SHIP - subtotal);
   const shipping = subtotal >= FREE_SHIP || subtotal === 0 ? 0 : 8;

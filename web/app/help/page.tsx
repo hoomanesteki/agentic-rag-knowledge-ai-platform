@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { fetchStore } from "../catalog";
 import { useChat } from "../ChatProvider";
+import { useRequireGate } from "../gate";
 import StoreHeader from "../StoreHeader";
 
 const TOPICS = [
@@ -50,11 +51,13 @@ const TOPICS = [
 ];
 
 export default function HelpPage() {
+  const gateOk = useRequireGate();
   const [brand, setBrand] = useState("");
   const { openWith } = useChat();
   useEffect(() => {
     fetchStore().then((s) => setBrand(s.brand));
   }, []);
+  if (!gateOk) return null;
 
   return (
     <>

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "../../cart";
 import { colorHex, fetchProduct, fetchStore, ProductDetail } from "../../catalog";
 import { useChat } from "../../ChatProvider";
+import { useRequireGate } from "../../gate";
 import ImageTile from "../../ImageTile";
 import StoreHeader from "../../StoreHeader";
 
@@ -14,6 +15,7 @@ function cap(s: string): string {
 }
 
 export default function ProductPage({ params }: { params: { id: string } }) {
+  const gateOk = useRequireGate();
   const [p, setP] = useState<ProductDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [brand, setBrand] = useState("");
@@ -41,6 +43,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     return () => setContext(null);
   }, [p, setContext]);
 
+  if (!gateOk) return null; // redirecting to the landing gate
   if (missing) {
     return (
       <>

@@ -21,10 +21,14 @@ Langfuse's `@observe` decorators and context spans, which capture the real gener
 - `adapters/groq.py`: `generate` is decorated as a Langfuse generation and reports its model,
   prompt, answer, and input/output token counts. Langfuse derives cost from the model and tokens.
 - `rag/graph.py` and `rag/supervisor.py`: each brain opens a `request_span` around the LangGraph
-  invocation, so all the generations in a turn nest under one trace named `chat.linear` or
-  `chat.agent`.
-- `api/app.py`: the streaming chat handler wraps the whole turn in a `chat` request span and
-  flushes at the end, so both the linear and the agent serving paths produce one trace per turn.
+  invocation, so the generations in a turn nest under one trace (used by scripts and the agent
+  path).
+- `api/app.py`: the agent serving path (the demo default, buffered) runs synchronously before the
+  first SSE yield, so its `chat.agent` span opens and closes within one execution and every
+  generation nests cleanly. The linear streaming path is not wrapped in a span, because its tokens
+  stream across threadpool hops where an OpenTelemetry context would not survive; its LLM calls are
+  still traced individually by the adapter. Traces are exported on the batch interval and flushed
+  once on shutdown, never per turn, so a slow or unreachable Langfuse never blocks a response.
 - The admin console gets the Langfuse URL (`/api/admin/domain`) so the backoffice can jump straight
   to the traces, next to the existing MLflow link.
 

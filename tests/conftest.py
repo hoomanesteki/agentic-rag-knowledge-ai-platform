@@ -28,10 +28,11 @@ from adapters import config  # noqa: E402
 # test_api.py still verify.
 os.environ.pop("SKEIN_ENV", None)
 os.environ.pop("DEMO_READONLY", None)
-# Keep Langfuse off in tests so tracing is a deterministic no-op and nothing tries to phone home
-# (adapters.observability reads these at import).
-os.environ.pop("LANGFUSE_PUBLIC_KEY", None)
-os.environ.pop("LANGFUSE_SECRET_KEY", None)
+# Keep Langfuse off in tests so tracing is a deterministic no-op and nothing tries to phone home.
+# Pin to empty (not pop): adapters.observability calls load_dotenv() at import, which would
+# re-insert a popped key from a developer's .env; an empty value is present, so dotenv leaves it.
+os.environ["LANGFUSE_PUBLIC_KEY"] = ""
+os.environ["LANGFUSE_SECRET_KEY"] = ""
 config.get_settings.cache_clear()
 
 

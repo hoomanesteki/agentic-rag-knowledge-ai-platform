@@ -131,7 +131,22 @@ export default function ChatWidget({
 
   useEffect(() => {
     setMounted(true);
-    setToken(localStorage.getItem("skein_token"));
+    const existing = localStorage.getItem("skein_token");
+    if (existing) {
+      setToken(existing);
+    } else {
+      // frictionless demo: mint a demo token so the visitor can just ask, no password wall. If the
+      // server is in production this 404s and we fall back to the sign-in form below.
+      fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.access_token) {
+            localStorage.setItem("skein_token", d.access_token);
+            setToken(d.access_token);
+          }
+        })
+        .catch(() => {});
+    }
     fetchStore().then((s) => {
       setBrand(s.brand);
       setProducts(s.products);

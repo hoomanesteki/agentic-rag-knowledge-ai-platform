@@ -36,7 +36,8 @@ type Message = {
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. How can I help?";
+  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. If it's about an order, " +
+  "share the email on it and I'll pull it up right away. What's going on?";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -488,7 +489,7 @@ function Conversation({
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ query: qSend }),
+        body: JSON.stringify({ query: qSend, ...(agentMode ? { persona: "agent" } : {}) }),
       });
       if (res.status === 401) {
         onSignOut();

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { AdminNav } from "../nav";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Domain = {
@@ -44,12 +46,7 @@ export default function InsightsPage() {
 
   return (
     <main className="admin">
-      <nav>
-        <a href="/admin">Queue</a>
-        <a href="/admin/quality">Quality</a>
-        <a href="/admin/health">Health</a>
-        <a href="/admin/insights">Insights</a>
-      </nav>
+      <AdminNav />
       <h1>Domain: {domain.domain}</h1>
 
       {(domain.mlflow_url || domain.langfuse_url) && (

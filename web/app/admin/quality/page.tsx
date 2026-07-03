@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { AdminNav } from "../nav";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Bucket = {
@@ -31,15 +33,18 @@ function Row({ name, b }: { name: string; b: Bucket }) {
 }
 
 function Stat({ label, value, pct, tone }: {
-  label: string; value: string; pct: number; tone?: string;
+  label: string; value: string; pct?: number; tone?: string;
 }) {
   return (
     <div className="stat">
       <div className="stat-label">{label}</div>
       <div className="stat-value">{value}</div>
-      <div className="bar">
-        <div className={`bar-fill ${tone || ""}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
-      </div>
+      {pct !== undefined && (
+        <div className="bar">
+          <div className={`bar-fill ${tone || ""}`}
+            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -69,9 +74,10 @@ export default function QualityPage() {
   const o = data.overall;
   return (
     <main className="admin">
+      <AdminNav />
       <h1>Answer quality</h1>
       <div className="stats">
-        <Stat label="Turns" value={String(o.total)} pct={100} />
+        <Stat label="Turns" value={String(o.total)} />
         <Stat label="Grounding" value={o.avg_grounding === null ? "-" : o.avg_grounding.toFixed(2)}
           pct={(o.avg_grounding || 0) * 100} tone="good" />
         <Stat label="Abstained" value={`${(o.abstain_rate * 100).toFixed(0)}%`}

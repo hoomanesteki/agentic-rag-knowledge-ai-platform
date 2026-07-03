@@ -297,13 +297,15 @@ def test_transcribe_requires_auth_and_rejects_bad_audio():
 
 
 def test_suggestions_requires_auth_and_returns_domain_prompts():
-    client = _client(_components())
-    assert client.get("/api/suggestions").status_code == 401  # auth required
-    body = client.get("/api/suggestions", headers=_AUTH).json()
-    assert body["domain"] == "apparel_ecommerce"
-    assert len(body["suggestions"]) >= 3
-    first = body["suggestions"][0]
-    assert set(first) == {"text", "lang", "kind"} and first["text"]
+    # pin DOMAIN so the assertion does not depend on a developer's .env
+    with _env(DOMAIN="apparel_ecommerce"):
+        client = _client(_components())
+        assert client.get("/api/suggestions").status_code == 401  # auth required
+        body = client.get("/api/suggestions", headers=_AUTH).json()
+        assert body["domain"] == "apparel_ecommerce"
+        assert len(body["suggestions"]) >= 3
+        first = body["suggestions"][0]
+        assert set(first) == {"text", "lang", "kind"} and first["text"]
 
 
 def test_chat_rejects_forged_token():

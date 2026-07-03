@@ -97,6 +97,8 @@ def _suggestions(domain: str) -> list:
     """The active domain's starter prompts, read from its manifest. Only text/lang/kind are
     exposed and the list is capped, so a pack cannot push arbitrary fields to the client."""
     items = load_manifest(os.path.join("domains", domain)).get("suggestions", []) or []
+    if not isinstance(items, list):  # a malformed pack (mapping, not list) must not 500 the route
+        return []
     return [{"text": str(s.get("text", ""))[:200],
              "lang": str(s.get("lang", "en"))[:8],
              "kind": str(s.get("kind", "fact"))[:16]}

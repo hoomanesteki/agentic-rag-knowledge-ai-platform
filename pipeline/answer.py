@@ -57,7 +57,9 @@ _PRICES = {
 _CITE = re.compile(r"\[(\d+)\]")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]?")
 
-DEFAULT_MIN_CONFIDENCE = 0.34  # abstain unless more than a third of query content words are present
+DEFAULT_MIN_CONFIDENCE = 0.29  # abstain only on very thin overlap; the reranked context and the
+# model's own grounding do the rest. Lower than a third caught real shopping questions ("which
+# product is good for summer") that retrieve the right guide but share few literal words with it.
 DEFAULT_TRACE_PATH = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 
 

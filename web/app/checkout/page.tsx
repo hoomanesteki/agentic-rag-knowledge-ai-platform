@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { FREE_SHIP, useCart } from "../cart";
 import { fetchStore } from "../catalog";
 import { useRequireGate } from "../gate";
+import StoreFooter from "../StoreFooter";
 import StoreHeader from "../StoreHeader";
 
 export default function CheckoutPage() {
@@ -81,7 +82,7 @@ export default function CheckoutPage() {
                 <input required placeholder="MM / YY" aria-label="Expiry" />
                 <input required placeholder="CVC" aria-label="CVC" />
               </div>
-              <p className="co-note">Demo checkout — no real payment is taken.</p>
+              <p className="co-note">Demo checkout, no real payment is taken.</p>
             </div>
             <aside className="co-summary">
               <h3>Order</h3>
@@ -108,6 +109,7 @@ export default function CheckoutPage() {
           </form>
         )}
       </main>
+      <StoreFooter brand={brand} />
     </>
   );
 }

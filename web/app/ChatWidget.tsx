@@ -33,7 +33,11 @@ type Message = {
   feedback?: "up" | "down";
   recs?: Product[];
   followups?: string[];
+  agent?: boolean; // from Aaron, the human agent, after an escalation
 };
+
+const AGENT_INTRO =
+  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. How can I help?";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -149,13 +153,18 @@ type Recognizer = {
   abort: () => void;
 };
 
-// Strip markdown so the voice speaks clean text (no "star star" or "bracket one").
+// Strip markdown and emoji so the voice speaks clean text (no "star star", "bracket one", or the
+// voice trying to pronounce an emoji).
 function plainSpeak(text: string): string {
   return text
     .replace(/\[\d+(?:,\s*\d+)*\]/g, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^\s*[*-]\s+/gm, "")
     .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(
+      /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu,
+      "",
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -372,6 +381,8 @@ function Conversation({
   );
   const [heard, setHeard] = useState("");
   const [name, setName] = useState("");
+  const [agentMode, setAgentMode] = useState(false);
+  const [micOn, setMicOn] = useState(true);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
   const recogRef = useRef<Recognizer | null>(null);
@@ -381,6 +392,7 @@ function Conversation({
   const utterRef = useRef(0); // id of the current utterance, to drop superseded ones
   const lastSpokenRef = useRef(""); // what we are saying, to ignore the mic hearing our own voice
   const micDeadRef = useRef(false); // mic denied/unavailable, so do not restart the recognizer
+  const micOnRef = useRef(true); // the shopper muted the mic without leaving voice mode
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -394,7 +406,22 @@ function Conversation({
       .catch(() => {});
     const saved = localStorage.getItem("aster_name");
     if (saved) setName(saved);
+    try {
+      // restore the conversation, so closing and reopening the chat keeps the history
+      const raw = localStorage.getItem("aster_chat");
+      if (raw) setMessages(JSON.parse(raw));
+    } catch {
+      /* ignore a corrupt history */
+    }
   }, [token]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("aster_chat", JSON.stringify(messages.slice(-40)));
+    } catch {
+      /* storage full: skip persisting */
+    }
+  }, [messages]);
 
   useEffect(() => {
     // keep the newest message in view as tokens stream in
@@ -428,8 +455,15 @@ function Conversation({
         return "";
       }
     }
+    // human handoff: if they ask for a person and we are not already with Aaron, bring him in
+    if (!agentMode && /\b(human|real person|a person|agent|representative|customer service|talk to someone|speak to someone|live (agent|chat))\b/i.test(q)) {
+      setInput("");
+      setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
+      setAgentMode(true);
+      return "";
+    }
     setInput("");
-    setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "" }]);
+    setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: agentMode }]);
     setLoading(true);
     // if the shopper is on a product page, fold that product into the query the API sees (but not
     // what we display), so "what color is it" or "is it in stock" resolve to the right item
@@ -537,10 +571,23 @@ function Conversation({
     }
   }
 
+  function escalate() {
+    if (agentMode) return;
+    setAgentMode(true);
+    setMessages((m) => [...m, { role: "bot", agent: true, text: AGENT_INTRO }]);
+  }
+  function endAgent() {
+    setAgentMode(false);
+    setMessages((m) => [
+      ...m,
+      { role: "bot", text: "You're back with Aria, your shopping assistant. 😊 What else can I help you find?" },
+    ]);
+  }
+
   // Handle one spoken utterance. If we are mid-answer, the shopper is interrupting (barge-in), so
   // we cut the speech and take the new question. Superseded utterances drop out via the id check.
   async function handleUtterance(text: string) {
-    if (!voiceLiveRef.current) return;
+    if (!voiceLiveRef.current || !micOnRef.current) return;
     if (processingRef.current && !speakingRef.current) return; // busy thinking, ignore
     if (speakingRef.current) {
       // the mic may just be hearing our own voice; ignore an utterance that mostly echoes what we
@@ -626,6 +673,8 @@ function Conversation({
     processingRef.current = false;
     speakingRef.current = false;
     micDeadRef.current = false;
+    micOnRef.current = true;
+    setMicOn(true);
     utterRef.current = 0;
     setHeard("");
     setVoiceState("greeting");
@@ -647,6 +696,13 @@ function Conversation({
     recogRef.current?.abort();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setVoiceOn(false);
+  }
+
+  function toggleMute() {
+    const on = !micOnRef.current;
+    micOnRef.current = on;
+    setMicOn(on);
+    if (!on && typeof window !== "undefined") window.speechSynthesis?.cancel(); // muting stops speech too
   }
 
   useEffect(() => {
@@ -671,19 +727,53 @@ function Conversation({
   if (voiceOn) {
     const avatarState: AvatarState =
       voiceState === "speaking" ? "speaking" : voiceState === "thinking" ? "thinking" : "idle";
+    const lastBot = [...messages].reverse().find((m) => m.role === "bot" && m.text);
     return (
       <div className="voice">
-        <div>
+        <div style={{ width: "100%" }}>
           <div className={`voice-ring ${voiceState}`}>
-            <Avatar state={avatarState} size={120} />
+            <Avatar state={avatarState} size={104} />
           </div>
-          <div className="state">{voiceLabel}</div>
-          {heard && <div className="said">&ldquo;{heard}&rdquo;</div>}
-          <div className="voice-hint">You can talk any time — even to interrupt.</div>
+          <div className="state">{micOn ? voiceLabel : "Muted"}</div>
+          {/* live transcript, like ChatGPT voice: see what you said and the answer as it streams */}
+          {(heard || lastBot) && (
+            <div className="voice-live">
+              {heard && <div className="vl-said">&ldquo;{heard}&rdquo;</div>}
+              {lastBot && (
+                <div className="vl-ans">
+                  <Markdown text={lastBot.text} />
+                </div>
+              )}
+              {lastBot?.recs && lastBot.recs.length > 0 && (
+                <div className="recs">
+                  {lastBot.recs.map((p) => (
+                    <Link key={p.id} className="rec" href={`/product/${p.id}`}>
+                      <div className="sw" style={swatchStyle(p.color)} />
+                      <div className="rb">
+                        <div className="rn">{p.name.replace(/^Aster /, "")}</div>
+                        <div className="rp">{p.price != null ? `$${p.price.toFixed(0)}` : ""}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="voice-hint">You can talk any time, even to interrupt.</div>
         </div>
-        <button className="btn btn-primary" onClick={stopVoice}>
-          Stop
-        </button>
+        <div className="voice-controls">
+          <button
+            className={micOn ? "icon-btn" : "icon-btn muted"}
+            onClick={toggleMute}
+            aria-label={micOn ? "Mute microphone" : "Unmute microphone"}
+            title={micOn ? "Mute" : "Unmute"}
+          >
+            {micOn ? "🎤" : "🔇"}
+          </button>
+          <button className="btn btn-primary" onClick={stopVoice}>
+            End
+          </button>
+        </div>
       </div>
     );
   }
@@ -709,6 +799,14 @@ function Conversation({
 
   return (
     <>
+      {agentMode && (
+        <div className="agent-banner">
+          <span>
+            <b>Aaron</b> · Aster team, human agent
+          </span>
+          <button onClick={endAgent}>End chat</button>
+        </div>
+      )}
       <div className="stream" ref={streamRef}>
         {empty && (
           <div className="greet">
@@ -741,9 +839,12 @@ function Conversation({
                 </span>
               </div>
             ) : (
-              <div className={`msg ${m.role}`}>
-                {m.role === "bot" ? <Markdown text={m.text} /> : m.text}
-              </div>
+              <>
+                {m.agent && <div className="agent-tag">Aaron · human agent</div>}
+                <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
+                  {m.role === "bot" ? <Markdown text={m.text} /> : m.text}
+                </div>
+              </>
             )}
             {m.final && (
               <div className="meta-row">
@@ -773,6 +874,11 @@ function Conversation({
                   </span>
                 )}
               </div>
+            )}
+            {m.final?.tier === "abstain" && !agentMode && (
+              <button className="escalate-btn" type="button" onClick={escalate}>
+                💬 Talk to a human agent
+              </button>
             )}
             {m.recs && m.recs.length > 0 && (
               <div className="recs">

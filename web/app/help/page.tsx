@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { fetchStore } from "../catalog";
 import { useChat } from "../ChatProvider";
 import { useRequireGate } from "../gate";
+import StoreFooter from "../StoreFooter";
 import StoreHeader from "../StoreHeader";
 
 const TOPICS = [
@@ -31,12 +32,12 @@ const TOPICS = [
   {
     topic: "care",
     title: "Product care",
-    body: "Machine wash cold with like colors and hang dry or tumble dry low. Skip fabric softener on performance fabrics — it reduces moisture wicking. Merino can be washed cold on a wool cycle.",
+    body: "Machine wash cold with like colors and hang dry or tumble dry low. Skip fabric softener on performance fabrics, since it reduces moisture wicking. Merino can be washed cold on a wool cycle.",
   },
   {
     topic: "warranty",
     title: "Quality guarantee",
-    body: "Every piece is covered against manufacturing defects like seams and zippers — we repair or replace. Normal wear and misuse are not covered.",
+    body: "Every piece is covered against manufacturing defects like seams and zippers, and we repair or replace. Normal wear and misuse are not covered.",
   },
   {
     topic: "membership",
@@ -82,6 +83,7 @@ export default function HelpPage() {
           ))}
         </div>
       </main>
+      <StoreFooter brand={brand} />
     </>
   );
 }

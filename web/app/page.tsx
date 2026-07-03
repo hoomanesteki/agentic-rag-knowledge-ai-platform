@@ -10,6 +10,7 @@ import { useChat } from "./ChatProvider";
 import { isGated } from "./gate";
 import ImageTile from "./ImageTile";
 import Landing from "./Landing";
+import StoreFooter from "./StoreFooter";
 import StoreHeader from "./StoreHeader";
 
 function cap(s: string): string {
@@ -31,9 +32,11 @@ export default function Page() {
 function Home() {
   const params = useSearchParams();
   const gender = params.get("g") || "all";
+  const q = (params.get("q") || "").trim();
   const [products, setProducts] = useState<Product[]>([]);
   const [brand, setBrand] = useState("");
   const [cat, setCat] = useState("all");
+  const [limit, setLimit] = useState(12);
   const { openWith, setContext } = useChat();
 
   useEffect(() => {
@@ -43,7 +46,10 @@ function Home() {
     });
   }, []);
 
-  useEffect(() => setCat("all"), [gender]); // reset category when switching Women/Men
+  useEffect(() => {
+    setCat("all");
+    setLimit(12);
+  }, [gender, q]); // reset when switching Women/Men or searching
 
   const forGender = useMemo(
     () =>
@@ -56,14 +62,33 @@ function Home() {
     const set = new Set(forGender.map((p) => p.category).filter(Boolean));
     return ["all", ...Array.from(set).sort()];
   }, [forGender]);
-  const shown = cat === "all" ? forGender : forGender.filter((p) => p.category === cat);
+  const searchResults = useMemo(() => {
+    if (!q) return null;
+    const t = q.toLowerCase();
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(t) ||
+        p.category.toLowerCase().includes(t) ||
+        (p.weather || "").toLowerCase().includes(t) ||
+        (p.gender || "").toLowerCase().includes(t) ||
+        (p.colors || [p.color || ""]).some((c) => c.toLowerCase().includes(t)),
+    );
+  }, [q, products]);
+  const filtered =
+    searchResults ?? (cat === "all" ? forGender : forGender.filter((p) => p.category === cat));
+  const shown = filtered.slice(0, limit);
 
   useEffect(() => {
-    setContext(cat !== "all" ? { kind: "category", category: cat, gender } : null);
-  }, [cat, gender, setContext]);
+    setContext(!q && cat !== "all" ? { kind: "category", category: cat, gender } : null);
+  }, [cat, gender, q, setContext]);
 
-  const title =
-    gender === "women" ? "Women" : gender === "men" ? "Men" : "New arrivals";
+  const title = q
+    ? `Results for "${q}"`
+    : gender === "women"
+      ? "Women"
+      : gender === "men"
+        ? "Men"
+        : "Top picks";
 
   return (
     <>
@@ -87,37 +112,46 @@ function Home() {
       </section>
 
       <main className="shell" id="shop">
-        <h2 className="section-title">{cat === "all" ? title : cap(cat)}</h2>
+        <h2 className="section-title">{!q && cat !== "all" ? cap(cat) : title}</h2>
         <p className="section-sub">
-          {shown.length} piece{shown.length === 1 ? "" : "s"}
+          {filtered.length} piece{filtered.length === 1 ? "" : "s"}
+          {filtered.length > shown.length ? ` · showing ${shown.length}` : ""}
         </p>
-        <div className="chips-row">
-          {cats.map((c) => (
-            <button key={c} className={c === cat ? "chip on" : "chip"} onClick={() => setCat(c)}>
-              {c === "all" ? "All" : c}
-            </button>
-          ))}
-        </div>
-
-        {products.length === 0 ? (
-          <p className="section-sub">Loading the collection...</p>
-        ) : (
-          <div className="grid">
-            {shown.map((p) => (
-              <ProductCard key={p.id} p={p} />
+        {!q && (
+          <div className="chips-row">
+            {cats.map((c) => (
+              <button key={c} className={c === cat ? "chip on" : "chip"} onClick={() => setCat(c)}>
+                {c === "all" ? "All" : c}
+              </button>
             ))}
           </div>
         )}
+
+        {products.length === 0 ? (
+          <p className="section-sub">Loading the collection...</p>
+        ) : filtered.length === 0 ? (
+          <p className="section-sub">
+            No matches{q ? ` for "${q}"` : ""}. <Link href="/">Back to all products</Link>.
+          </p>
+        ) : (
+          <>
+            <div className="grid">
+              {shown.map((p) => (
+                <ProductCard key={p.id} p={p} />
+              ))}
+            </div>
+            {filtered.length > shown.length && (
+              <div className="see-more">
+                <button className="btn btn-ghost" onClick={() => setLimit((n) => n + 12)}>
+                  See more ({filtered.length - shown.length} more)
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </main>
 
-      <footer className="foot">
-        <div className="foot-in">
-          <span>{brand || "Aster"}, a synthetic demo brand. No real products or people.</span>
-          <span>
-            <Link href="/help">Help &amp; policies</Link> · <a href="/admin">Backoffice</a>
-          </span>
-        </div>
-      </footer>
+      <StoreFooter brand={brand} />
     </>
   );
 }

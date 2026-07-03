@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { FREE_SHIP, useCart } from "../cart";
 import { fetchStore } from "../catalog";
 import { useRequireGate } from "../gate";
+import StoreFooter from "../StoreFooter";
 import StoreHeader from "../StoreHeader";
 
 export default function CartPage() {
@@ -86,6 +87,7 @@ export default function CartPage() {
           </div>
         )}
       </main>
+      <StoreFooter brand={brand} />
     </>
   );
 }

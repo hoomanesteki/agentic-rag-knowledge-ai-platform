@@ -396,3 +396,5 @@ img { max-width: 100%; }
   .pdp, .cart-grid, .co-grid { grid-template-columns: 1fr; gap: 24px; }
   .pdp-media { position: static; }
 }
+
+.voice-hint { font-size: 12px; color: var(--muted); margin-top: 14px; opacity: 0.8; }

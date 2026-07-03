@@ -101,12 +101,15 @@ function followupsFor(final: FinalEvent, text: string, recs: Product[], suggesti
   return suggestions.slice(0, 3).map((s) => s.text);
 }
 
-// Minimal shape of the browser SpeechRecognition, which handles endpointing (knows when you stop
-// talking) so the voice loop stays conversational without us building silence detection.
-type SpeechResult = { results: { [i: number]: { [j: number]: { transcript: string } } } };
+// Minimal shape of the browser SpeechRecognition. We run it continuously so the shopper can
+// interrupt the assistant mid-sentence (barge-in), like ChatGPT voice.
+type SpeechAlt = { transcript: string };
+type SpeechRes = { [j: number]: SpeechAlt; isFinal: boolean };
+type SpeechResult = { resultIndex: number; results: { [i: number]: SpeechRes; length: number } };
 type Recognizer = {
   lang: string;
   interimResults: boolean;
+  continuous: boolean;
   maxAlternatives: number;
   onresult: (e: SpeechResult) => void;
   onerror: () => void;
@@ -323,6 +326,10 @@ function Conversation({
   const seededRef = useRef<string | null>(null);
   const recogRef = useRef<Recognizer | null>(null);
   const voiceLiveRef = useRef(false); // lets stopVoice break the async loop
+  const processingRef = useRef(false); // handling an utterance (thinking or speaking)
+  const speakingRef = useRef(false); // currently speaking, so a new utterance can barge in
+  const utterRef = useRef(0); // id of the current utterance, to drop superseded ones
+  const lastSpokenRef = useRef(""); // what we are saying, to ignore the mic hearing our own voice
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -472,34 +479,66 @@ function Conversation({
     }
   }
 
-  // Listen for one utterance and resolve with the transcript. The browser recognizer decides when
-  // the speaker has stopped, which keeps the loop hands-free.
-  function listenOnce(): Promise<string> {
-    return new Promise((resolve) => {
-      const rec = makeRecognizer();
-      if (!rec) {
-        resolve("");
-        return;
-      }
-      rec.lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
-      rec.interimResults = false;
-      rec.maxAlternatives = 1;
-      let said = "";
-      rec.onresult = (e) => {
-        said = e.results[0][0].transcript;
-      };
-      rec.onerror = () => resolve("");
-      rec.onend = () => resolve(said);
-      recogRef.current = rec;
-      try {
-        rec.start();
-      } catch {
-        resolve("");
-      }
-    });
+  // Handle one spoken utterance. If we are mid-answer, the shopper is interrupting (barge-in), so
+  // we cut the speech and take the new question. Superseded utterances drop out via the id check.
+  async function handleUtterance(text: string) {
+    if (!voiceLiveRef.current) return;
+    if (processingRef.current && !speakingRef.current) return; // busy thinking, ignore
+    if (speakingRef.current) {
+      // the mic may just be hearing our own voice; ignore an echo of what we are saying
+      if (lastSpokenRef.current.toLowerCase().includes(text.toLowerCase()) && text.length > 4) return;
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel(); // barge in
+    }
+    const myId = ++utterRef.current;
+    processingRef.current = true;
+    speakingRef.current = false;
+    setHeard(text);
+    setVoiceState("thinking");
+    const answer = await send(text);
+    if (!voiceLiveRef.current || myId !== utterRef.current) return; // stopped or superseded
+    speakingRef.current = true;
+    lastSpokenRef.current = answer;
+    setVoiceState("speaking");
+    await speakAsync(answer);
+    if (myId !== utterRef.current) return; // a newer utterance took over while we spoke
+    speakingRef.current = false;
+    processingRef.current = false;
+    if (voiceLiveRef.current) setVoiceState("listening");
   }
 
-  // The conversation loop: greet, then listen -> answer -> speak, over and over, until Stop.
+  // Continuous recognition, so the shopper can talk any time, even over the answer.
+  function startListening() {
+    const rec = makeRecognizer();
+    if (!rec) return;
+    rec.lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
+    rec.interimResults = true;
+    rec.continuous = true;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      let finalText = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      }
+      if (finalText.trim()) handleUtterance(finalText.trim());
+    };
+    rec.onerror = () => {};
+    rec.onend = () => {
+      if (voiceLiveRef.current) {
+        try {
+          rec.start(); // browsers stop after a pause; keep the mic alive until Stop
+        } catch {
+          /* already started */
+        }
+      }
+    };
+    recogRef.current = rec;
+    try {
+      rec.start();
+    } catch {
+      /* already started */
+    }
+  }
+
   async function startVoice() {
     if (!makeRecognizer()) {
       setMessages((m) => [
@@ -510,38 +549,26 @@ function Conversation({
     }
     setVoiceOn(true);
     voiceLiveRef.current = true;
+    processingRef.current = false;
+    speakingRef.current = false;
+    utterRef.current = 0;
     setHeard("");
     setVoiceState("greeting");
-    await speakAsync(
-      `Hi${name ? " " + name : ""}, I'm your ${brand} assistant. How can I help you today?`,
-    );
-    let quiet = 0;
-    while (voiceLiveRef.current) {
-      setVoiceState("listening");
-      const said = await listenOnce();
-      if (!voiceLiveRef.current) break;
-      if (!said.trim()) {
-        // nothing heard (silence, or the mic was blocked): give up after a few tries, do not spin
-        if (++quiet >= 3) {
-          await speakAsync("I did not catch that. Tap the mic when you are ready.");
-          break;
-        }
-        continue;
-      }
-      quiet = 0;
-      setHeard(said);
-      setVoiceState("thinking");
-      const answer = await send(said);
-      if (!voiceLiveRef.current) break;
-      setVoiceState("speaking");
-      await speakAsync(answer);
-    }
-    voiceLiveRef.current = false;
-    setVoiceOn(false);
+    speakingRef.current = true;
+    const greeting = `Hi${name ? " " + name : ""}, I'm your ${brand} assistant. How can I help you today?`;
+    lastSpokenRef.current = greeting;
+    await speakAsync(greeting);
+    speakingRef.current = false;
+    if (!voiceLiveRef.current) return;
+    setVoiceState("listening");
+    startListening();
   }
 
   function stopVoice() {
     voiceLiveRef.current = false;
+    utterRef.current++; // invalidate any in-flight utterance
+    processingRef.current = false;
+    speakingRef.current = false;
     recogRef.current?.abort();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setVoiceOn(false);
@@ -567,7 +594,8 @@ function Conversation({
           : "Speaking...";
 
   if (voiceOn) {
-    const avatarState: AvatarState = voiceState === "speaking" ? "speaking" : "thinking";
+    const avatarState: AvatarState =
+      voiceState === "speaking" ? "speaking" : voiceState === "thinking" ? "thinking" : "idle";
     return (
       <div className="voice">
         <div>
@@ -576,6 +604,7 @@ function Conversation({
           </div>
           <div className="state">{voiceLabel}</div>
           {heard && <div className="said">&ldquo;{heard}&rdquo;</div>}
+          <div className="voice-hint">You can talk any time — even to interrupt.</div>
         </div>
         <button className="btn btn-primary" onClick={stopVoice}>
           Stop

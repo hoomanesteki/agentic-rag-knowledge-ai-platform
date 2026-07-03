@@ -512,6 +512,16 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         # questions the system could not answer well: the worklist for what to teach it next
         return {"gaps": aggregate_gaps(read_jsonl(DEFAULT_TRACE_PATH, limit=5000))}
 
+    @app.get("/api/admin/analytics")
+    def admin_analytics(_: dict = Depends(require_admin)):
+        # store-manager metrics (traffic, top searches/questions, funnel, revenue) from the pack's
+        # simulated sessions. Business insights, not ML internals.
+        path = os.path.join("domains", settings.domain, "seed", "analytics.json")
+        if not os.path.exists(path):
+            return {}
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
     @app.get("/api/admin/domain")
     def admin_domain(_: dict = Depends(require_admin)):
         # read-only structure of the active domain, plus a link to MLflow (wired at M8)

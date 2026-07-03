@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 // Shared backoffice top bar: brand plus tabs with an active state, so every admin view feels like
 // one console.
 const TABS = [
+  { href: "/admin/analytics", label: "Overview" },
   { href: "/admin", label: "Review queue" },
   { href: "/admin/quality", label: "Quality" },
   { href: "/admin/health", label: "Health" },

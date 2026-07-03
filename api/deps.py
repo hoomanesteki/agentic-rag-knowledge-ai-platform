@@ -15,7 +15,13 @@ from adapters.factory import (
     make_store,
     make_transcriber,
 )
-from api.resilience import CachingEmbedder, CachingReranker, ResilientEmbedder, ResilientLLM
+from api.resilience import (
+    CachingEmbedder,
+    CachingReranker,
+    ResilientEmbedder,
+    ResilientLLM,
+    ResilientReranker,
+)
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
 from rag.hitl import ReviewQueue
@@ -49,7 +55,8 @@ def get_components() -> dict:
         "embedder": CachingEmbedder(ResilientEmbedder(make_embedder())),
         "store": make_store(collection=collection_name(settings.domain, settings.embed_model)),
         "llm": ResilientLLM(make_llm()),
-        "reranker": CachingReranker(reranker) if reranker is not None else None,
+        # cache rerank results, retry transient failures, fall back to pre-rerank order if needed
+        "reranker": ResilientReranker(CachingReranker(reranker)) if reranker is not None else None,
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),
         "graph_retriever": _build_graph_retriever(settings.domain),
         "transcriber": make_transcriber(),

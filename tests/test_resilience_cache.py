@@ -1,6 +1,13 @@
 """The caching and retry wrappers cut repeated metered calls and ride out transient failures,
 which is what keeps the demo working under a low free-tier rate limit."""
-from api.resilience import CachingEmbedder, CachingReranker, ResilientLLM
+import pytest
+
+from api.resilience import (
+    CachingEmbedder,
+    CachingReranker,
+    ResilientLLM,
+    ResilientReranker,
+)
 
 
 class _CountingEmbedder:
@@ -80,3 +87,46 @@ def test_llm_retry_recovers_from_transient_429():
 def test_llm_passthrough_exposes_inner_attributes():
     llm = ResilientLLM(_FlakyLLM(fails=0))
     assert llm.model == "test-model"  # non-generate attributes defer to the wrapped client
+
+
+def test_embedder_cache_dedupes_duplicate_texts_in_one_call():
+    inner = _CountingEmbedder()
+    emb = CachingEmbedder(inner)
+    out = emb.embed(["same", "same", "other"], input_type="query")
+    assert out[0] == out[1]  # duplicates share the one vector, in input order
+    assert inner.calls == 1  # a single batched call...
+    # ...and that call embedded the two unique texts only, not the duplicate
+
+
+class _FlakyReranker:
+    def __init__(self, fails, error="rerank -> HTTP 429: rate limited"):
+        self.fails = fails
+        self.error = error
+        self.calls = 0
+
+    def rerank(self, query, documents, top_n=8):
+        self.calls += 1
+        if self.fails > 0:
+            self.fails -= 1
+            raise RuntimeError(self.error)
+        return [(len(documents) - 1, 0.9)]  # last doc wins, to prove passthrough
+
+
+def test_reranker_retries_then_passes_through():
+    inner = _FlakyReranker(fails=1)
+    rr = ResilientReranker(inner, base_delay=0)
+    assert rr.rerank("q", ["a", "b", "c"], top_n=2) == [(2, 0.9)]
+
+
+def test_reranker_falls_back_to_identity_on_persistent_transient():
+    inner = _FlakyReranker(fails=99)  # never succeeds
+    rr = ResilientReranker(inner, attempts=2, base_delay=0)
+    # identity order over the first top_n, so the answer still returns un-reranked
+    assert rr.rerank("q", ["a", "b", "c", "d"], top_n=2) == [(0, 0.0), (1, 0.0)]
+
+
+def test_reranker_reraises_non_transient():
+    inner = _FlakyReranker(fails=99, error="rerank -> HTTP 400: bad request")
+    rr = ResilientReranker(inner, attempts=2, base_delay=0)
+    with pytest.raises(RuntimeError):
+        rr.rerank("q", ["a"], top_n=1)

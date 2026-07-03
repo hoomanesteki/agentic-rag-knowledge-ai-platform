@@ -90,3 +90,20 @@ def test_rerank_missing_key_raises():
     rr.api_key = ""
     with pytest.raises(RuntimeError):
         rr.rerank("q", ["a"])
+
+
+def test_unknown_non_v4_model_raises_at_construction():
+    # guessing a dim would risk a silent Qdrant mismatch, so an unknown fixed-size model fails fast
+    with pytest.raises(ValueError):
+        CohereEmbedder(model="embed-mystery-v9", api_key="k")
+
+
+def test_future_v4_model_is_allowed_and_pins_1536():
+    emb = CohereEmbedder(model="embed-v4.1", api_key="k")  # unknown but v4, size is ours to pick
+    assert emb.dim == 1536
+
+
+def test_unknown_input_type_raises():
+    # validated before any HTTP call, so no mock is needed
+    with pytest.raises(ValueError):
+        CohereEmbedder(model="embed-v4.0", api_key="k").embed(["a"], input_type="passage")

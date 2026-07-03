@@ -28,7 +28,14 @@ class CohereEmbedder:
         settings = get_settings()
         self.model = model or settings.embed_model
         self.api_key = api_key or settings.cohere_api_key
-        self._dim = _MODEL_DIMS.get(self.model, 1536)
+        if self.model in _MODEL_DIMS:
+            self._dim = _MODEL_DIMS[self.model]
+        elif "v4" in self.model:
+            self._dim = 1536  # v4 lets us pin the size, and we request exactly this below
+        else:
+            # guessing a dim risks a silent Qdrant mismatch later; fail loudly at construction
+            raise ValueError(
+                "unknown Cohere embed model {!r}; add it to _MODEL_DIMS".format(self.model))
 
     @property
     def dim(self) -> int:
@@ -37,7 +44,10 @@ class CohereEmbedder:
     def embed(self, texts: list[str], input_type: str = "document") -> list[list[float]]:
         if not self.api_key:
             raise RuntimeError("COHERE_API_KEY is not set; put it in .env")
-        cohere_type = _INPUT_TYPES.get(input_type, "search_document")
+        if input_type not in _INPUT_TYPES:  # a query embedded as a document silently hurts recall
+            raise ValueError(
+                "input_type must be 'query' or 'document', got {!r}".format(input_type))
+        cohere_type = _INPUT_TYPES[input_type]
         texts = list(texts)
         out: list[list[float]] = []
         for start in range(0, len(texts), _EMBED_BATCH):

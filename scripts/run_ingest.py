@@ -18,6 +18,7 @@ import yaml
 
 from adapters.config import get_settings
 from adapters.factory import make_embedder, make_store
+from api.resilience import ResilientEmbedder
 from ingest.chunk import chunk_records
 from ingest.naming import collection_name
 from retrieval.sparse import SparseEncoder
@@ -68,7 +69,7 @@ def main() -> int:
     # the prefix helps retrieval without polluting citations or the confidence gate.
     embed_texts = [(c.metadata.get("context", "") + " " + c.text).strip() for c in chunks]
     embedder = make_embedder()
-    dense = embedder.embed(embed_texts, input_type="document")
+    dense = ResilientEmbedder(embedder).embed(embed_texts, input_type="document")
     sparse_encoder = SparseEncoder()
     sparse = [sparse_encoder.encode(t) for t in embed_texts]
 

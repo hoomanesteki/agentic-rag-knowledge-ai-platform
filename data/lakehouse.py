@@ -59,18 +59,28 @@ def _column_expr(name: str, declared: str, pii: set[str]) -> str:
     return "CAST({c} AS {t}) AS {c}".format(c=col, t=duck)
 
 
-def _build_source(con: duckdb.DuckDBPyConnection, pack: str, src: dict) -> str:
-    role = src["role"]
+def validate_source(src: dict) -> None:
+    """Fail loud on an unsafe or fail-open source, so every build path (the Python builder and the
+    dbt codegen) enforces the same guards: a role name that is a safe identifier, a relative path
+    that cannot escape the pack, and no PII column left out of `columns` (which would otherwise
+    fall through to an unmasked `select *`)."""
+    role = src.get("role", "")
     if not _ROLE_RE.match(role):
         raise ValueError("invalid role name: {}".format(role))
-    rel = src["file"]
+    rel = src.get("file", "")
     if os.path.isabs(rel) or ".." in rel.replace("\\", "/").split("/"):
         raise ValueError("unsafe source path: {}".format(rel))
-    columns = src.get("columns", {}) or {}
-    pii = set(src.get("pii_columns", []) or [])
-    missing = pii - set(columns)
+    missing = set(src.get("pii_columns", []) or []) - set(src.get("columns", {}) or {})
     if missing:
         raise ValueError("{}: pii_columns {} not declared in columns".format(role, sorted(missing)))
+
+
+def _build_source(con: duckdb.DuckDBPyConnection, pack: str, src: dict) -> str:
+    validate_source(src)
+    role = src["role"]
+    rel = src["file"]
+    columns = src.get("columns", {}) or {}
+    pii = set(src.get("pii_columns", []) or [])
 
     bronze, silver = "bronze_" + role, "silver_" + role
     try:

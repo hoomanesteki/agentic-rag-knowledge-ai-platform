@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import sys
 
-from data.lakehouse import _column_expr, load_manifest
+from data.lakehouse import _column_expr, load_manifest, validate_source
 
 _DBT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dbt")
 _MODELS = os.path.join(_DBT_DIR, "models")
@@ -58,12 +58,16 @@ def _relationships(manifest: dict) -> dict:
     nodes = _node_index(manifest)
     rels: dict = {}
     for edge in ((manifest.get("graph", {}) or {}).get("edges", []) or []):
-        table, fk = edge.get("source"), edge.get("to_key")
-        target = nodes.get(edge.get("to"))
-        if table and fk and target:
-            target_table, target_key = target
-            if fk != target_key or table != target_table:  # skip a self/degenerate reference
-                rels[(table, fk)] = (target_table, target_key)
+        table = edge.get("source")
+        # An edge encodes two foreign keys: the child's own key (from_key) and the key it points at
+        # (to_key). Derive both, so referential integrity covers every FK the graph relies on.
+        for key_field, node_label in (("to_key", edge.get("to")), ("from_key", edge.get("from"))):
+            fk = edge.get(key_field)
+            target = nodes.get(node_label)
+            if table and fk and target:
+                target_table, target_key = target
+                if fk != target_key or table != target_table:  # skip a self/degenerate reference
+                    rels[(table, fk)] = (target_table, target_key)
     return rels
 
 
@@ -80,8 +84,10 @@ def generate(domain: str, domains_dir: str = "domains") -> list[str]:
 
     source_tables, schema_models, built = [], [], []
     for src in sources:
+        validate_source(src)  # same guards as the Python builder (safe role/path, PII declared)
         role = src["role"]
-        csv_path = os.path.abspath(os.path.join(pack, src["file"]))
+        # escape the single quotes so a path with a quote cannot break out of the SQL string literal
+        csv_path = os.path.abspath(os.path.join(pack, src["file"])).replace("'", "''")
         columns = src.get("columns", {}) or {}
         pii = set(src.get("pii_columns", []) or [])
         pk = src.get("primary_key")
@@ -124,9 +130,11 @@ def _model_schema(role, columns, pii, pk, grain, rels) -> str:
             col_tests.append("          - is_masked\n")
         if (role, name) in rels:
             target_table, target_key = rels[(role, name)]
+            # dbt 1.11 wants generic-test arguments nested under `arguments:`
             col_tests.append("          - relationships:\n"
-                             "              to: ref('{}')\n"
-                             "              field: {}\n".format(target_table, target_key))
+                             "              arguments:\n"
+                             "                to: ref('{}')\n"
+                             "                field: {}\n".format(target_table, target_key))
         lines.append("      - name: {}\n".format(name))
         if col_tests:
             lines.append("        tests:\n")

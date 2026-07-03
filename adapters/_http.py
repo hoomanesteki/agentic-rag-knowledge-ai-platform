@@ -10,12 +10,17 @@ import json
 import urllib.error
 import urllib.request
 
+# Send a real User-Agent. Groq sits behind Cloudflare, which blocks the default "Python-urllib/x.y"
+# signature with a 403 (error 1010). Any honest UA gets through, so name the app.
+_USER_AGENT = "skein-lite/1.0 (+https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform)"
+
 
 def request_json(method: str, url: str, payload: dict | None = None,
                  headers: dict | None = None, timeout: int = 60) -> dict:
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
+    req.add_header("User-Agent", _USER_AGENT)
     for key, value in (headers or {}).items():
         req.add_header(key, value)
     try:

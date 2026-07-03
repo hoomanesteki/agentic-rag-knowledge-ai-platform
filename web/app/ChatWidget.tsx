@@ -79,12 +79,39 @@ function followupsFor(final: FinalEvent, text: string, recs: Product[], suggesti
   return out;
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(",")[1] || "");
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+// Minimal shape of the browser SpeechRecognition, which handles endpointing (knows when you stop
+// talking) so the voice loop stays conversational without us building silence detection.
+type SpeechResult = { results: { [i: number]: { [j: number]: { transcript: string } } } };
+type Recognizer = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: (e: SpeechResult) => void;
+  onerror: () => void;
+  onend: () => void;
+  start: () => void;
+  abort: () => void;
+};
+function makeRecognizer(): Recognizer | null {
+  if (typeof window === "undefined") return null;
+  const SR =
+    (window as unknown as { SpeechRecognition?: new () => Recognizer }).SpeechRecognition ||
+    (window as unknown as { webkitSpeechRecognition?: new () => Recognizer }).webkitSpeechRecognition;
+  return SR ? new SR() : null;
+}
+// Speak text and resolve when the voice finishes, so the loop waits before listening again.
+function speakAsync(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!text || !synth) {
+      resolve();
+      return;
+    }
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    synth.speak(u);
   });
 }
 
@@ -219,12 +246,17 @@ function Conversation({
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [recording, setRecording] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceState, setVoiceState] = useState<"greeting" | "listening" | "thinking" | "speaking">(
+    "greeting",
+  );
+  const [heard, setHeard] = useState("");
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
+  const recogRef = useRef<Recognizer | null>(null);
+  const voiceLiveRef = useRef(false); // lets stopVoice break the async loop
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -252,11 +284,12 @@ function Conversation({
     }
   }, [seed]);
 
-  async function send(q: string) {
-    if (!q.trim() || loading) return;
+  async function send(q: string): Promise<string> {
+    if (!q.trim() || loading) return "";
     setInput("");
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "" }]);
     setLoading(true);
+    let result = "";
     const patchBot = (fn: (m: Message) => Message) =>
       setMessages((all) => {
         const copy = [...all];
@@ -276,15 +309,16 @@ function Conversation({
       });
       if (res.status === 401) {
         onSignOut();
-        return;
+        return "";
       }
       if (res.status === 429) {
-        patchBot((b) => ({ ...b, text: "You are asking too fast. Please wait a moment." }));
-        return;
+        const m = "You are asking too fast. Please wait a moment.";
+        patchBot((b) => ({ ...b, text: m }));
+        return m;
       }
       if (!res.ok || !res.body) {
         patchBot((b) => ({ ...b, text: "Sorry, something went wrong. Please try again." }));
-        return;
+        return "";
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -314,6 +348,7 @@ function Conversation({
             } else if (event.type === "final") {
               const fe = event;
               const answer = fe.answer ?? acc;
+              result = answer;
               const recs = recsFromAnswer(answer, products);
               patchBot((b) => ({
                 ...b,
@@ -335,6 +370,7 @@ function Conversation({
     } finally {
       setLoading(false);
     }
+    return result;
   }
 
   async function sendFeedback(idx: number, verdict: "up" | "down") {
@@ -352,53 +388,105 @@ function Conversation({
     }
   }
 
-  async function toggleMic() {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices ||
-      typeof MediaRecorder === "undefined"
-    ) {
-      return;
-    }
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      return;
-    }
-    try {
-      const recorder = new MediaRecorder(stream);
-      const chunks: BlobPart[] = [];
-      recorder.ondataavailable = (e) => chunks.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        recorderRef.current = null;
-        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-        try {
-          const res = await fetch(`${API_BASE}/api/transcribe`, {
-            method: "POST",
-            headers: authHeaders,
-            body: JSON.stringify({ audio_base64: await blobToBase64(blob), mime: blob.type }),
-          });
-          if (res.ok) setInput((await res.json()).text);
-        } catch {
-          /* transcription is best-effort */
-        }
+  // Listen for one utterance and resolve with the transcript. The browser recognizer decides when
+  // the speaker has stopped, which keeps the loop hands-free.
+  function listenOnce(): Promise<string> {
+    return new Promise((resolve) => {
+      const rec = makeRecognizer();
+      if (!rec) {
+        resolve("");
+        return;
+      }
+      rec.lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      let said = "";
+      rec.onresult = (e) => {
+        said = e.results[0][0].transcript;
       };
-      recorderRef.current = recorder;
-      recorder.start();
-      setRecording(true);
-    } catch {
-      stream.getTracks().forEach((t) => t.stop());
+      rec.onerror = () => resolve("");
+      rec.onend = () => resolve(said);
+      recogRef.current = rec;
+      try {
+        rec.start();
+      } catch {
+        resolve("");
+      }
+    });
+  }
+
+  // The conversation loop: greet, then listen -> answer -> speak, over and over, until Stop.
+  async function startVoice() {
+    if (!makeRecognizer()) {
+      setMessages((m) => [
+        ...m,
+        { role: "bot", text: "Voice chat is not supported in this browser. Please type instead." },
+      ]);
+      return;
+    }
+    setVoiceOn(true);
+    voiceLiveRef.current = true;
+    setHeard("");
+    setVoiceState("greeting");
+    await speakAsync("Hi, I'm your Aster assistant. How can I help you today?");
+    while (voiceLiveRef.current) {
+      setVoiceState("listening");
+      const said = await listenOnce();
+      if (!voiceLiveRef.current) break;
+      if (!said.trim()) continue; // heard nothing, keep listening
+      setHeard(said);
+      setVoiceState("thinking");
+      const answer = await send(said);
+      if (!voiceLiveRef.current) break;
+      setVoiceState("speaking");
+      await speakAsync(answer);
     }
   }
 
+  function stopVoice() {
+    voiceLiveRef.current = false;
+    recogRef.current?.abort();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    setVoiceOn(false);
+  }
+
+  useEffect(() => {
+    // stop the mic and any speech if the widget unmounts mid-conversation
+    return () => {
+      voiceLiveRef.current = false;
+      recogRef.current?.abort();
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    };
+  }, []);
+
   const empty = messages.length === 0;
+  const voiceLabel =
+    voiceState === "greeting"
+      ? "Say hello..."
+      : voiceState === "listening"
+        ? "Listening..."
+        : voiceState === "thinking"
+          ? "Thinking..."
+          : "Speaking...";
+
+  if (voiceOn) {
+    return (
+      <div className="voice">
+        <div>
+          <div
+            className={`orb ${voiceState === "listening" ? "listening" : ""}${
+              voiceState === "speaking" ? " speaking" : ""
+            }`}
+          />
+          <div className="state">{voiceLabel}</div>
+          {heard && <div className="said">&ldquo;{heard}&rdquo;</div>}
+        </div>
+        <button className="btn btn-primary" onClick={stopVoice}>
+          Stop
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -406,7 +494,8 @@ function Conversation({
         {empty && (
           <div className="greet">
             <div className="big">Hi, I&apos;m your Aster assistant.</div>
-            How can I help you today? Ask about a product, sizing, shipping, or what to wear.
+            How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap
+            the mic to talk.
           </div>
         )}
         {empty && suggestions.length > 0 && (
@@ -495,11 +584,12 @@ function Conversation({
       >
         <button
           type="button"
-          className={recording ? "icon-btn rec" : "icon-btn"}
-          onClick={toggleMic}
-          aria-label={recording ? "Stop recording" : "Speak"}
+          className="icon-btn"
+          onClick={startVoice}
+          aria-label="Start a voice conversation"
+          title="Talk to the assistant"
         >
-          {recording ? "■" : "🎤"}
+          🎙
         </button>
         <input
           value={input}

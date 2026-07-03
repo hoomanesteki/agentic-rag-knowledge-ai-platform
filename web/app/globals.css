@@ -178,11 +178,11 @@ img { max-width: 100%; }
   flex: 0 0 auto; transition: border-color 0.15s ease, background 0.15s ease; }
 .icon-btn:hover { border-color: var(--fg); }
 .icon-btn.send { background: var(--ink); color: #fff; border-color: var(--ink); }
-.icon-btn.rec { background: #fde7e7; border-color: #f6caca; color: #b91c1c; }
 .icon-btn:disabled { opacity: 0.45; cursor: default; }
 
 /* voice conversation overlay */
-.voice { flex: 1; display: grid; place-items: center; text-align: center; padding: 24px; }
+.voice { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; text-align: center; padding: 24px; }
 .orb { width: 132px; height: 132px; border-radius: 50%; margin: 0 auto 18px;
   background: radial-gradient(circle at 35% 30%, #2a8e77, var(--ink));
   box-shadow: 0 12px 40px rgba(31, 111, 92, 0.4); }

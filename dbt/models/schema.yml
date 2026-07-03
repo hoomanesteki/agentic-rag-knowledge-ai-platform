@@ -12,6 +12,7 @@ models:
       - name: category
       - name: size
       - name: price
+      - name: color
       - name: supplier_id
         tests:
           - relationships:

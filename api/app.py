@@ -93,6 +93,34 @@ def _sse(event: dict) -> str:
 
 
 @lru_cache
+def _catalog(domain: str) -> list:
+    """The product catalog for the storefront, one card per product (size variants collapsed).
+    Reads the governed gold `products` table; returns [] if the domain has no catalog or the
+    lakehouse is not built yet."""
+    import duckdb
+    db = os.getenv("LAKEHOUSE_DB", "lakehouse.duckdb")
+    if not os.path.exists(db):
+        return []
+    con = duckdb.connect(db, read_only=True, config={"enable_external_access": False})
+    try:
+        has = con.execute("SELECT count(*) FROM information_schema.tables "
+                          "WHERE table_name = 'products' AND table_schema = 'main'").fetchone()[0]
+        if not has:
+            return []
+        rows = con.execute(
+            "SELECT any_value(product_id) AS id, name, any_value(category) AS category, "
+            "min(price) AS price, any_value(color) AS color, "
+            "list(DISTINCT size ORDER BY size) AS sizes "
+            "FROM products GROUP BY name ORDER BY category, name").fetchall()
+    except duckdb.Error:
+        return []
+    finally:
+        con.close()
+    return [{"id": r[0], "name": r[1], "category": r[2], "price": r[3],
+             "color": r[4], "sizes": list(r[5])} for r in rows]
+
+
+@lru_cache
 def _suggestions(domain: str) -> list:
     """The active domain's starter prompts, read from its manifest. Only text/lang/kind are
     exposed and the list is capped, so a pack cannot push arbitrary fields to the client."""
@@ -302,6 +330,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         # starter prompts for the active domain, so the chat guides the user instead of showing a
         # blank box; served from the pack, so switching DOMAIN switches the suggestions
         return {"domain": settings.domain, "suggestions": _suggestions(settings.domain)}
+
+    @app.get("/api/catalog")
+    def catalog():
+        # public: the storefront shows products before login, like a real store
+        return {"domain": settings.domain, "products": _catalog(settings.domain)}
 
     @app.post("/api/transcribe")
     def transcribe(body: TranscribeRequest, request: Request,

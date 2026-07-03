@@ -55,11 +55,13 @@ export default function AnalyticsPage() {
         <p className="error">{error}</p>
       </main>
     );
-  if (!a)
+  if (!a || !a.kpis)
     return (
       <main className="admin">
         <AdminNav />
-        <p>Loading the dashboard...</p>
+        <p className="meta">
+          {a ? "No analytics for this domain yet." : "Loading the dashboard..."}
+        </p>
       </main>
     );
 

@@ -52,30 +52,30 @@ def _smalltalk(query: str) -> str | None:
     q = re.sub(r"\s+", " ", re.sub(r"[^a-z' ]", " ", query.lower())).strip()
     if not q:
         return None
-    greetings = {"hi", "hello", "hey", "yo", "hiya", "howdy", "hi there", "hello there",
-                 "good morning", "good afternoon", "good evening"}
-    if q in greetings or q.startswith(("hi ", "hey ", "hello ")):
+    # match the WHOLE message, so real questions ("what are your shipping options") still retrieve
+    if re.fullmatch(r"(hi|hey|hello|yo|hiya|howdy|sup)( there| aria)?"
+                    r"|good (morning|afternoon|evening|day)", q):
         return ("Hi! I'm {n}, your Aster shopping assistant. 😊 I can help you find the right "
                 "piece, check sizing and stock, explain shipping and returns, or suggest a gift. "
                 "What are you shopping for today?").format(n=_ASSISTANT_NAME)
-    if any(p in q for p in ["how are you", "how is it going", "hows it going", "how's it going",
-                            "how do you do", "how are things", "whats up", "what's up"]):
+    if re.fullmatch(r"(hi |hey |hello )?(how are you|how'?s it going|how are things|how'?s things"
+                    r"|how do you do|what'?s up|whats up)( doing| today)?", q):
         return ("I'm doing great, thanks for asking! 😊 I'm {n}, the Aster assistant, and I'm "
                 "ready to help you find something you'll love. Are you shopping for yourself or "
                 "for a gift?").format(n=_ASSISTANT_NAME)
-    if any(p in q for p in ["who are you", "what are you", "your name", "about yourself",
-                            "introduce yourself", "tell me about you", "are you a bot",
-                            "are you human", "are you real"]):
+    if re.fullmatch(r"(who are you|what are you|what'?s your name|what is your name"
+                    r"|tell me about (yourself|you)|introduce yourself|are you (a bot|human|real)"
+                    r"|what can you do)", q):
         return ("I'm {n}, the Aster shopping assistant. 👋 I know the whole catalog, so I can "
                 "recommend products, check sizing, colors, and stock, and explain shipping, "
                 "returns, and our policies. If I can't help, I'll connect you with a human on our "
                 "team. What can I find for you?").format(n=_ASSISTANT_NAME)
-    thanks = {"thanks", "thank you", "thx", "ty", "cheers", "appreciate it"}
-    if q in thanks or q.startswith(("thanks", "thank you", "thankyou", "thx", "ty ")):
+    if re.fullmatch(r"(thanks|thank you|thankyou|thx|ty|cheers|appreciate it)"
+                    r"( so much| a lot| very much| a ton)?", q):
         return "You're welcome! 😊 Anything else I can help you find?"
-    if q in {"bye", "goodbye", "see you", "see ya", "cya", "later", "good night"}:
+    if re.fullmatch(r"bye|goodbye|see (you|ya)|cya|later|good ?night", q):
         return "Take care, and come back any time! 👋"
-    if q in {"ok", "okay", "cool", "great", "nice", "awesome", "perfect", "sounds good"}:
+    if re.fullmatch(r"ok|okay|cool|great|nice|awesome|perfect|sounds good|got it|no thanks", q):
         return "Glad that helps! 😊 What else can I show you?"
     return None
 

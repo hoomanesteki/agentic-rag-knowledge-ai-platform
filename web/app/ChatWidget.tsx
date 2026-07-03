@@ -110,16 +110,16 @@ const TOPIC_MAP: Record<string, string[]> = {
 };
 const TOPIC_PATTERNS: [string, RegExp][] = [
   ["order", /\b(my order|track|order status|didn'?t (get|receive)|not arriv|where is my|hasn'?t arrived)\b/i],
-  ["returns", /return|refund|exchange/i],
-  ["warranty", /warranty|defect|guarantee|damaged|faulty|broken/i],
-  ["shipping", /ship|deliver|arrive|express|warehouse|how long.*(to|does)/i],
-  ["sizing", /\bsize|fit\b|true to size|runs small|measurement/i],
-  ["payment", /\bpay\b|payment|afterpay|installment|visa|paypal|klarna/i],
-  ["care", /wash|care|dry|fabric softener|merino|shrink/i],
-  ["membership", /member|circle|points|loyalty|reward/i],
-  ["discounts", /discount|student|promo|adjust|\bsale\b|coupon/i],
-  ["stores", /store|pickup|location|in person/i],
-  ["gift", /gift|present|for my (girlfriend|boyfriend|wife|husband|mom|dad|friend)/i],
+  ["returns", /\b(returns?|refunds?|exchanges?)\b/i],
+  ["warranty", /\b(warranty|defect|guarantee|damaged|faulty|broken)\b/i],
+  ["membership", /\b(member|membership|circle|points|loyalty|rewards?)\b/i],
+  ["payment", /\b(pay|payment|afterpay|installments?|visa|paypal|klarna)\b/i],
+  ["care", /\b(wash|care|dry|fabric softener|merino|shrink)\b/i],
+  ["discounts", /\b(discount|student|promo|price adjust|sale|coupon)\b/i],
+  ["stores", /\b(store|pickup|pick up|location|in person)\b/i],
+  ["gift", /\b(gift|present)\b|for my (girlfriend|boyfriend|wife|husband|mom|dad|friend)/i],
+  ["shipping", /\b(ship|shipping|shipped|deliver|delivery|arrives?|express|warehouse)\b/i],
+  ["sizing", /\b(size|sizes|sizing|fit|true to size|runs small|measurement)\b/i],
 ];
 
 function detectTopic(text: string): string {
@@ -422,6 +422,7 @@ function Conversation({
   const lastSpokenRef = useRef(""); // what we are saying, to ignore the mic hearing our own voice
   const micDeadRef = useRef(false); // mic denied/unavailable, so do not restart the recognizer
   const micOnRef = useRef(true); // the shopper muted the mic without leaving voice mode
+  const handlerRef = useRef<(t: string) => void>(() => {}); // latest handleUtterance, avoids stale closure
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -438,7 +439,8 @@ function Conversation({
     try {
       // restore the conversation, so closing and reopening the chat keeps the history
       const raw = localStorage.getItem("aster_chat");
-      if (raw) setMessages(JSON.parse(raw));
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) setMessages(parsed); // guard against null/non-array
     } catch {
       /* ignore a corrupt history */
     }
@@ -470,7 +472,8 @@ function Conversation({
     // light personalization: remember a name the shopper explicitly gives, and greet back if that
     // is all they said. Only the explicit forms, so "I'm between sizes" never becomes a name.
     const nameHit = /(?:my name is|call me)\s+([a-zA-Z][a-zA-Z'-]{1,19})\b/i.exec(q);
-    if (nameHit) {
+    const notAName = /^(when|what|where|why|how|if|the|a|me|you|back|later|about|that|this|please|maybe)$/i;
+    if (nameHit && !notAName.test(nameHit[1])) {
       const nm = nameHit[1][0].toUpperCase() + nameHit[1].slice(1).toLowerCase();
       localStorage.setItem("aster_name", nm);
       setName(nm);
@@ -484,8 +487,8 @@ function Conversation({
         return "";
       }
     }
-    // human handoff: if they ask for a person and we are not already with Aaron, bring him in
-    if (!agentMode && /\b(human|real person|a person|agent|representative|customer service|talk to someone|speak to someone|live (agent|chat))\b/i.test(q)) {
+    // human handoff: only on a clear request (verb + person), so "a gift for a person" is not one
+    if (!agentMode && /\b(talk|speak|chat|connect|transfer|reach)\b.{0,24}\b(human|person|agent|someone|representative|rep|advisor)\b/i.test(q)) {
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
@@ -636,6 +639,12 @@ function Conversation({
     setVoiceState("thinking");
     const answer = await send(text);
     if (!voiceLiveRef.current || myId !== utterRef.current) return; // stopped or superseded
+    if (!micOnRef.current) {
+      // muted while thinking: show the answer but do not speak it
+      processingRef.current = false;
+      if (voiceLiveRef.current) setVoiceState("listening");
+      return;
+    }
     speakingRef.current = true;
     const spoken = plainSpeak(answer);
     lastSpokenRef.current = spoken;
@@ -646,6 +655,7 @@ function Conversation({
     processingRef.current = false;
     if (voiceLiveRef.current) setVoiceState("listening");
   }
+  handlerRef.current = handleUtterance; // keep the recognizer callback on the latest closure
 
   // Continuous recognition, so the shopper can talk any time, even over the answer.
   function startListening() {
@@ -660,7 +670,7 @@ function Conversation({
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
       }
-      if (finalText.trim()) handleUtterance(finalText.trim());
+      if (finalText.trim()) handlerRef.current(finalText.trim());
     };
     rec.onerror = (e) => {
       const err = e?.error || "";
@@ -908,7 +918,7 @@ function Conversation({
                 )}
               </div>
             )}
-            {m.final?.tier === "abstain" && !agentMode && (
+            {i === messages.length - 1 && m.final?.tier === "abstain" && !agentMode && (
               <button className="escalate-btn" type="button" onClick={escalate}>
                 💬 Talk to a human agent
               </button>

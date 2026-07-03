@@ -1,0 +1,25 @@
+# The analytics and semantic layer. The engine still ingests any domain from its manifest; this
+# project models that data (bronze -> silver -> gold) as tested, documented dbt models. The model
+# SQL under models/ is generated from the active domain's manifest by scripts/dbt_codegen.py, so
+# the medallion stays manifest-driven, not hand-copied per domain.
+name: skein
+version: "1.0.0"
+config-version: 2
+profile: skein
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  skein:
+    # Every layer is a physical table so the metric layer and the graph loader read real gold
+    # tables, and the read-only serving connection never re-scans the source CSVs. All models land
+    # in the target's `main` schema (no custom schema suffix) so gold is queryable as main.<role>,
+    # exactly where the metric layer and graph loader look.
+    +materialized: table

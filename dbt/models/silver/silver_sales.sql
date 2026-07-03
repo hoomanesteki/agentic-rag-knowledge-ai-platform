@@ -1,0 +1,2 @@
+-- GENERATED from the apparel_ecommerce manifest by scripts/dbt_codegen.py. Do not edit by hand.
+select trim(CAST("sale_id" AS VARCHAR)) AS "sale_id", trim(CAST("product_id" AS VARCHAR)) AS "product_id", trim(CAST("store_id" AS VARCHAR)) AS "store_id", CAST("quantity" AS BIGINT) AS "quantity", CAST("returned" AS BOOLEAN) AS "returned", CAST("sold_at" AS DATE) AS "sold_at" from {{ ref('bronze_sales') }}

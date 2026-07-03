@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: products
+    description: "Gold: one row per product variant (name plus size)"
+    columns:
+      - name: product_id
+        tests:
+          - not_null
+          - unique
+      - name: name
+      - name: category
+      - name: size
+      - name: price
+      - name: supplier_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('suppliers')
+                field: supplier_id
+  - name: stores
+    description: "Gold: one row per store"
+    columns:
+      - name: store_id
+        tests:
+          - not_null
+          - unique
+      - name: name
+      - name: city
+      - name: country
+  - name: suppliers
+    description: "Gold: one row per supplier"
+    columns:
+      - name: supplier_id
+        tests:
+          - not_null
+          - unique
+      - name: name
+      - name: country
+      - name: material
+  - name: sales
+    description: "Gold: one row per sale line"
+    columns:
+      - name: sale_id
+        tests:
+          - not_null
+          - unique
+      - name: product_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('products')
+                field: product_id
+      - name: store_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stores')
+                field: store_id
+      - name: quantity
+      - name: returned
+      - name: sold_at

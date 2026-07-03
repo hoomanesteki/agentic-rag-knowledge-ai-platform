@@ -1,0 +1,10 @@
+# Local DuckDB, no warehouse. dbt writes bronze/silver/gold into the same embedded database file
+# the metric layer and graph loader read, so there is one build path and one source of truth.
+skein:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('LAKEHOUSE_DB', '.lakehouse.duckdb') }}"
+      schema: main
+      threads: 4

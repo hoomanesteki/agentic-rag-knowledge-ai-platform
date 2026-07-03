@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import Avatar, { AvatarState } from "./Avatar";
 import { API_BASE, fetchStore, Product, swatchStyle } from "./catalog";
+import { Markdown } from "./markdown";
 import { useTurnstile } from "./turnstile";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
@@ -53,30 +55,49 @@ function recsFromAnswer(text: string, products: Product[]): Product[] {
   return hits.slice(0, 4);
 }
 
-// Follow-ups that track the conversation: product-specific when it recommended something, and a
-// gentle "here is what I can answer" when it did not know, so the shopper always has a next step.
+// Topic-narrowing follow-ups: after a policy answer, drill into that same topic rather than
+// jumping to random suggestions, so each question can go deeper.
+const TOPICS: { test: RegExp; qs: string[] }[] = [
+  { test: /return|refund|exchange/i, qs: ["How long do refunds take?", "Can I exchange for another size?", "What if my item arrived damaged?"] },
+  { test: /ship|deliver|arrive|warehouse|express/i, qs: ["When is shipping free?", "How fast is express shipping?", "How long to ship to Toronto?"] },
+  { test: /\bsize|fit|true to size|runs small|measurement/i, qs: ["Where is the size chart?", "Do the leggings run small?", "What if I'm between sizes?"] },
+  { test: /\bpay|payment|afterpay|installment|visa|paypal/i, qs: ["Can I pay in installments?", "Do you take Apple Pay?", "Do you sell gift cards?"] },
+  { test: /wash|care|dry|fabric softener|merino/i, qs: ["Can I tumble dry it?", "How do I wash merino?", "Does washing affect the warranty?"] },
+  { test: /warranty|defect|guarantee/i, qs: ["What does the warranty cover?", "How do I make a claim?", "What is your return policy?"] },
+  { test: /member|circle|points|loyalty/i, qs: ["How do I earn points?", "What are the member perks?", "Is membership free?"] },
+  { test: /discount|student|promo|adjust/i, qs: ["Do you have a student discount?", "Can I get a price adjustment?", "Do you run sales?"] },
+  { test: /store|pickup|location|gastown|yorkville|soho/i, qs: ["Where are your stores?", "Can I pick up in store?", "Do stores take returns?"] },
+];
+
+// Follow-ups that track the conversation: product-specific when it recommended something, topic
+// follow-ups after a policy answer, and starter suggestions when it was unsure.
 function followupsFor(final: FinalEvent, text: string, recs: Product[], suggestions: Suggestion[]): string[] {
   const unsure =
     final.tier !== "auto" ||
     /(don't|do not|couldn't|could not|cannot) (have|find|see)|not sure|no information|don't know/i.test(text);
-  if (unsure || recs.length === 0) return suggestions.slice(0, 3).map((s) => s.text);
-  const p = recs[0];
-  const short = p.name.replace(/^Aster\s+/, "");
-  const byCat: Record<string, string> = {
-    jackets: `What should I layer under the ${short} when it's cold?`,
-    leggings: `Is the ${short} squat proof?`,
-    bras: `Is the ${short} high support?`,
-    tops: `Is the ${short} good for hot yoga?`,
-    bottoms: `Is the ${short} okay for travel?`,
-    shorts: `Does the ${short} have pockets?`,
-    bags: `What fits in the ${short}?`,
-    hoodies: `Does the ${short} run oversized?`,
-    accessories: `Is the ${short} warm enough for winter?`,
-  };
-  const out = [`Does the ${short} run true to size?`];
-  if (byCat[p.category]) out.push(byCat[p.category]);
-  out.push("What is your return policy?");
-  return out;
+  if (!unsure && recs.length > 0) {
+    const p = recs[0];
+    const short = p.name.replace(/^Aster\s+/, "");
+    const byCat: Record<string, string> = {
+      jackets: `What should I layer under the ${short} when it's cold?`,
+      leggings: `Is the ${short} squat proof?`,
+      bras: `Is the ${short} high support?`,
+      tops: `Is the ${short} good for hot yoga?`,
+      bottoms: `Is the ${short} okay for travel?`,
+      shorts: `Does the ${short} have pockets?`,
+      bags: `What fits in the ${short}?`,
+      hoodies: `Does the ${short} run oversized?`,
+      accessories: `Is the ${short} warm enough for winter?`,
+    };
+    const out = [`Does the ${short} run true to size?`];
+    if (byCat[p.category]) out.push(byCat[p.category]);
+    out.push("Is it in stock in my size?");
+    return out;
+  }
+  if (!unsure) {
+    for (const t of TOPICS) if (t.test.test(text)) return t.qs;
+  }
+  return suggestions.slice(0, 3).map((s) => s.text);
 }
 
 // Minimal shape of the browser SpeechRecognition, which handles endpointing (knows when you stop
@@ -181,10 +202,12 @@ export default function ChatWidget({
       {open && (
         <section className="panel" role="dialog" aria-label={`${short} assistant`}>
           <header className="panel-hdr">
-            <div className="avatar">{short.charAt(0) || "A"}</div>
+            <Avatar state="idle" size={38} />
             <div>
               <div className="t">{short} Assistant</div>
-              <div className="s">Grounded answers, always cited</div>
+              <div className="s">
+                <span className="online-dot" /> Online now
+              </div>
             </div>
             <button className="x" onClick={() => setOpen(false)} aria-label="Close">
               &times;
@@ -289,6 +312,7 @@ function Conversation({
     "greeting",
   );
   const [heard, setHeard] = useState("");
+  const [name, setName] = useState("");
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
   const recogRef = useRef<Recognizer | null>(null);
@@ -304,6 +328,8 @@ function Conversation({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setSuggestions(d.suggestions || []))
       .catch(() => {});
+    const saved = localStorage.getItem("aster_name");
+    if (saved) setName(saved);
   }, [token]);
 
   useEffect(() => {
@@ -321,6 +347,23 @@ function Conversation({
 
   async function send(q: string): Promise<string> {
     if (!q.trim() || loading) return "";
+    // light personalization: remember a name the shopper offers, and greet back if that is all
+    // they said, without bothering the model
+    const nameHit = /(?:my name is|call me|i am|i'm)\s+([a-zA-Z][a-zA-Z'-]{1,19})\b/i.exec(q);
+    if (nameHit && !/looking|not|from|trying|wondering|here|interested|sure|okay|good/i.test(nameHit[1])) {
+      const nm = nameHit[1][0].toUpperCase() + nameHit[1].slice(1).toLowerCase();
+      localStorage.setItem("aster_name", nm);
+      setName(nm);
+      if (q.trim().length <= nameHit[0].length + 4) {
+        setInput("");
+        setMessages((m) => [
+          ...m,
+          { role: "me", text: q },
+          { role: "bot", text: `Nice to meet you, ${nm}. How can I help you shop today?` },
+        ]);
+        return "";
+      }
+    }
     setInput("");
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "" }]);
     setLoading(true);
@@ -463,7 +506,9 @@ function Conversation({
     voiceLiveRef.current = true;
     setHeard("");
     setVoiceState("greeting");
-    await speakAsync(`Hi, I'm your ${brand} assistant. How can I help you today?`);
+    await speakAsync(
+      `Hi${name ? " " + name : ""}, I'm your ${brand} assistant. How can I help you today?`,
+    );
     let quiet = 0;
     while (voiceLiveRef.current) {
       setVoiceState("listening");
@@ -516,14 +561,13 @@ function Conversation({
           : "Speaking...";
 
   if (voiceOn) {
+    const avatarState: AvatarState = voiceState === "speaking" ? "speaking" : "thinking";
     return (
       <div className="voice">
         <div>
-          <div
-            className={`orb ${voiceState === "listening" ? "listening" : ""}${
-              voiceState === "speaking" ? " speaking" : ""
-            }`}
-          />
+          <div className={`voice-ring ${voiceState}`}>
+            <Avatar state={avatarState} size={120} />
+          </div>
           <div className="state">{voiceLabel}</div>
           {heard && <div className="said">&ldquo;{heard}&rdquo;</div>}
         </div>
@@ -539,7 +583,9 @@ function Conversation({
       <div className="stream" ref={streamRef}>
         {empty && (
           <div className="greet">
-            <div className="big">Hi, I&apos;m your {brand} assistant.</div>
+            <div className="big">
+              {name ? `Hi ${name}, ` : "Hi, "}I&apos;m your {brand} assistant.
+            </div>
             How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap
             the mic to talk.
           </div>
@@ -556,9 +602,18 @@ function Conversation({
 
         {messages.map((m, i) => (
           <div key={i} style={{ display: "contents" }}>
-            <div className={`msg ${m.role}${m.role === "bot" && !m.text ? " think" : ""}`}>
-              {m.text || (loading ? "Thinking..." : "")}
-            </div>
+            {m.role === "bot" && !m.text && loading ? (
+              <div className="msg bot think typing">
+                <Avatar state="thinking" size={22} />
+                <span className="dots">
+                  <i /><i /><i />
+                </span>
+              </div>
+            ) : (
+              <div className={`msg ${m.role}`}>
+                {m.role === "bot" ? <Markdown text={m.text} /> : m.text}
+              </div>
+            )}
             {m.final && (
               <div className="meta-row">
                 <span className={`tier tier-${m.final.tier}`}>{m.final.tier}</span>

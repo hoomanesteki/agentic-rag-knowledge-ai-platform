@@ -30,6 +30,20 @@ function Row({ name, b }: { name: string; b: Bucket }) {
   );
 }
 
+function Stat({ label, value, pct, tone }: {
+  label: string; value: string; pct: number; tone?: string;
+}) {
+  return (
+    <div className="stat">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="bar">
+        <div className={`bar-fill ${tone || ""}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function QualityPage() {
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<Quality | null>(null);
@@ -52,9 +66,22 @@ export default function QualityPage() {
   if (error) return <main className="admin"><p className="error">{error}</p></main>;
   if (!data) return <main className="admin"><p>Loading...</p></main>;
 
+  const o = data.overall;
   return (
     <main className="admin">
       <h1>Answer quality</h1>
+      <div className="stats">
+        <Stat label="Turns" value={String(o.total)} pct={100} />
+        <Stat label="Grounding" value={o.avg_grounding === null ? "-" : o.avg_grounding.toFixed(2)}
+          pct={(o.avg_grounding || 0) * 100} tone="good" />
+        <Stat label="Abstained" value={`${(o.abstain_rate * 100).toFixed(0)}%`}
+          pct={o.abstain_rate * 100} tone="warn" />
+        <Stat label="Escalated" value={`${(o.escalation_rate * 100).toFixed(0)}%`}
+          pct={o.escalation_rate * 100} tone="warn" />
+        <Stat label="Helpful" value={`${o.thumbs_up} / ${o.thumbs_down}`}
+          pct={o.thumbs_up + o.thumbs_down ? (o.thumbs_up / (o.thumbs_up + o.thumbs_down)) * 100 : 0}
+          tone="good" />
+      </div>
       <table>
         <thead>
           <tr>

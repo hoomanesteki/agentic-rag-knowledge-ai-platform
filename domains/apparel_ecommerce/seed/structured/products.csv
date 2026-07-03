@@ -1,21 +1,561 @@
-product_id,name,category,size,price,color,supplier_id
-P001,Aster Flow Legging,leggings,S,98.0,Black,SUP01
-P002,Aster Flow Legging,leggings,M,98.0,Black,SUP01
-P003,Aster Flow Legging,leggings,L,98.0,Black,SUP01
-P004,Aster Vent Tech Tee,tops,M,78.0,Slate,SUP02
-P005,Aster Vent Tech Tee,tops,L,78.0,Slate,SUP02
-P006,Aster Daytrip Belt Bag,bags,OS,38.0,Black,SUP01
-P007,Aster Cloud Hoodie,hoodies,M,118.0,Heather Grey,SUP01
-P008,Aster Cloud Hoodie,hoodies,L,118.0,Heather Grey,SUP01
-P009,Aster Storm Shell Jacket,jackets,S,178.0,Storm Blue,SUP02
-P010,Aster Storm Shell Jacket,jackets,M,178.0,Storm Blue,SUP02
-P011,Aster Storm Shell Jacket,jackets,L,178.0,Storm Blue,SUP02
-P012,Aster Trailhead Puffer,jackets,M,228.0,Black,SUP02
-P013,Aster Trailhead Puffer,jackets,L,228.0,Black,SUP02
-P014,Aster Base Merino Long Sleeve,tops,M,88.0,Oatmeal,SUP02
-P015,Aster Base Merino Long Sleeve,tops,L,88.0,Oatmeal,SUP02
-P016,Aster Studio Sports Bra,bras,M,58.0,Black,SUP01
-P017,Aster Momentum Short,shorts,M,68.0,Black,SUP01
-P018,Aster Everywhere Jogger,bottoms,M,108.0,Charcoal,SUP01
-P019,Aster Commute Tote,bags,OS,128.0,Black,SUP02
-P020,Aster Peak Beanie,accessories,OS,38.0,Charcoal,SUP01
+product_id,name,category,gender,size,price,color,colors,weather,stock,supplier_id
+P001,Aster Flow Legging,leggings,women,S,98.0,Black,Black|Storm Blue|Deep Plum,all-season,42,SUP01
+P002,Aster Flow Legging,leggings,women,M,98.0,Black,Black|Storm Blue|Deep Plum,all-season,55,SUP01
+P003,Aster Flow Legging,leggings,women,L,98.0,Black,Black|Storm Blue|Deep Plum,all-season,37,SUP01
+P004,Aster Vent Tech Tee,tops,women,M,78.0,Slate,Slate|White|Ember Red,hot,61,SUP02
+P005,Aster Vent Tech Tee,tops,women,L,78.0,Slate,Slate|White|Ember Red,hot,44,SUP02
+P006,Aster Daytrip Belt Bag,bags,unisex,OS,38.0,Black,Black|Sand|Olive,all-season,80,SUP01
+P007,Aster Cloud Hoodie,hoodies,women,M,118.0,Heather Grey,Heather Grey|Black|Oatmeal,mild,33,SUP01
+P008,Aster Cloud Hoodie,hoodies,women,L,118.0,Heather Grey,Heather Grey|Black|Oatmeal,mild,21,SUP01
+P009,Aster Storm Shell Jacket,jackets,women,S,178.0,Storm Blue,Storm Blue|Black|Forest,rain,18,SUP02
+P010,Aster Storm Shell Jacket,jackets,women,M,178.0,Storm Blue,Storm Blue|Black|Forest,rain,26,SUP02
+P011,Aster Storm Shell Jacket,jackets,women,L,178.0,Storm Blue,Storm Blue|Black|Forest,rain,14,SUP02
+P012,Aster Trailhead Puffer,jackets,women,M,228.0,Black,Black|Sand|Navy,cold,12,SUP02
+P013,Aster Trailhead Puffer,jackets,women,L,228.0,Black,Black|Sand|Navy,cold,9,SUP02
+P014,Aster Base Merino Long Sleeve,tops,women,M,88.0,Oatmeal,Oatmeal|Black|Forest,cold,30,SUP02
+P015,Aster Base Merino Long Sleeve,tops,women,L,88.0,Oatmeal,Oatmeal|Black|Forest,cold,24,SUP02
+P016,Aster Studio Sports Bra,bras,women,M,58.0,Black,Black|Slate|Deep Plum,hot,48,SUP01
+P017,Aster Momentum Short,shorts,women,M,68.0,Black,Black|Navy|Sand,hot,52,SUP01
+P018,Aster Everywhere Jogger,bottoms,women,M,108.0,Charcoal,Charcoal|Black|Oatmeal,mild,40,SUP01
+P019,Aster Commute Tote,bags,unisex,OS,128.0,Black,Black|Charcoal|Sand,all-season,29,SUP02
+P020,Aster Peak Beanie,accessories,unisex,OS,38.0,Charcoal,Charcoal|Black|Oatmeal,cold,70,SUP01
+P021,Aster Lumen Legging,leggings,women,XS,112.0,White,White|Heather Grey|Sky,all-season,92,SUP02
+P022,Aster Lumen Legging,leggings,women,S,112.0,White,White|Heather Grey|Sky,all-season,80,SUP02
+P023,Aster Lumen Legging,leggings,women,M,112.0,White,White|Heather Grey|Sky,all-season,91,SUP02
+P024,Aster Lumen Legging,leggings,women,L,112.0,White,White|Heather Grey|Sky,all-season,87,SUP02
+P025,Aster Lumen Legging,leggings,women,XL,112.0,White,White|Heather Grey|Sky,all-season,88,SUP02
+P026,Aster Vent Tight,leggings,women,XS,112.0,White,White|Olive|Charcoal,hot,92,SUP02
+P027,Aster Vent Tight,leggings,women,S,112.0,White,White|Olive|Charcoal,hot,86,SUP02
+P028,Aster Vent Tight,leggings,women,M,112.0,White,White|Olive|Charcoal,hot,94,SUP02
+P029,Aster Vent Tight,leggings,women,L,112.0,White,White|Olive|Charcoal,hot,84,SUP02
+P030,Aster Vent Tight,leggings,women,XL,112.0,White,White|Olive|Charcoal,hot,83,SUP02
+P031,Aster Slate Crop Legging,leggings,women,XS,106.0,White,White|Sky|Slate,mild,19,SUP02
+P032,Aster Slate Crop Legging,leggings,women,S,106.0,White,White|Sky|Slate,mild,22,SUP02
+P033,Aster Slate Crop Legging,leggings,women,M,106.0,White,White|Sky|Slate,mild,25,SUP02
+P034,Aster Slate Crop Legging,leggings,women,L,106.0,White,White|Sky|Slate,mild,20,SUP02
+P035,Aster Slate Crop Legging,leggings,women,XL,106.0,White,White|Sky|Slate,mild,17,SUP02
+P036,Aster Trace Legging,leggings,women,XS,110.0,Slate,Slate|Deep Plum|Charcoal,all-season,20,SUP01
+P037,Aster Trace Legging,leggings,women,S,110.0,Slate,Slate|Deep Plum|Charcoal,all-season,23,SUP01
+P038,Aster Trace Legging,leggings,women,M,110.0,Slate,Slate|Deep Plum|Charcoal,all-season,15,SUP01
+P039,Aster Trace Legging,leggings,women,L,110.0,Slate,Slate|Deep Plum|Charcoal,all-season,14,SUP01
+P040,Aster Trace Legging,leggings,women,XL,110.0,Slate,Slate|Deep Plum|Charcoal,all-season,19,SUP01
+P041,Aster Aurora Tight,leggings,women,XS,104.0,Clay,Clay|Deep Plum|Forest,hot,84,SUP01
+P042,Aster Aurora Tight,leggings,women,S,104.0,Clay,Clay|Deep Plum|Forest,hot,79,SUP01
+P043,Aster Aurora Tight,leggings,women,M,104.0,Clay,Clay|Deep Plum|Forest,hot,86,SUP01
+P044,Aster Aurora Tight,leggings,women,L,104.0,Clay,Clay|Deep Plum|Forest,hot,86,SUP01
+P045,Aster Aurora Tight,leggings,women,XL,104.0,Clay,Clay|Deep Plum|Forest,hot,74,SUP01
+P046,Aster Base Crop Legging,leggings,women,XS,90.0,Ember Red,Ember Red|Heather Grey|Oatmeal,mild,40,SUP01
+P047,Aster Base Crop Legging,leggings,women,S,90.0,Ember Red,Ember Red|Heather Grey|Oatmeal,mild,46,SUP01
+P048,Aster Base Crop Legging,leggings,women,M,90.0,Ember Red,Ember Red|Heather Grey|Oatmeal,mild,48,SUP01
+P049,Aster Base Crop Legging,leggings,women,L,90.0,Ember Red,Ember Red|Heather Grey|Oatmeal,mild,42,SUP01
+P050,Aster Base Crop Legging,leggings,women,XL,90.0,Ember Red,Ember Red|Heather Grey|Oatmeal,mild,40,SUP01
+P051,Aster Tempo Legging,leggings,women,XS,112.0,Clay,Clay|Deep Plum|Sand,all-season,23,SUP02
+P052,Aster Tempo Legging,leggings,women,S,112.0,Clay,Clay|Deep Plum|Sand,all-season,24,SUP02
+P053,Aster Tempo Legging,leggings,women,M,112.0,Clay,Clay|Deep Plum|Sand,all-season,32,SUP02
+P054,Aster Tempo Legging,leggings,women,L,112.0,Clay,Clay|Deep Plum|Sand,all-season,29,SUP02
+P055,Aster Tempo Legging,leggings,women,XL,112.0,Clay,Clay|Deep Plum|Sand,all-season,29,SUP02
+P056,Aster Cadence Tight,leggings,women,XS,124.0,Oatmeal,Oatmeal|Navy|Clay,hot,51,SUP01
+P057,Aster Cadence Tight,leggings,women,S,124.0,Oatmeal,Oatmeal|Navy|Clay,hot,57,SUP01
+P058,Aster Cadence Tight,leggings,women,M,124.0,Oatmeal,Oatmeal|Navy|Clay,hot,56,SUP01
+P059,Aster Cadence Tight,leggings,women,L,124.0,Oatmeal,Oatmeal|Navy|Clay,hot,50,SUP01
+P060,Aster Cadence Tight,leggings,women,XL,124.0,Oatmeal,Oatmeal|Navy|Clay,hot,61,SUP01
+P061,Aster Kodiak Crop Legging,leggings,women,XS,94.0,Storm Blue,Storm Blue|Deep Plum|Clay,mild,63,SUP01
+P062,Aster Kodiak Crop Legging,leggings,women,S,94.0,Storm Blue,Storm Blue|Deep Plum|Clay,mild,63,SUP01
+P063,Aster Kodiak Crop Legging,leggings,women,M,94.0,Storm Blue,Storm Blue|Deep Plum|Clay,mild,66,SUP01
+P064,Aster Kodiak Crop Legging,leggings,women,L,94.0,Storm Blue,Storm Blue|Deep Plum|Clay,mild,64,SUP01
+P065,Aster Kodiak Crop Legging,leggings,women,XL,94.0,Storm Blue,Storm Blue|Deep Plum|Clay,mild,65,SUP01
+P066,Aster Dune Legging,leggings,women,XS,122.0,Sky,Sky|Black|Deep Plum,all-season,29,SUP02
+P067,Aster Dune Legging,leggings,women,S,122.0,Sky,Sky|Black|Deep Plum,all-season,27,SUP02
+P068,Aster Dune Legging,leggings,women,M,122.0,Sky,Sky|Black|Deep Plum,all-season,22,SUP02
+P069,Aster Dune Legging,leggings,women,L,122.0,Sky,Sky|Black|Deep Plum,all-season,18,SUP02
+P070,Aster Dune Legging,leggings,women,XL,122.0,Sky,Sky|Black|Deep Plum,all-season,21,SUP02
+P071,Aster Ridgeline Sports Bra,bras,women,XS,52.0,Sand,Sand|Black|Forest,hot,44,SUP01
+P072,Aster Ridgeline Sports Bra,bras,women,S,52.0,Sand,Sand|Black|Forest,hot,37,SUP01
+P073,Aster Ridgeline Sports Bra,bras,women,M,52.0,Sand,Sand|Black|Forest,hot,46,SUP01
+P074,Aster Ridgeline Sports Bra,bras,women,L,52.0,Sand,Sand|Black|Forest,hot,40,SUP01
+P075,Aster Ridgeline Sports Bra,bras,women,XL,52.0,Sand,Sand|Black|Forest,hot,46,SUP01
+P076,Aster Ember Bra,bras,women,XS,66.0,Slate,Slate|Storm Blue|Heather Grey,all-season,32,SUP01
+P077,Aster Ember Bra,bras,women,S,66.0,Slate,Slate|Storm Blue|Heather Grey,all-season,28,SUP01
+P078,Aster Ember Bra,bras,women,M,66.0,Slate,Slate|Storm Blue|Heather Grey,all-season,30,SUP01
+P079,Aster Ember Bra,bras,women,L,66.0,Slate,Slate|Storm Blue|Heather Grey,all-season,23,SUP01
+P080,Aster Ember Bra,bras,women,XL,66.0,Slate,Slate|Storm Blue|Heather Grey,all-season,24,SUP01
+P081,Aster Solstice Longline Bra,bras,women,XS,72.0,Charcoal,Charcoal|Slate|Black,hot,34,SUP01
+P082,Aster Solstice Longline Bra,bras,women,S,72.0,Charcoal,Charcoal|Slate|Black,hot,44,SUP01
+P083,Aster Solstice Longline Bra,bras,women,M,72.0,Charcoal,Charcoal|Slate|Black,hot,40,SUP01
+P084,Aster Solstice Longline Bra,bras,women,L,72.0,Charcoal,Charcoal|Slate|Black,hot,34,SUP01
+P085,Aster Solstice Longline Bra,bras,women,XL,72.0,Charcoal,Charcoal|Slate|Black,hot,45,SUP01
+P086,Aster Summit Sports Bra,bras,women,XS,72.0,Storm Blue,Storm Blue|Clay|Deep Plum,all-season,67,SUP01
+P087,Aster Summit Sports Bra,bras,women,S,72.0,Storm Blue,Storm Blue|Clay|Deep Plum,all-season,71,SUP01
+P088,Aster Summit Sports Bra,bras,women,M,72.0,Storm Blue,Storm Blue|Clay|Deep Plum,all-season,72,SUP01
+P089,Aster Summit Sports Bra,bras,women,L,72.0,Storm Blue,Storm Blue|Clay|Deep Plum,all-season,69,SUP01
+P090,Aster Summit Sports Bra,bras,women,XL,72.0,Storm Blue,Storm Blue|Clay|Deep Plum,all-season,66,SUP01
+P091,Aster Rally Bra,bras,women,XS,72.0,Forest,Forest|Clay|Slate,hot,52,SUP02
+P092,Aster Rally Bra,bras,women,S,72.0,Forest,Forest|Clay|Slate,hot,52,SUP02
+P093,Aster Rally Bra,bras,women,M,72.0,Forest,Forest|Clay|Slate,hot,47,SUP02
+P094,Aster Rally Bra,bras,women,L,72.0,Forest,Forest|Clay|Slate,hot,49,SUP02
+P095,Aster Rally Bra,bras,women,XL,72.0,Forest,Forest|Clay|Slate,hot,50,SUP02
+P096,Aster Zephyr Longline Bra,bras,women,XS,50.0,Slate,Slate|Clay|White,all-season,55,SUP01
+P097,Aster Zephyr Longline Bra,bras,women,S,50.0,Slate,Slate|Clay|White,all-season,54,SUP01
+P098,Aster Zephyr Longline Bra,bras,women,M,50.0,Slate,Slate|Clay|White,all-season,49,SUP01
+P099,Aster Zephyr Longline Bra,bras,women,L,50.0,Slate,Slate|Clay|White,all-season,55,SUP01
+P100,Aster Zephyr Longline Bra,bras,women,XL,50.0,Slate,Slate|Clay|White,all-season,49,SUP01
+P101,Aster Glacier Sports Bra,bras,women,XS,50.0,Forest,Forest|Deep Plum|Black,hot,32,SUP01
+P102,Aster Glacier Sports Bra,bras,women,S,50.0,Forest,Forest|Deep Plum|Black,hot,37,SUP01
+P103,Aster Glacier Sports Bra,bras,women,M,50.0,Forest,Forest|Deep Plum|Black,hot,33,SUP01
+P104,Aster Glacier Sports Bra,bras,women,L,50.0,Forest,Forest|Deep Plum|Black,hot,40,SUP01
+P105,Aster Glacier Sports Bra,bras,women,XL,50.0,Forest,Forest|Deep Plum|Black,hot,35,SUP01
+P106,Aster Coastal Bra,bras,women,XS,68.0,Sand,Sand|Slate|Olive,all-season,22,SUP02
+P107,Aster Coastal Bra,bras,women,S,68.0,Sand,Sand|Slate|Olive,all-season,31,SUP02
+P108,Aster Coastal Bra,bras,women,M,68.0,Sand,Sand|Slate|Olive,all-season,26,SUP02
+P109,Aster Coastal Bra,bras,women,L,68.0,Sand,Sand|Slate|Olive,all-season,31,SUP02
+P110,Aster Coastal Bra,bras,women,XL,68.0,Sand,Sand|Slate|Olive,all-season,25,SUP02
+P111,Aster Halo Longline Bra,bras,women,XS,50.0,White,White|Deep Plum|Oatmeal,hot,54,SUP02
+P112,Aster Halo Longline Bra,bras,women,S,50.0,White,White|Deep Plum|Oatmeal,hot,55,SUP02
+P113,Aster Halo Longline Bra,bras,women,M,50.0,White,White|Deep Plum|Oatmeal,hot,59,SUP02
+P114,Aster Halo Longline Bra,bras,women,L,50.0,White,White|Deep Plum|Oatmeal,hot,48,SUP02
+P115,Aster Halo Longline Bra,bras,women,XL,50.0,White,White|Deep Plum|Oatmeal,hot,58,SUP02
+P116,Aster Marin Sports Bra,bras,women,XS,48.0,Oatmeal,Oatmeal|Forest|Heather Grey,all-season,19,SUP01
+P117,Aster Marin Sports Bra,bras,women,S,48.0,Oatmeal,Oatmeal|Forest|Heather Grey,all-season,19,SUP01
+P118,Aster Marin Sports Bra,bras,women,M,48.0,Oatmeal,Oatmeal|Forest|Heather Grey,all-season,24,SUP01
+P119,Aster Marin Sports Bra,bras,women,L,48.0,Oatmeal,Oatmeal|Forest|Heather Grey,all-season,23,SUP01
+P120,Aster Marin Sports Bra,bras,women,XL,48.0,Oatmeal,Oatmeal|Forest|Heather Grey,all-season,18,SUP01
+P121,Aster Torrent Tee,tops,women,XS,58.0,Charcoal,Charcoal|Sand|Slate,hot,24,SUP02
+P122,Aster Torrent Tee,tops,women,S,58.0,Charcoal,Charcoal|Sand|Slate,hot,20,SUP02
+P123,Aster Torrent Tee,tops,women,M,58.0,Charcoal,Charcoal|Sand|Slate,hot,13,SUP02
+P124,Aster Torrent Tee,tops,women,L,58.0,Charcoal,Charcoal|Sand|Slate,hot,12,SUP02
+P125,Aster Torrent Tee,tops,women,XL,58.0,Charcoal,Charcoal|Sand|Slate,hot,22,SUP02
+P126,Aster Storm Tank,tops,women,XS,48.0,White,White|Ember Red|Slate,mild,31,SUP02
+P127,Aster Storm Tank,tops,women,S,48.0,White,White|Ember Red|Slate,mild,31,SUP02
+P128,Aster Storm Tank,tops,women,M,48.0,White,White|Ember Red|Slate,mild,27,SUP02
+P129,Aster Storm Tank,tops,women,L,48.0,White,White|Ember Red|Slate,mild,30,SUP02
+P130,Aster Storm Tank,tops,women,XL,48.0,White,White|Ember Red|Slate,mild,24,SUP02
+P131,Aster Field Long Sleeve,tops,women,XS,72.0,Black,Black|Oatmeal|Charcoal,cold,67,SUP02
+P132,Aster Field Long Sleeve,tops,women,S,72.0,Black,Black|Oatmeal|Charcoal,cold,72,SUP02
+P133,Aster Field Long Sleeve,tops,women,M,72.0,Black,Black|Oatmeal|Charcoal,cold,72,SUP02
+P134,Aster Field Long Sleeve,tops,women,L,72.0,Black,Black|Oatmeal|Charcoal,cold,73,SUP02
+P135,Aster Field Long Sleeve,tops,women,XL,72.0,Black,Black|Oatmeal|Charcoal,cold,69,SUP02
+P136,Aster Pace Training Top,tops,women,XS,56.0,Slate,Slate|Charcoal|Clay,hot,21,SUP01
+P137,Aster Pace Training Top,tops,women,S,56.0,Slate,Slate|Charcoal|Clay,hot,15,SUP01
+P138,Aster Pace Training Top,tops,women,M,56.0,Slate,Slate|Charcoal|Clay,hot,10,SUP01
+P139,Aster Pace Training Top,tops,women,L,56.0,Slate,Slate|Charcoal|Clay,hot,10,SUP01
+P140,Aster Pace Training Top,tops,women,XL,56.0,Slate,Slate|Charcoal|Clay,hot,19,SUP01
+P141,Aster Boreal Tee,tops,women,XS,80.0,Clay,Clay|Sky|Olive,mild,31,SUP01
+P142,Aster Boreal Tee,tops,women,S,80.0,Clay,Clay|Sky|Olive,mild,24,SUP01
+P143,Aster Boreal Tee,tops,women,M,80.0,Clay,Clay|Sky|Olive,mild,25,SUP01
+P144,Aster Boreal Tee,tops,women,L,80.0,Clay,Clay|Sky|Olive,mild,24,SUP01
+P145,Aster Boreal Tee,tops,women,XL,80.0,Clay,Clay|Sky|Olive,mild,32,SUP01
+P146,Aster Alpine Tank,tops,women,XS,90.0,Sky,Sky|Slate|Oatmeal,cold,27,SUP01
+P147,Aster Alpine Tank,tops,women,S,90.0,Sky,Sky|Slate|Oatmeal,cold,27,SUP01
+P148,Aster Alpine Tank,tops,women,M,90.0,Sky,Sky|Slate|Oatmeal,cold,18,SUP01
+P149,Aster Alpine Tank,tops,women,L,90.0,Sky,Sky|Slate|Oatmeal,cold,27,SUP01
+P150,Aster Alpine Tank,tops,women,XL,90.0,Sky,Sky|Slate|Oatmeal,cold,19,SUP01
+P151,Aster Crest Long Sleeve,tops,women,XS,90.0,Navy,Navy|Clay|Olive,hot,46,SUP02
+P152,Aster Crest Long Sleeve,tops,women,S,90.0,Navy,Navy|Clay|Olive,hot,53,SUP02
+P153,Aster Crest Long Sleeve,tops,women,M,90.0,Navy,Navy|Clay|Olive,hot,54,SUP02
+P154,Aster Crest Long Sleeve,tops,women,L,90.0,Navy,Navy|Clay|Olive,hot,48,SUP02
+P155,Aster Crest Long Sleeve,tops,women,XL,90.0,Navy,Navy|Clay|Olive,hot,46,SUP02
+P156,Aster Vertex Training Top,tops,women,XS,72.0,Storm Blue,Storm Blue|Deep Plum|Sky,mild,46,SUP02
+P157,Aster Vertex Training Top,tops,women,S,72.0,Storm Blue,Storm Blue|Deep Plum|Sky,mild,53,SUP02
+P158,Aster Vertex Training Top,tops,women,M,72.0,Storm Blue,Storm Blue|Deep Plum|Sky,mild,42,SUP02
+P159,Aster Vertex Training Top,tops,women,L,72.0,Storm Blue,Storm Blue|Deep Plum|Sky,mild,41,SUP02
+P160,Aster Vertex Training Top,tops,women,XL,72.0,Storm Blue,Storm Blue|Deep Plum|Sky,mild,48,SUP02
+P161,Aster Horizon Tee,tops,women,XS,84.0,White,White|Clay|Olive,cold,32,SUP02
+P162,Aster Horizon Tee,tops,women,S,84.0,White,White|Clay|Olive,cold,35,SUP02
+P163,Aster Horizon Tee,tops,women,M,84.0,White,White|Clay|Olive,cold,31,SUP02
+P164,Aster Horizon Tee,tops,women,L,84.0,White,White|Clay|Olive,cold,33,SUP02
+P165,Aster Horizon Tee,tops,women,XL,84.0,White,White|Clay|Olive,cold,35,SUP02
+P166,Aster Cedar Tank,tops,women,XS,58.0,Sand,Sand|Sky|Olive,hot,51,SUP01
+P167,Aster Cedar Tank,tops,women,S,58.0,Sand,Sand|Sky|Olive,hot,49,SUP01
+P168,Aster Cedar Tank,tops,women,M,58.0,Sand,Sand|Sky|Olive,hot,45,SUP01
+P169,Aster Cedar Tank,tops,women,L,58.0,Sand,Sand|Sky|Olive,hot,51,SUP01
+P170,Aster Cedar Tank,tops,women,XL,58.0,Sand,Sand|Sky|Olive,hot,42,SUP01
+P171,Aster Cloud Jacket,jackets,women,S,180.0,White,White|Clay|Forest,rain,77,SUP01
+P172,Aster Cloud Jacket,jackets,women,M,180.0,White,White|Clay|Forest,rain,77,SUP01
+P173,Aster Cloud Jacket,jackets,women,L,180.0,White,White|Clay|Forest,rain,82,SUP01
+P174,Aster Cloud Jacket,jackets,women,XL,180.0,White,White|Clay|Forest,rain,76,SUP01
+P175,Aster Nimbus Shell,jackets,women,S,174.0,Deep Plum,Deep Plum|Clay|Charcoal,cold,71,SUP02
+P176,Aster Nimbus Shell,jackets,women,M,174.0,Deep Plum,Deep Plum|Clay|Charcoal,cold,67,SUP02
+P177,Aster Nimbus Shell,jackets,women,L,174.0,Deep Plum,Deep Plum|Clay|Charcoal,cold,68,SUP02
+P178,Aster Nimbus Shell,jackets,women,XL,174.0,Deep Plum,Deep Plum|Clay|Charcoal,cold,77,SUP02
+P179,Aster Drift Puffer,jackets,women,S,254.0,Charcoal,Charcoal|Black|Sky,winter,55,SUP01
+P180,Aster Drift Puffer,jackets,women,M,254.0,Charcoal,Charcoal|Black|Sky,winter,49,SUP01
+P181,Aster Drift Puffer,jackets,women,L,254.0,Charcoal,Charcoal|Black|Sky,winter,47,SUP01
+P182,Aster Drift Puffer,jackets,women,XL,254.0,Charcoal,Charcoal|Black|Sky,winter,56,SUP01
+P183,Aster Aspen Parka,jackets,women,S,218.0,Forest,Forest|Oatmeal|Olive,mild,0,SUP01
+P184,Aster Aspen Parka,jackets,women,M,218.0,Forest,Forest|Oatmeal|Olive,mild,9,SUP01
+P185,Aster Aspen Parka,jackets,women,L,218.0,Forest,Forest|Oatmeal|Olive,mild,0,SUP01
+P186,Aster Aspen Parka,jackets,women,XL,218.0,Forest,Forest|Oatmeal|Olive,mild,6,SUP01
+P187,Aster Meridian Windbreaker,jackets,women,S,254.0,Heather Grey,Heather Grey|Navy|Olive,rain,23,SUP02
+P188,Aster Meridian Windbreaker,jackets,women,M,254.0,Heather Grey,Heather Grey|Navy|Olive,rain,21,SUP02
+P189,Aster Meridian Windbreaker,jackets,women,L,254.0,Heather Grey,Heather Grey|Navy|Olive,rain,25,SUP02
+P190,Aster Meridian Windbreaker,jackets,women,XL,254.0,Heather Grey,Heather Grey|Navy|Olive,rain,26,SUP02
+P191,Aster Trailhead Jacket,jackets,women,S,262.0,Heather Grey,Heather Grey|Slate|Deep Plum,cold,39,SUP01
+P192,Aster Trailhead Jacket,jackets,women,M,262.0,Heather Grey,Heather Grey|Slate|Deep Plum,cold,46,SUP01
+P193,Aster Trailhead Jacket,jackets,women,L,262.0,Heather Grey,Heather Grey|Slate|Deep Plum,cold,42,SUP01
+P194,Aster Trailhead Jacket,jackets,women,XL,262.0,Heather Grey,Heather Grey|Slate|Deep Plum,cold,40,SUP01
+P195,Aster Frost Shell,jackets,women,S,242.0,Storm Blue,Storm Blue|Slate|Clay,winter,25,SUP02
+P196,Aster Frost Shell,jackets,women,M,242.0,Storm Blue,Storm Blue|Slate|Clay,winter,27,SUP02
+P197,Aster Frost Shell,jackets,women,L,242.0,Storm Blue,Storm Blue|Slate|Clay,winter,36,SUP02
+P198,Aster Frost Shell,jackets,women,XL,242.0,Storm Blue,Storm Blue|Slate|Clay,winter,30,SUP02
+P199,Aster Flow Puffer,jackets,women,S,250.0,Deep Plum,Deep Plum|Sky|Forest,mild,36,SUP02
+P200,Aster Flow Puffer,jackets,women,M,250.0,Deep Plum,Deep Plum|Sky|Forest,mild,46,SUP02
+P201,Aster Flow Puffer,jackets,women,L,250.0,Deep Plum,Deep Plum|Sky|Forest,mild,45,SUP02
+P202,Aster Flow Puffer,jackets,women,XL,250.0,Deep Plum,Deep Plum|Sky|Forest,mild,35,SUP02
+P203,Aster Lumen Parka,jackets,women,S,258.0,Black,Black|Sky|Sand,rain,38,SUP01
+P204,Aster Lumen Parka,jackets,women,M,258.0,Black,Black|Sky|Sand,rain,36,SUP01
+P205,Aster Lumen Parka,jackets,women,L,258.0,Black,Black|Sky|Sand,rain,35,SUP01
+P206,Aster Lumen Parka,jackets,women,XL,258.0,Black,Black|Sky|Sand,rain,43,SUP01
+P207,Aster Vent Windbreaker,jackets,women,S,176.0,Black,Black|Deep Plum|Slate,cold,58,SUP02
+P208,Aster Vent Windbreaker,jackets,women,M,176.0,Black,Black|Deep Plum|Slate,cold,55,SUP02
+P209,Aster Vent Windbreaker,jackets,women,L,176.0,Black,Black|Deep Plum|Slate,cold,66,SUP02
+P210,Aster Vent Windbreaker,jackets,women,XL,176.0,Black,Black|Deep Plum|Slate,cold,58,SUP02
+P211,Aster Slate Hoodie,hoodies,women,S,138.0,Olive,Olive|Oatmeal|Deep Plum,mild,71,SUP02
+P212,Aster Slate Hoodie,hoodies,women,M,138.0,Olive,Olive|Oatmeal|Deep Plum,mild,72,SUP02
+P213,Aster Slate Hoodie,hoodies,women,L,138.0,Olive,Olive|Oatmeal|Deep Plum,mild,75,SUP02
+P214,Aster Slate Hoodie,hoodies,women,XL,138.0,Olive,Olive|Oatmeal|Deep Plum,mild,73,SUP02
+P215,Aster Trace Zip Hoodie,hoodies,women,S,114.0,Black,Black|White|Navy,cold,69,SUP02
+P216,Aster Trace Zip Hoodie,hoodies,women,M,114.0,Black,Black|White|Navy,cold,70,SUP02
+P217,Aster Trace Zip Hoodie,hoodies,women,L,114.0,Black,Black|White|Navy,cold,63,SUP02
+P218,Aster Trace Zip Hoodie,hoodies,women,XL,114.0,Black,Black|White|Navy,cold,64,SUP02
+P219,Aster Aurora Pullover,hoodies,women,S,130.0,White,White|Oatmeal|Navy,mild,27,SUP02
+P220,Aster Aurora Pullover,hoodies,women,M,130.0,White,White|Oatmeal|Navy,mild,38,SUP02
+P221,Aster Aurora Pullover,hoodies,women,L,130.0,White,White|Oatmeal|Navy,mild,33,SUP02
+P222,Aster Aurora Pullover,hoodies,women,XL,130.0,White,White|Oatmeal|Navy,mild,27,SUP02
+P223,Aster Base Hoodie,hoodies,women,S,132.0,Deep Plum,Deep Plum|Forest|Sky,cold,34,SUP02
+P224,Aster Base Hoodie,hoodies,women,M,132.0,Deep Plum,Deep Plum|Forest|Sky,cold,29,SUP02
+P225,Aster Base Hoodie,hoodies,women,L,132.0,Deep Plum,Deep Plum|Forest|Sky,cold,38,SUP02
+P226,Aster Base Hoodie,hoodies,women,XL,132.0,Deep Plum,Deep Plum|Forest|Sky,cold,33,SUP02
+P227,Aster Tempo Zip Hoodie,hoodies,women,S,118.0,Deep Plum,Deep Plum|Sky|White,mild,51,SUP02
+P228,Aster Tempo Zip Hoodie,hoodies,women,M,118.0,Deep Plum,Deep Plum|Sky|White,mild,47,SUP02
+P229,Aster Tempo Zip Hoodie,hoodies,women,L,118.0,Deep Plum,Deep Plum|Sky|White,mild,46,SUP02
+P230,Aster Tempo Zip Hoodie,hoodies,women,XL,118.0,Deep Plum,Deep Plum|Sky|White,mild,47,SUP02
+P231,Aster Cadence Pullover,hoodies,women,S,132.0,Storm Blue,Storm Blue|Slate|Oatmeal,cold,60,SUP01
+P232,Aster Cadence Pullover,hoodies,women,M,132.0,Storm Blue,Storm Blue|Slate|Oatmeal,cold,60,SUP01
+P233,Aster Cadence Pullover,hoodies,women,L,132.0,Storm Blue,Storm Blue|Slate|Oatmeal,cold,55,SUP01
+P234,Aster Cadence Pullover,hoodies,women,XL,132.0,Storm Blue,Storm Blue|Slate|Oatmeal,cold,57,SUP01
+P235,Aster Kodiak Hoodie,hoodies,women,S,98.0,Charcoal,Charcoal|Clay|Slate,mild,65,SUP02
+P236,Aster Kodiak Hoodie,hoodies,women,M,98.0,Charcoal,Charcoal|Clay|Slate,mild,65,SUP02
+P237,Aster Kodiak Hoodie,hoodies,women,L,98.0,Charcoal,Charcoal|Clay|Slate,mild,65,SUP02
+P238,Aster Kodiak Hoodie,hoodies,women,XL,98.0,Charcoal,Charcoal|Clay|Slate,mild,68,SUP02
+P239,Aster Dune Zip Hoodie,hoodies,women,S,130.0,Sand,Sand|Ember Red|Sky,cold,28,SUP01
+P240,Aster Dune Zip Hoodie,hoodies,women,M,130.0,Sand,Sand|Ember Red|Sky,cold,32,SUP01
+P241,Aster Dune Zip Hoodie,hoodies,women,L,130.0,Sand,Sand|Ember Red|Sky,cold,34,SUP01
+P242,Aster Dune Zip Hoodie,hoodies,women,XL,130.0,Sand,Sand|Ember Red|Sky,cold,34,SUP01
+P243,Aster Ridgeline Pullover,hoodies,women,S,118.0,White,White|Sky|Ember Red,mild,36,SUP02
+P244,Aster Ridgeline Pullover,hoodies,women,M,118.0,White,White|Sky|Ember Red,mild,45,SUP02
+P245,Aster Ridgeline Pullover,hoodies,women,L,118.0,White,White|Sky|Ember Red,mild,36,SUP02
+P246,Aster Ridgeline Pullover,hoodies,women,XL,118.0,White,White|Sky|Ember Red,mild,35,SUP02
+P247,Aster Ember Hoodie,hoodies,women,S,100.0,Slate,Slate|Sand|Navy,cold,18,SUP02
+P248,Aster Ember Hoodie,hoodies,women,M,100.0,Slate,Slate|Sand|Navy,cold,22,SUP02
+P249,Aster Ember Hoodie,hoodies,women,L,100.0,Slate,Slate|Sand|Navy,cold,21,SUP02
+P250,Aster Ember Hoodie,hoodies,women,XL,100.0,Slate,Slate|Sand|Navy,cold,15,SUP02
+P251,Aster Solstice Short,shorts,women,S,72.0,Oatmeal,Oatmeal|Slate|Storm Blue,hot,6,SUP01
+P252,Aster Solstice Short,shorts,women,M,72.0,Oatmeal,Oatmeal|Slate|Storm Blue,hot,0,SUP01
+P253,Aster Solstice Short,shorts,women,L,72.0,Oatmeal,Oatmeal|Slate|Storm Blue,hot,0,SUP01
+P254,Aster Solstice Short,shorts,women,XL,72.0,Oatmeal,Oatmeal|Slate|Storm Blue,hot,0,SUP01
+P255,Aster Summit Lined Short,shorts,women,S,72.0,Black,Black|Olive|Slate,mild,20,SUP02
+P256,Aster Summit Lined Short,shorts,women,M,72.0,Black,Black|Olive|Slate,mild,30,SUP02
+P257,Aster Summit Lined Short,shorts,women,L,72.0,Black,Black|Olive|Slate,mild,25,SUP02
+P258,Aster Summit Lined Short,shorts,women,XL,72.0,Black,Black|Olive|Slate,mild,28,SUP02
+P259,Aster Rally Bike Short,shorts,women,S,74.0,Navy,Navy|Heather Grey|Ember Red,hot,67,SUP02
+P260,Aster Rally Bike Short,shorts,women,M,74.0,Navy,Navy|Heather Grey|Ember Red,hot,66,SUP02
+P261,Aster Rally Bike Short,shorts,women,L,74.0,Navy,Navy|Heather Grey|Ember Red,hot,61,SUP02
+P262,Aster Rally Bike Short,shorts,women,XL,74.0,Navy,Navy|Heather Grey|Ember Red,hot,70,SUP02
+P263,Aster Zephyr Short,shorts,women,S,72.0,Charcoal,Charcoal|Ember Red|Slate,mild,48,SUP02
+P264,Aster Zephyr Short,shorts,women,M,72.0,Charcoal,Charcoal|Ember Red|Slate,mild,41,SUP02
+P265,Aster Zephyr Short,shorts,women,L,72.0,Charcoal,Charcoal|Ember Red|Slate,mild,42,SUP02
+P266,Aster Zephyr Short,shorts,women,XL,72.0,Charcoal,Charcoal|Ember Red|Slate,mild,45,SUP02
+P267,Aster Glacier Lined Short,shorts,women,S,80.0,Charcoal,Charcoal|Slate|Clay,hot,53,SUP02
+P268,Aster Glacier Lined Short,shorts,women,M,80.0,Charcoal,Charcoal|Slate|Clay,hot,46,SUP02
+P269,Aster Glacier Lined Short,shorts,women,L,80.0,Charcoal,Charcoal|Slate|Clay,hot,47,SUP02
+P270,Aster Glacier Lined Short,shorts,women,XL,80.0,Charcoal,Charcoal|Slate|Clay,hot,47,SUP02
+P271,Aster Coastal Bike Short,shorts,women,S,70.0,Forest,Forest|Storm Blue|Clay,mild,36,SUP01
+P272,Aster Coastal Bike Short,shorts,women,M,70.0,Forest,Forest|Storm Blue|Clay,mild,36,SUP01
+P273,Aster Coastal Bike Short,shorts,women,L,70.0,Forest,Forest|Storm Blue|Clay,mild,35,SUP01
+P274,Aster Coastal Bike Short,shorts,women,XL,70.0,Forest,Forest|Storm Blue|Clay,mild,38,SUP01
+P275,Aster Halo Short,shorts,women,S,70.0,Black,Black|Slate|Oatmeal,hot,64,SUP01
+P276,Aster Halo Short,shorts,women,M,70.0,Black,Black|Slate|Oatmeal,hot,61,SUP01
+P277,Aster Halo Short,shorts,women,L,70.0,Black,Black|Slate|Oatmeal,hot,58,SUP01
+P278,Aster Halo Short,shorts,women,XL,70.0,Black,Black|Slate|Oatmeal,hot,59,SUP01
+P279,Aster Marin Lined Short,shorts,women,S,68.0,Charcoal,Charcoal|Ember Red|Oatmeal,mild,63,SUP01
+P280,Aster Marin Lined Short,shorts,women,M,68.0,Charcoal,Charcoal|Ember Red|Oatmeal,mild,59,SUP01
+P281,Aster Marin Lined Short,shorts,women,L,68.0,Charcoal,Charcoal|Ember Red|Oatmeal,mild,60,SUP01
+P282,Aster Marin Lined Short,shorts,women,XL,68.0,Charcoal,Charcoal|Ember Red|Oatmeal,mild,62,SUP01
+P283,Aster Torrent Bike Short,shorts,women,S,58.0,Oatmeal,Oatmeal|Heather Grey|Deep Plum,hot,61,SUP01
+P284,Aster Torrent Bike Short,shorts,women,M,58.0,Oatmeal,Oatmeal|Heather Grey|Deep Plum,hot,56,SUP01
+P285,Aster Torrent Bike Short,shorts,women,L,58.0,Oatmeal,Oatmeal|Heather Grey|Deep Plum,hot,63,SUP01
+P286,Aster Torrent Bike Short,shorts,women,XL,58.0,Oatmeal,Oatmeal|Heather Grey|Deep Plum,hot,62,SUP01
+P287,Aster Storm Short,shorts,women,S,70.0,Navy,Navy|Clay|Deep Plum,mild,16,SUP01
+P288,Aster Storm Short,shorts,women,M,70.0,Navy,Navy|Clay|Deep Plum,mild,12,SUP01
+P289,Aster Storm Short,shorts,women,L,70.0,Navy,Navy|Clay|Deep Plum,mild,8,SUP01
+P290,Aster Storm Short,shorts,women,XL,70.0,Navy,Navy|Clay|Deep Plum,mild,13,SUP01
+P291,Aster Field Jogger,bottoms,women,S,100.0,Charcoal,Charcoal|Oatmeal|Heather Grey,mild,35,SUP02
+P292,Aster Field Jogger,bottoms,women,M,100.0,Charcoal,Charcoal|Oatmeal|Heather Grey,mild,35,SUP02
+P293,Aster Field Jogger,bottoms,women,L,100.0,Charcoal,Charcoal|Oatmeal|Heather Grey,mild,42,SUP02
+P294,Aster Field Jogger,bottoms,women,XL,100.0,Charcoal,Charcoal|Oatmeal|Heather Grey,mild,36,SUP02
+P295,Aster Pace Pant,bottoms,women,S,124.0,Charcoal,Charcoal|Sky|White,cold,74,SUP01
+P296,Aster Pace Pant,bottoms,women,M,124.0,Charcoal,Charcoal|Sky|White,cold,71,SUP01
+P297,Aster Pace Pant,bottoms,women,L,124.0,Charcoal,Charcoal|Sky|White,cold,63,SUP01
+P298,Aster Pace Pant,bottoms,women,XL,124.0,Charcoal,Charcoal|Sky|White,cold,68,SUP01
+P299,Aster Boreal Track Pant,bottoms,women,S,138.0,White,White|Ember Red|Deep Plum,all-season,11,SUP01
+P300,Aster Boreal Track Pant,bottoms,women,M,138.0,White,White|Ember Red|Deep Plum,all-season,11,SUP01
+P301,Aster Boreal Track Pant,bottoms,women,L,138.0,White,White|Ember Red|Deep Plum,all-season,8,SUP01
+P302,Aster Boreal Track Pant,bottoms,women,XL,138.0,White,White|Ember Red|Deep Plum,all-season,17,SUP01
+P303,Aster Alpine Jogger,bottoms,women,S,112.0,Storm Blue,Storm Blue|Sand|Deep Plum,mild,24,SUP01
+P304,Aster Alpine Jogger,bottoms,women,M,112.0,Storm Blue,Storm Blue|Sand|Deep Plum,mild,28,SUP01
+P305,Aster Alpine Jogger,bottoms,women,L,112.0,Storm Blue,Storm Blue|Sand|Deep Plum,mild,21,SUP01
+P306,Aster Alpine Jogger,bottoms,women,XL,112.0,Storm Blue,Storm Blue|Sand|Deep Plum,mild,29,SUP01
+P307,Aster Crest Pant,bottoms,women,S,108.0,Navy,Navy|Clay|Forest,cold,21,SUP01
+P308,Aster Crest Pant,bottoms,women,M,108.0,Navy,Navy|Clay|Forest,cold,18,SUP01
+P309,Aster Crest Pant,bottoms,women,L,108.0,Navy,Navy|Clay|Forest,cold,26,SUP01
+P310,Aster Crest Pant,bottoms,women,XL,108.0,Navy,Navy|Clay|Forest,cold,17,SUP01
+P311,Aster Vertex Track Pant,bottoms,women,S,134.0,Deep Plum,Deep Plum|Oatmeal|Sky,all-season,37,SUP01
+P312,Aster Vertex Track Pant,bottoms,women,M,134.0,Deep Plum,Deep Plum|Oatmeal|Sky,all-season,39,SUP01
+P313,Aster Vertex Track Pant,bottoms,women,L,134.0,Deep Plum,Deep Plum|Oatmeal|Sky,all-season,38,SUP01
+P314,Aster Vertex Track Pant,bottoms,women,XL,134.0,Deep Plum,Deep Plum|Oatmeal|Sky,all-season,31,SUP01
+P315,Aster Horizon Jogger,bottoms,women,S,116.0,Sky,Sky|Deep Plum|Navy,mild,23,SUP01
+P316,Aster Horizon Jogger,bottoms,women,M,116.0,Sky,Sky|Deep Plum|Navy,mild,26,SUP01
+P317,Aster Horizon Jogger,bottoms,women,L,116.0,Sky,Sky|Deep Plum|Navy,mild,24,SUP01
+P318,Aster Horizon Jogger,bottoms,women,XL,116.0,Sky,Sky|Deep Plum|Navy,mild,28,SUP01
+P319,Aster Cedar Pant,bottoms,women,S,102.0,Olive,Olive|Deep Plum|Heather Grey,cold,5,SUP02
+P320,Aster Cedar Pant,bottoms,women,M,102.0,Olive,Olive|Deep Plum|Heather Grey,cold,0,SUP02
+P321,Aster Cedar Pant,bottoms,women,L,102.0,Olive,Olive|Deep Plum|Heather Grey,cold,4,SUP02
+P322,Aster Cedar Pant,bottoms,women,XL,102.0,Olive,Olive|Deep Plum|Heather Grey,cold,3,SUP02
+P323,Aster Cloud Track Pant,bottoms,women,S,106.0,Oatmeal,Oatmeal|Storm Blue|Forest,all-season,78,SUP02
+P324,Aster Cloud Track Pant,bottoms,women,M,106.0,Oatmeal,Oatmeal|Storm Blue|Forest,all-season,81,SUP02
+P325,Aster Cloud Track Pant,bottoms,women,L,106.0,Oatmeal,Oatmeal|Storm Blue|Forest,all-season,77,SUP02
+P326,Aster Cloud Track Pant,bottoms,women,XL,106.0,Oatmeal,Oatmeal|Storm Blue|Forest,all-season,81,SUP02
+P327,Aster Nimbus Jogger,bottoms,women,S,126.0,Oatmeal,Oatmeal|Sky|Forest,mild,83,SUP02
+P328,Aster Nimbus Jogger,bottoms,women,M,126.0,Oatmeal,Oatmeal|Sky|Forest,mild,81,SUP02
+P329,Aster Nimbus Jogger,bottoms,women,L,126.0,Oatmeal,Oatmeal|Sky|Forest,mild,79,SUP02
+P330,Aster Nimbus Jogger,bottoms,women,XL,126.0,Oatmeal,Oatmeal|Sky|Forest,mild,82,SUP02
+P331,Aster Drift Tee,tops,men,XS,62.0,Ember Red,Ember Red|Sand|Navy,hot,86,SUP02
+P332,Aster Drift Tee,tops,men,S,62.0,Ember Red,Ember Red|Sand|Navy,hot,81,SUP02
+P333,Aster Drift Tee,tops,men,M,62.0,Ember Red,Ember Red|Sand|Navy,hot,88,SUP02
+P334,Aster Drift Tee,tops,men,L,62.0,Ember Red,Ember Red|Sand|Navy,hot,86,SUP02
+P335,Aster Drift Tee,tops,men,XL,62.0,Ember Red,Ember Red|Sand|Navy,hot,83,SUP02
+P336,Aster Aspen Tank,tops,men,XS,60.0,Heather Grey,Heather Grey|Ember Red|Charcoal,mild,55,SUP02
+P337,Aster Aspen Tank,tops,men,S,60.0,Heather Grey,Heather Grey|Ember Red|Charcoal,mild,57,SUP02
+P338,Aster Aspen Tank,tops,men,M,60.0,Heather Grey,Heather Grey|Ember Red|Charcoal,mild,50,SUP02
+P339,Aster Aspen Tank,tops,men,L,60.0,Heather Grey,Heather Grey|Ember Red|Charcoal,mild,54,SUP02
+P340,Aster Aspen Tank,tops,men,XL,60.0,Heather Grey,Heather Grey|Ember Red|Charcoal,mild,46,SUP02
+P341,Aster Meridian Long Sleeve,tops,men,XS,60.0,White,White|Slate|Forest,cold,63,SUP02
+P342,Aster Meridian Long Sleeve,tops,men,S,60.0,White,White|Slate|Forest,cold,67,SUP02
+P343,Aster Meridian Long Sleeve,tops,men,M,60.0,White,White|Slate|Forest,cold,58,SUP02
+P344,Aster Meridian Long Sleeve,tops,men,L,60.0,White,White|Slate|Forest,cold,66,SUP02
+P345,Aster Meridian Long Sleeve,tops,men,XL,60.0,White,White|Slate|Forest,cold,62,SUP02
+P346,Aster Trailhead Training Top,tops,men,XS,76.0,Ember Red,Ember Red|Black|White,hot,46,SUP01
+P347,Aster Trailhead Training Top,tops,men,S,76.0,Ember Red,Ember Red|Black|White,hot,51,SUP01
+P348,Aster Trailhead Training Top,tops,men,M,76.0,Ember Red,Ember Red|Black|White,hot,43,SUP01
+P349,Aster Trailhead Training Top,tops,men,L,76.0,Ember Red,Ember Red|Black|White,hot,44,SUP01
+P350,Aster Trailhead Training Top,tops,men,XL,76.0,Ember Red,Ember Red|Black|White,hot,50,SUP01
+P351,Aster Frost Tee,tops,men,XS,70.0,Sand,Sand|Olive|Sky,mild,58,SUP02
+P352,Aster Frost Tee,tops,men,S,70.0,Sand,Sand|Olive|Sky,mild,55,SUP02
+P353,Aster Frost Tee,tops,men,M,70.0,Sand,Sand|Olive|Sky,mild,52,SUP02
+P354,Aster Frost Tee,tops,men,L,70.0,Sand,Sand|Olive|Sky,mild,52,SUP02
+P355,Aster Frost Tee,tops,men,XL,70.0,Sand,Sand|Olive|Sky,mild,58,SUP02
+P356,Aster Flow Tank,tops,men,XS,64.0,Charcoal,Charcoal|Clay|Slate,cold,23,SUP01
+P357,Aster Flow Tank,tops,men,S,64.0,Charcoal,Charcoal|Clay|Slate,cold,19,SUP01
+P358,Aster Flow Tank,tops,men,M,64.0,Charcoal,Charcoal|Clay|Slate,cold,29,SUP01
+P359,Aster Flow Tank,tops,men,L,64.0,Charcoal,Charcoal|Clay|Slate,cold,26,SUP01
+P360,Aster Flow Tank,tops,men,XL,64.0,Charcoal,Charcoal|Clay|Slate,cold,30,SUP01
+P361,Aster Lumen Long Sleeve,tops,men,XS,60.0,Slate,Slate|Forest|Sand,hot,39,SUP02
+P362,Aster Lumen Long Sleeve,tops,men,S,60.0,Slate,Slate|Forest|Sand,hot,41,SUP02
+P363,Aster Lumen Long Sleeve,tops,men,M,60.0,Slate,Slate|Forest|Sand,hot,42,SUP02
+P364,Aster Lumen Long Sleeve,tops,men,L,60.0,Slate,Slate|Forest|Sand,hot,41,SUP02
+P365,Aster Lumen Long Sleeve,tops,men,XL,60.0,Slate,Slate|Forest|Sand,hot,43,SUP02
+P366,Aster Vent Training Top,tops,men,XS,66.0,Black,Black|Forest|Olive,mild,19,SUP02
+P367,Aster Vent Training Top,tops,men,S,66.0,Black,Black|Forest|Olive,mild,19,SUP02
+P368,Aster Vent Training Top,tops,men,M,66.0,Black,Black|Forest|Olive,mild,27,SUP02
+P369,Aster Vent Training Top,tops,men,L,66.0,Black,Black|Forest|Olive,mild,23,SUP02
+P370,Aster Vent Training Top,tops,men,XL,66.0,Black,Black|Forest|Olive,mild,30,SUP02
+P371,Aster Slate Tee,tops,men,XS,88.0,Sky,Sky|Ember Red|Sand,cold,25,SUP01
+P372,Aster Slate Tee,tops,men,S,88.0,Sky,Sky|Ember Red|Sand,cold,20,SUP01
+P373,Aster Slate Tee,tops,men,M,88.0,Sky,Sky|Ember Red|Sand,cold,23,SUP01
+P374,Aster Slate Tee,tops,men,L,88.0,Sky,Sky|Ember Red|Sand,cold,23,SUP01
+P375,Aster Slate Tee,tops,men,XL,88.0,Sky,Sky|Ember Red|Sand,cold,23,SUP01
+P376,Aster Trace Tank,tops,men,XS,58.0,Black,Black|Charcoal|Sand,hot,23,SUP01
+P377,Aster Trace Tank,tops,men,S,58.0,Black,Black|Charcoal|Sand,hot,24,SUP01
+P378,Aster Trace Tank,tops,men,M,58.0,Black,Black|Charcoal|Sand,hot,18,SUP01
+P379,Aster Trace Tank,tops,men,L,58.0,Black,Black|Charcoal|Sand,hot,26,SUP01
+P380,Aster Trace Tank,tops,men,XL,58.0,Black,Black|Charcoal|Sand,hot,27,SUP01
+P381,Aster Aurora Jacket,jackets,men,S,166.0,Storm Blue,Storm Blue|Ember Red|Navy,rain,44,SUP01
+P382,Aster Aurora Jacket,jackets,men,M,166.0,Storm Blue,Storm Blue|Ember Red|Navy,rain,42,SUP01
+P383,Aster Aurora Jacket,jackets,men,L,166.0,Storm Blue,Storm Blue|Ember Red|Navy,rain,49,SUP01
+P384,Aster Aurora Jacket,jackets,men,XL,166.0,Storm Blue,Storm Blue|Ember Red|Navy,rain,53,SUP01
+P385,Aster Base Shell,jackets,men,S,224.0,Navy,Navy|Ember Red|Clay,cold,38,SUP02
+P386,Aster Base Shell,jackets,men,M,224.0,Navy,Navy|Ember Red|Clay,cold,38,SUP02
+P387,Aster Base Shell,jackets,men,L,224.0,Navy,Navy|Ember Red|Clay,cold,35,SUP02
+P388,Aster Base Shell,jackets,men,XL,224.0,Navy,Navy|Ember Red|Clay,cold,40,SUP02
+P389,Aster Tempo Puffer,jackets,men,S,186.0,Navy,Navy|Clay|Black,winter,93,SUP01
+P390,Aster Tempo Puffer,jackets,men,M,186.0,Navy,Navy|Clay|Black,winter,84,SUP01
+P391,Aster Tempo Puffer,jackets,men,L,186.0,Navy,Navy|Clay|Black,winter,91,SUP01
+P392,Aster Tempo Puffer,jackets,men,XL,186.0,Navy,Navy|Clay|Black,winter,84,SUP01
+P393,Aster Cadence Parka,jackets,men,S,232.0,White,White|Storm Blue|Slate,mild,27,SUP01
+P394,Aster Cadence Parka,jackets,men,M,232.0,White,White|Storm Blue|Slate,mild,25,SUP01
+P395,Aster Cadence Parka,jackets,men,L,232.0,White,White|Storm Blue|Slate,mild,31,SUP01
+P396,Aster Cadence Parka,jackets,men,XL,232.0,White,White|Storm Blue|Slate,mild,32,SUP01
+P397,Aster Kodiak Windbreaker,jackets,men,S,208.0,Charcoal,Charcoal|Black|Slate,rain,50,SUP02
+P398,Aster Kodiak Windbreaker,jackets,men,M,208.0,Charcoal,Charcoal|Black|Slate,rain,46,SUP02
+P399,Aster Kodiak Windbreaker,jackets,men,L,208.0,Charcoal,Charcoal|Black|Slate,rain,40,SUP02
+P400,Aster Kodiak Windbreaker,jackets,men,XL,208.0,Charcoal,Charcoal|Black|Slate,rain,49,SUP02
+P401,Aster Dune Jacket,jackets,men,S,266.0,Charcoal,Charcoal|Ember Red|Sky,cold,89,SUP01
+P402,Aster Dune Jacket,jackets,men,M,266.0,Charcoal,Charcoal|Ember Red|Sky,cold,84,SUP01
+P403,Aster Dune Jacket,jackets,men,L,266.0,Charcoal,Charcoal|Ember Red|Sky,cold,91,SUP01
+P404,Aster Dune Jacket,jackets,men,XL,266.0,Charcoal,Charcoal|Ember Red|Sky,cold,86,SUP01
+P405,Aster Ridgeline Shell,jackets,men,S,264.0,Charcoal,Charcoal|Sky|Storm Blue,winter,14,SUP01
+P406,Aster Ridgeline Shell,jackets,men,M,264.0,Charcoal,Charcoal|Sky|Storm Blue,winter,24,SUP01
+P407,Aster Ridgeline Shell,jackets,men,L,264.0,Charcoal,Charcoal|Sky|Storm Blue,winter,16,SUP01
+P408,Aster Ridgeline Shell,jackets,men,XL,264.0,Charcoal,Charcoal|Sky|Storm Blue,winter,21,SUP01
+P409,Aster Ember Puffer,jackets,men,S,264.0,Charcoal,Charcoal|Sand|White,mild,73,SUP02
+P410,Aster Ember Puffer,jackets,men,M,264.0,Charcoal,Charcoal|Sand|White,mild,68,SUP02
+P411,Aster Ember Puffer,jackets,men,L,264.0,Charcoal,Charcoal|Sand|White,mild,66,SUP02
+P412,Aster Ember Puffer,jackets,men,XL,264.0,Charcoal,Charcoal|Sand|White,mild,70,SUP02
+P413,Aster Solstice Parka,jackets,men,S,210.0,Sand,Sand|White|Navy,rain,19,SUP02
+P414,Aster Solstice Parka,jackets,men,M,210.0,Sand,Sand|White|Navy,rain,13,SUP02
+P415,Aster Solstice Parka,jackets,men,L,210.0,Sand,Sand|White|Navy,rain,17,SUP02
+P416,Aster Solstice Parka,jackets,men,XL,210.0,Sand,Sand|White|Navy,rain,12,SUP02
+P417,Aster Summit Windbreaker,jackets,men,S,158.0,Slate,Slate|Deep Plum|Navy,cold,90,SUP01
+P418,Aster Summit Windbreaker,jackets,men,M,158.0,Slate,Slate|Deep Plum|Navy,cold,88,SUP01
+P419,Aster Summit Windbreaker,jackets,men,L,158.0,Slate,Slate|Deep Plum|Navy,cold,82,SUP01
+P420,Aster Summit Windbreaker,jackets,men,XL,158.0,Slate,Slate|Deep Plum|Navy,cold,87,SUP01
+P421,Aster Rally Hoodie,hoodies,men,S,108.0,Sand,Sand|Olive|Deep Plum,mild,61,SUP02
+P422,Aster Rally Hoodie,hoodies,men,M,108.0,Sand,Sand|Olive|Deep Plum,mild,68,SUP02
+P423,Aster Rally Hoodie,hoodies,men,L,108.0,Sand,Sand|Olive|Deep Plum,mild,65,SUP02
+P424,Aster Rally Hoodie,hoodies,men,XL,108.0,Sand,Sand|Olive|Deep Plum,mild,69,SUP02
+P425,Aster Zephyr Zip Hoodie,hoodies,men,S,102.0,Sand,Sand|Heather Grey|Oatmeal,cold,55,SUP02
+P426,Aster Zephyr Zip Hoodie,hoodies,men,M,102.0,Sand,Sand|Heather Grey|Oatmeal,cold,46,SUP02
+P427,Aster Zephyr Zip Hoodie,hoodies,men,L,102.0,Sand,Sand|Heather Grey|Oatmeal,cold,47,SUP02
+P428,Aster Zephyr Zip Hoodie,hoodies,men,XL,102.0,Sand,Sand|Heather Grey|Oatmeal,cold,50,SUP02
+P429,Aster Glacier Pullover,hoodies,men,S,128.0,Charcoal,Charcoal|Deep Plum|Oatmeal,mild,80,SUP01
+P430,Aster Glacier Pullover,hoodies,men,M,128.0,Charcoal,Charcoal|Deep Plum|Oatmeal,mild,74,SUP01
+P431,Aster Glacier Pullover,hoodies,men,L,128.0,Charcoal,Charcoal|Deep Plum|Oatmeal,mild,78,SUP01
+P432,Aster Glacier Pullover,hoodies,men,XL,128.0,Charcoal,Charcoal|Deep Plum|Oatmeal,mild,77,SUP01
+P433,Aster Coastal Hoodie,hoodies,men,S,104.0,Ember Red,Ember Red|Oatmeal|Olive,cold,0,SUP02
+P434,Aster Coastal Hoodie,hoodies,men,M,104.0,Ember Red,Ember Red|Oatmeal|Olive,cold,0,SUP02
+P435,Aster Coastal Hoodie,hoodies,men,L,104.0,Ember Red,Ember Red|Oatmeal|Olive,cold,0,SUP02
+P436,Aster Coastal Hoodie,hoodies,men,XL,104.0,Ember Red,Ember Red|Oatmeal|Olive,cold,2,SUP02
+P437,Aster Halo Zip Hoodie,hoodies,men,S,136.0,Ember Red,Ember Red|Sand|Deep Plum,mild,62,SUP01
+P438,Aster Halo Zip Hoodie,hoodies,men,M,136.0,Ember Red,Ember Red|Sand|Deep Plum,mild,63,SUP01
+P439,Aster Halo Zip Hoodie,hoodies,men,L,136.0,Ember Red,Ember Red|Sand|Deep Plum,mild,67,SUP01
+P440,Aster Halo Zip Hoodie,hoodies,men,XL,136.0,Ember Red,Ember Red|Sand|Deep Plum,mild,61,SUP01
+P441,Aster Marin Pullover,hoodies,men,S,126.0,Clay,Clay|Forest|Sand,cold,28,SUP01
+P442,Aster Marin Pullover,hoodies,men,M,126.0,Clay,Clay|Forest|Sand,cold,27,SUP01
+P443,Aster Marin Pullover,hoodies,men,L,126.0,Clay,Clay|Forest|Sand,cold,30,SUP01
+P444,Aster Marin Pullover,hoodies,men,XL,126.0,Clay,Clay|Forest|Sand,cold,21,SUP01
+P445,Aster Torrent Hoodie,hoodies,men,S,116.0,Olive,Olive|Black|Clay,mild,58,SUP01
+P446,Aster Torrent Hoodie,hoodies,men,M,116.0,Olive,Olive|Black|Clay,mild,56,SUP01
+P447,Aster Torrent Hoodie,hoodies,men,L,116.0,Olive,Olive|Black|Clay,mild,62,SUP01
+P448,Aster Torrent Hoodie,hoodies,men,XL,116.0,Olive,Olive|Black|Clay,mild,56,SUP01
+P449,Aster Storm Zip Hoodie,hoodies,men,S,128.0,Clay,Clay|Forest|Charcoal,cold,74,SUP02
+P450,Aster Storm Zip Hoodie,hoodies,men,M,128.0,Clay,Clay|Forest|Charcoal,cold,75,SUP02
+P451,Aster Storm Zip Hoodie,hoodies,men,L,128.0,Clay,Clay|Forest|Charcoal,cold,75,SUP02
+P452,Aster Storm Zip Hoodie,hoodies,men,XL,128.0,Clay,Clay|Forest|Charcoal,cold,71,SUP02
+P453,Aster Field Pullover,hoodies,men,S,132.0,Storm Blue,Storm Blue|Oatmeal|Slate,mild,80,SUP01
+P454,Aster Field Pullover,hoodies,men,M,132.0,Storm Blue,Storm Blue|Oatmeal|Slate,mild,83,SUP01
+P455,Aster Field Pullover,hoodies,men,L,132.0,Storm Blue,Storm Blue|Oatmeal|Slate,mild,91,SUP01
+P456,Aster Field Pullover,hoodies,men,XL,132.0,Storm Blue,Storm Blue|Oatmeal|Slate,mild,91,SUP01
+P457,Aster Pace Hoodie,hoodies,men,S,118.0,Clay,Clay|Ember Red|Olive,cold,41,SUP01
+P458,Aster Pace Hoodie,hoodies,men,M,118.0,Clay,Clay|Ember Red|Olive,cold,48,SUP01
+P459,Aster Pace Hoodie,hoodies,men,L,118.0,Clay,Clay|Ember Red|Olive,cold,41,SUP01
+P460,Aster Pace Hoodie,hoodies,men,XL,118.0,Clay,Clay|Ember Red|Olive,cold,46,SUP01
+P461,Aster Boreal Short,shorts,men,S,78.0,Sand,Sand|Sky|Storm Blue,hot,65,SUP02
+P462,Aster Boreal Short,shorts,men,M,78.0,Sand,Sand|Sky|Storm Blue,hot,65,SUP02
+P463,Aster Boreal Short,shorts,men,L,78.0,Sand,Sand|Sky|Storm Blue,hot,68,SUP02
+P464,Aster Boreal Short,shorts,men,XL,78.0,Sand,Sand|Sky|Storm Blue,hot,72,SUP02
+P465,Aster Alpine Lined Short,shorts,men,S,70.0,Sand,Sand|Heather Grey|Slate,mild,36,SUP02
+P466,Aster Alpine Lined Short,shorts,men,M,70.0,Sand,Sand|Heather Grey|Slate,mild,45,SUP02
+P467,Aster Alpine Lined Short,shorts,men,L,70.0,Sand,Sand|Heather Grey|Slate,mild,39,SUP02
+P468,Aster Alpine Lined Short,shorts,men,XL,70.0,Sand,Sand|Heather Grey|Slate,mild,33,SUP02
+P469,Aster Crest Bike Short,shorts,men,S,80.0,Sand,Sand|Forest|Ember Red,hot,61,SUP02
+P470,Aster Crest Bike Short,shorts,men,M,80.0,Sand,Sand|Forest|Ember Red,hot,63,SUP02
+P471,Aster Crest Bike Short,shorts,men,L,80.0,Sand,Sand|Forest|Ember Red,hot,61,SUP02
+P472,Aster Crest Bike Short,shorts,men,XL,80.0,Sand,Sand|Forest|Ember Red,hot,53,SUP02
+P473,Aster Vertex Short,shorts,men,S,58.0,Storm Blue,Storm Blue|Olive|Navy,mild,52,SUP01
+P474,Aster Vertex Short,shorts,men,M,58.0,Storm Blue,Storm Blue|Olive|Navy,mild,46,SUP01
+P475,Aster Vertex Short,shorts,men,L,58.0,Storm Blue,Storm Blue|Olive|Navy,mild,53,SUP01
+P476,Aster Vertex Short,shorts,men,XL,58.0,Storm Blue,Storm Blue|Olive|Navy,mild,52,SUP01
+P477,Aster Horizon Lined Short,shorts,men,S,80.0,Storm Blue,Storm Blue|Oatmeal|Deep Plum,hot,29,SUP01
+P478,Aster Horizon Lined Short,shorts,men,M,80.0,Storm Blue,Storm Blue|Oatmeal|Deep Plum,hot,34,SUP01
+P479,Aster Horizon Lined Short,shorts,men,L,80.0,Storm Blue,Storm Blue|Oatmeal|Deep Plum,hot,26,SUP01
+P480,Aster Horizon Lined Short,shorts,men,XL,80.0,Storm Blue,Storm Blue|Oatmeal|Deep Plum,hot,27,SUP01
+P481,Aster Cedar Bike Short,shorts,men,S,80.0,Oatmeal,Oatmeal|Deep Plum|White,mild,50,SUP02
+P482,Aster Cedar Bike Short,shorts,men,M,80.0,Oatmeal,Oatmeal|Deep Plum|White,mild,55,SUP02
+P483,Aster Cedar Bike Short,shorts,men,L,80.0,Oatmeal,Oatmeal|Deep Plum|White,mild,56,SUP02
+P484,Aster Cedar Bike Short,shorts,men,XL,80.0,Oatmeal,Oatmeal|Deep Plum|White,mild,57,SUP02
+P485,Aster Cloud Short,shorts,men,S,74.0,Black,Black|Navy|White,hot,36,SUP02
+P486,Aster Cloud Short,shorts,men,M,74.0,Black,Black|Navy|White,hot,44,SUP02
+P487,Aster Cloud Short,shorts,men,L,74.0,Black,Black|Navy|White,hot,34,SUP02
+P488,Aster Cloud Short,shorts,men,XL,74.0,Black,Black|Navy|White,hot,39,SUP02
+P489,Aster Nimbus Lined Short,shorts,men,S,82.0,Deep Plum,Deep Plum|Forest|White,mild,70,SUP01
+P490,Aster Nimbus Lined Short,shorts,men,M,82.0,Deep Plum,Deep Plum|Forest|White,mild,63,SUP01
+P491,Aster Nimbus Lined Short,shorts,men,L,82.0,Deep Plum,Deep Plum|Forest|White,mild,59,SUP01
+P492,Aster Nimbus Lined Short,shorts,men,XL,82.0,Deep Plum,Deep Plum|Forest|White,mild,59,SUP01
+P493,Aster Drift Bike Short,shorts,men,S,82.0,Black,Black|Charcoal|Heather Grey,hot,52,SUP02
+P494,Aster Drift Bike Short,shorts,men,M,82.0,Black,Black|Charcoal|Heather Grey,hot,53,SUP02
+P495,Aster Drift Bike Short,shorts,men,L,82.0,Black,Black|Charcoal|Heather Grey,hot,58,SUP02
+P496,Aster Drift Bike Short,shorts,men,XL,82.0,Black,Black|Charcoal|Heather Grey,hot,56,SUP02
+P497,Aster Aspen Short,shorts,men,S,78.0,Ember Red,Ember Red|Storm Blue|Sky,mild,34,SUP01
+P498,Aster Aspen Short,shorts,men,M,78.0,Ember Red,Ember Red|Storm Blue|Sky,mild,31,SUP01
+P499,Aster Aspen Short,shorts,men,L,78.0,Ember Red,Ember Red|Storm Blue|Sky,mild,34,SUP01
+P500,Aster Aspen Short,shorts,men,XL,78.0,Ember Red,Ember Red|Storm Blue|Sky,mild,35,SUP01
+P501,Aster Meridian Jogger,bottoms,men,S,128.0,Clay,Clay|Navy|Storm Blue,mild,42,SUP02
+P502,Aster Meridian Jogger,bottoms,men,M,128.0,Clay,Clay|Navy|Storm Blue,mild,36,SUP02
+P503,Aster Meridian Jogger,bottoms,men,L,128.0,Clay,Clay|Navy|Storm Blue,mild,39,SUP02
+P504,Aster Meridian Jogger,bottoms,men,XL,128.0,Clay,Clay|Navy|Storm Blue,mild,36,SUP02
+P505,Aster Trailhead Pant,bottoms,men,S,126.0,Clay,Clay|Charcoal|Deep Plum,cold,73,SUP01
+P506,Aster Trailhead Pant,bottoms,men,M,126.0,Clay,Clay|Charcoal|Deep Plum,cold,79,SUP01
+P507,Aster Trailhead Pant,bottoms,men,L,126.0,Clay,Clay|Charcoal|Deep Plum,cold,77,SUP01
+P508,Aster Trailhead Pant,bottoms,men,XL,126.0,Clay,Clay|Charcoal|Deep Plum,cold,81,SUP01
+P509,Aster Frost Track Pant,bottoms,men,S,138.0,Oatmeal,Oatmeal|Forest|Charcoal,all-season,64,SUP02
+P510,Aster Frost Track Pant,bottoms,men,M,138.0,Oatmeal,Oatmeal|Forest|Charcoal,all-season,67,SUP02
+P511,Aster Frost Track Pant,bottoms,men,L,138.0,Oatmeal,Oatmeal|Forest|Charcoal,all-season,68,SUP02
+P512,Aster Frost Track Pant,bottoms,men,XL,138.0,Oatmeal,Oatmeal|Forest|Charcoal,all-season,62,SUP02
+P513,Aster Flow Jogger,bottoms,men,S,122.0,Navy,Navy|Heather Grey|Clay,mild,40,SUP02
+P514,Aster Flow Jogger,bottoms,men,M,122.0,Navy,Navy|Heather Grey|Clay,mild,50,SUP02
+P515,Aster Flow Jogger,bottoms,men,L,122.0,Navy,Navy|Heather Grey|Clay,mild,46,SUP02
+P516,Aster Flow Jogger,bottoms,men,XL,122.0,Navy,Navy|Heather Grey|Clay,mild,44,SUP02
+P517,Aster Lumen Pant,bottoms,men,S,134.0,Sky,Sky|Deep Plum|Ember Red,cold,13,SUP02
+P518,Aster Lumen Pant,bottoms,men,M,134.0,Sky,Sky|Deep Plum|Ember Red,cold,21,SUP02
+P519,Aster Lumen Pant,bottoms,men,L,134.0,Sky,Sky|Deep Plum|Ember Red,cold,21,SUP02
+P520,Aster Lumen Pant,bottoms,men,XL,134.0,Sky,Sky|Deep Plum|Ember Red,cold,12,SUP02
+P521,Aster Vent Track Pant,bottoms,men,S,120.0,Slate,Slate|Deep Plum|Clay,all-season,92,SUP02
+P522,Aster Vent Track Pant,bottoms,men,M,120.0,Slate,Slate|Deep Plum|Clay,all-season,94,SUP02
+P523,Aster Vent Track Pant,bottoms,men,L,120.0,Slate,Slate|Deep Plum|Clay,all-season,93,SUP02
+P524,Aster Vent Track Pant,bottoms,men,XL,120.0,Slate,Slate|Deep Plum|Clay,all-season,94,SUP02
+P525,Aster Slate Jogger,bottoms,men,S,138.0,White,White|Deep Plum|Sky,mild,20,SUP02
+P526,Aster Slate Jogger,bottoms,men,M,138.0,White,White|Deep Plum|Sky,mild,15,SUP02
+P527,Aster Slate Jogger,bottoms,men,L,138.0,White,White|Deep Plum|Sky,mild,8,SUP02
+P528,Aster Slate Jogger,bottoms,men,XL,138.0,White,White|Deep Plum|Sky,mild,17,SUP02
+P529,Aster Trace Pant,bottoms,men,S,106.0,White,White|Charcoal|Heather Grey,cold,59,SUP01
+P530,Aster Trace Pant,bottoms,men,M,106.0,White,White|Charcoal|Heather Grey,cold,58,SUP01
+P531,Aster Trace Pant,bottoms,men,L,106.0,White,White|Charcoal|Heather Grey,cold,68,SUP01
+P532,Aster Trace Pant,bottoms,men,XL,106.0,White,White|Charcoal|Heather Grey,cold,64,SUP01
+P533,Aster Aurora Track Pant,bottoms,men,S,130.0,Olive,Olive|Charcoal|Storm Blue,all-season,47,SUP02
+P534,Aster Aurora Track Pant,bottoms,men,M,130.0,Olive,Olive|Charcoal|Storm Blue,all-season,39,SUP02
+P535,Aster Aurora Track Pant,bottoms,men,L,130.0,Olive,Olive|Charcoal|Storm Blue,all-season,46,SUP02
+P536,Aster Aurora Track Pant,bottoms,men,XL,130.0,Olive,Olive|Charcoal|Storm Blue,all-season,40,SUP02
+P537,Aster Base Jogger,bottoms,men,S,126.0,White,White|Storm Blue|Ember Red,mild,43,SUP02
+P538,Aster Base Jogger,bottoms,men,M,126.0,White,White|Storm Blue|Ember Red,mild,39,SUP02
+P539,Aster Base Jogger,bottoms,men,L,126.0,White,White|Storm Blue|Ember Red,mild,36,SUP02
+P540,Aster Base Jogger,bottoms,men,XL,126.0,White,White|Storm Blue|Ember Red,mild,32,SUP02
+P541,Aster Tempo Backpack,bags,unisex,OS,38.0,Charcoal,Charcoal|Olive|White,all-season,71,SUP02
+P542,Aster Cadence Duffel,bags,unisex,OS,112.0,Oatmeal,Oatmeal|Sky|Deep Plum,all-season,60,SUP01
+P543,Aster Kodiak Sling,bags,unisex,OS,98.0,Black,Black|Navy|Olive,all-season,54,SUP01
+P544,Aster Dune Tote,bags,unisex,OS,118.0,Sky,Sky|Sand|Forest,all-season,42,SUP02
+P545,Aster Ridgeline Belt Bag,bags,unisex,OS,42.0,Black,Black|Charcoal|Sand,all-season,20,SUP01
+P546,Aster Ember Backpack,bags,unisex,OS,54.0,Oatmeal,Oatmeal|Sand|Heather Grey,all-season,81,SUP02
+P547,Aster Solstice Duffel,bags,unisex,OS,150.0,Oatmeal,Oatmeal|Deep Plum|White,all-season,69,SUP02
+P548,Aster Summit Sling,bags,unisex,OS,126.0,Heather Grey,Heather Grey|Slate|Sand,all-season,64,SUP01
+P549,Aster Rally Tote,bags,unisex,OS,124.0,Heather Grey,Heather Grey|Olive|Deep Plum,all-season,54,SUP01
+P550,Aster Zephyr Belt Bag,bags,unisex,OS,62.0,White,White|Sky|Sand,all-season,24,SUP01
+P551,Aster Glacier Beanie,accessories,unisex,OS,18.0,Black,Black|Ember Red|Heather Grey,cold,46,SUP01
+P552,Aster Coastal Cap,accessories,unisex,OS,30.0,White,White|Sky|Ember Red,all-season,82,SUP01
+P553,Aster Halo Socks,accessories,unisex,OS,32.0,Heather Grey,Heather Grey|Ember Red|Storm Blue,cold,83,SUP01
+P554,Aster Marin Gloves,accessories,unisex,OS,26.0,Olive,Olive|Charcoal|Ember Red,all-season,35,SUP01
+P555,Aster Torrent Headband,accessories,unisex,OS,26.0,Black,Black|Heather Grey|Ember Red,cold,33,SUP02
+P556,Aster Storm Scarf,accessories,unisex,OS,34.0,Black,Black|Storm Blue|Forest,all-season,67,SUP01
+P557,Aster Field Beanie,accessories,unisex,OS,48.0,Sand,Sand|Ember Red|Heather Grey,cold,75,SUP01
+P558,Aster Pace Cap,accessories,unisex,OS,32.0,Navy,Navy|Black|Forest,all-season,76,SUP02
+P559,Aster Boreal Socks,accessories,unisex,OS,20.0,Sand,Sand|Sky|Oatmeal,cold,64,SUP01
+P560,Aster Alpine Gloves,accessories,unisex,OS,22.0,Clay,Clay|White|Heather Grey,all-season,81,SUP01

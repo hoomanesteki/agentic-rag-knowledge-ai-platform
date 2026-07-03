@@ -10,9 +10,13 @@ models:
           - unique
       - name: name
       - name: category
+      - name: gender
       - name: size
       - name: price
       - name: color
+      - name: colors
+      - name: weather
+      - name: stock
       - name: supplier_id
         tests:
           - relationships:

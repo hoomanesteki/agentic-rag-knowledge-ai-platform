@@ -44,8 +44,9 @@ package = false
 line-length = 100
 target-version = "py311"
 # Notebooks are exploratory; compact imports and semicolon-joined plotting are idiomatic there and
-# should not be held to engine-code style.
-extend-exclude = ["notebooks"]
+# should not be held to engine-code style. Domain data generators hold wide tabular literals (one
+# product per line) that read better un-wrapped, and they are pack content, not engine code.
+extend-exclude = ["notebooks", "domains/*/tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

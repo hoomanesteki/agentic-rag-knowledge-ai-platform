@@ -29,6 +29,12 @@ dev = [
 dbt = [
     "dbt-duckdb>=1.9.0",
 ]
+# The notebooks in notebooks/ use matplotlib and pandas for the charts. Kept optional and light
+# (no full Jupyter tree; the IDE or an existing jupyter supplies the kernel) so the base stays lean.
+notebook = [
+    "matplotlib>=3.9",
+    "pandas>=2.2",
+]
 
 # This is an application, not a library. Do not try to build or install it as a package.
 [tool.uv]
@@ -37,6 +43,9 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Notebooks are exploratory; compact imports and semicolon-joined plotting are idiomatic there and
+# should not be held to engine-code style.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

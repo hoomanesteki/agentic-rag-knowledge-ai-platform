@@ -85,9 +85,21 @@ documented, and lineage-traced like a production data stack.
 - T6.3 The model-selection note ([../model-selection.md](../model-selection.md)) and the per-stage
   reports under [stages/](stages/).
 
-## How I will sequence it
+## How I sequenced it
 
-T1 first, because the semantic layer is the foundation everything else reads. T2 rides along inside
+T1 first, because the semantic layer is the foundation everything else reads. T2 rode along inside
 T1 (better data, modeled in dbt). Then T3 so I can watch it, T4 so it feels good to use, T5 so it
 stays correct, and T6 so it reads well. Each stage is small, reviewed by an independent model before
 it merges, and green on `make check`.
+
+## Stage reports
+
+Each stage has a short, plain result note: what I did, what I tested, what passed.
+
+- [T1.1 The medallion in dbt](stages/T1.1-dbt-medallion.md)
+- [T1.2 The semantic layer, parity, and lineage](stages/T1.2-semantic-layer.md)
+- [T2 Sample data and company knowledge](stages/T2-sample-data.md)
+- [T3 Observability with Langfuse](stages/T3-langfuse.md)
+- [T4 Guided experience](stages/T4-guided-experience.md)
+- [T5 Reproducibility and tests](stages/T5-reproducibility-tests.md)
+- [T6 The story](stages/T6-story.md)

@@ -219,7 +219,8 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
       return;
     }
     const rec = new SR();
-    rec.lang = "en-US";
+    // follow the browser locale so French users get French recognition, not forced en-US
+    rec.lang = (typeof navigator !== "undefined" && navigator.language) || "en-US";
     rec.onresult = (e: SpeechRecognitionEventLike) => setQuery(e.results[0][0].transcript);
     rec.onerror = () => setAnswer("Could not capture voice. Please type your question.");
     rec.start();

@@ -46,6 +46,7 @@ _INSECURE_JWT_SECRETS = {"dev-insecure-change-me", "change-me", "change-me-to-a-
 _MIN_JWT_SECRET_LEN = 32
 _DEFAULT_ADMIN_PASSWORD = "skein-admin-2026"  # the value committed in .env.example / config.py
 _DEFAULT_DEMO_PASSWORD = "skein-demo-2026"
+_DEFAULT_NEO4J_PASSWORD = "skein_password"
 _log = logging.getLogger("skein.api")
 
 
@@ -106,6 +107,12 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > _MAX_BODY_BYTES:
             return JSONResponse({"detail": "request body too large"}, status_code=413)
+        # A chunked body carries no Content-Length, so it would slip past the check above and be
+        # buffered unbounded before pydantic's field caps run. This app's clients always send a
+        # Content-Length, so refuse chunked uploads outright.
+        if "chunked" in request.headers.get("transfer-encoding", "").lower():
+            return JSONResponse({"detail": "chunked transfer-encoding is not accepted"},
+                                status_code=411)
         return await call_next(request)
 
     login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
@@ -136,6 +143,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                "SKEIN_ENV=production.")
         if settings.demo_password == _DEFAULT_DEMO_PASSWORD:
             raise RuntimeError("DEMO_PASSWORD is the documented default; set a real one before "
+                               "SKEIN_ENV=production.")
+        if settings.graph_provider == "neo4j" and \
+                settings.neo4j_password == _DEFAULT_NEO4J_PASSWORD:
+            raise RuntimeError("NEO4J_PASSWORD is the documented default; set a real one before "
                                "SKEIN_ENV=production.")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")

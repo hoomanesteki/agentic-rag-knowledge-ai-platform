@@ -6,10 +6,21 @@ security-sensitive toggles to safe defaults and clear the cache around every tes
 a specific value set it explicitly (see the _env helper in test_api.py).
 """
 import os
+import tempfile
 
-import pytest
+# Redirect the trace/feedback/verified paths to a throwaway dir BEFORE anything imports them.
+# pipeline.answer binds DEFAULT_TRACE_PATH from TRACE_PATH at import, and api.app reads
+# FEEDBACK_PATH at import, so setting these first keeps `make check` from writing fake test
+# traffic into the real traces/ that drift, MLflow, and the admin dashboards read. Set before
+# load_dotenv runs (via the adapters.config import below); load_dotenv does not override.
+_TRACE_DIR = tempfile.mkdtemp(prefix="skein-test-traces-")
+os.environ["TRACE_PATH"] = os.path.join(_TRACE_DIR, "requests.jsonl")
+os.environ["FEEDBACK_PATH"] = os.path.join(_TRACE_DIR, "feedback.jsonl")
+os.environ["VERIFIED_PATH"] = os.path.join(_TRACE_DIR, "verified_answers.jsonl")
 
-from adapters import config
+import pytest  # noqa: E402
+
+from adapters import config  # noqa: E402
 
 # Run at collection time, before any test module imports api.app (whose module-level
 # `app = create_app()` would otherwise raise if the developer's .env sets SKEIN_ENV=production

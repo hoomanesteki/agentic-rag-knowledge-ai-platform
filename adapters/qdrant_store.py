@@ -25,12 +25,19 @@ def _to_filter(where: dict) -> dict:
 
 
 class QdrantStore:
-    def __init__(self, collection: str, url: str | None = None) -> None:
+    def __init__(self, collection: str, url: str | None = None,
+                 api_key: str | None = None) -> None:
         self.collection = collection
-        self.url = (url or get_settings().qdrant_url).rstrip("/")
+        settings = get_settings()
+        self.url = (url or settings.qdrant_url).rstrip("/")
+        # Qdrant Cloud rejects unauthenticated requests; the header is harmless against a local
+        # instance that ignores it. Empty key -> no header, so local dev keeps working.
+        key = settings.qdrant_api_key if api_key is None else api_key
+        self._headers = {"api-key": key} if key else None
 
     def _exists(self) -> bool:
-        resp = request_json("GET", "{}/collections/{}/exists".format(self.url, self.collection))
+        resp = request_json("GET", "{}/collections/{}/exists".format(self.url, self.collection),
+                            headers=self._headers)
         return bool(resp.get("result", {}).get("exists"))
 
     def ensure_collection(self, dense_dim: int) -> None:
@@ -39,7 +46,7 @@ class QdrantStore:
         request_json("PUT", "{}/collections/{}".format(self.url, self.collection), {
             "vectors": {"dense": {"size": dense_dim, "distance": "Cosine"}},
             "sparse_vectors": {"sparse": {"modifier": "idf"}},
-        })
+        }, headers=self._headers)
 
     def upsert(self, points: list[dict]) -> None:
         """Each point: {id, text, payload, dense: [...], sparse: {indices, values}}."""
@@ -57,7 +64,7 @@ class QdrantStore:
         ]}
         request_json("PUT",
                      "{}/collections/{}/points?wait=true".format(self.url, self.collection),
-                     body)
+                     body, headers=self._headers)
 
     def hybrid_search(self, dense_query: list[float], sparse_query: dict,
                       top_k: int = 8, where: dict | None = None,
@@ -68,7 +75,8 @@ class QdrantStore:
             body = {"query": dense_query, "using": "dense", "limit": top_k, "with_payload": True}
             if flt:
                 body["filter"] = flt
-            return request_json("POST", url, body).get("result", {}).get("points", [])
+            return request_json("POST", url, body, headers=self._headers).get(
+                "result", {}).get("points", [])
 
         prefetch_limit = top_k * 4
         prefetch = [
@@ -81,4 +89,5 @@ class QdrantStore:
                 branch["filter"] = flt
         body = {"prefetch": prefetch, "query": {"fusion": "rrf"},
                 "limit": top_k, "with_payload": True}
-        return request_json("POST", url, body).get("result", {}).get("points", [])
+        return request_json("POST", url, body, headers=self._headers).get(
+            "result", {}).get("points", [])

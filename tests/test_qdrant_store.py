@@ -60,6 +60,31 @@ def test_upsert_builds_named_vectors_with_uuid_id(monkeypatch):
     assert point["payload"]["text"] == "hi"
 
 
+def test_api_key_is_sent_as_a_header_when_set(monkeypatch):
+    # Qdrant Cloud rejects unauthenticated requests, so the key must ride on every call.
+    seen = {}
+
+    def fake(method, url, payload=None, headers=None, timeout=60):
+        seen["headers"] = headers
+        return {"result": {"exists": True}}
+
+    monkeypatch.setattr(qs_mod, "request_json", fake)
+    QdrantStore(collection="c", url="http://q", api_key="secret-key")._exists()
+    assert seen["headers"] == {"api-key": "secret-key"}
+
+
+def test_no_api_key_sends_no_header(monkeypatch):
+    seen = {}
+
+    def fake(method, url, payload=None, headers=None, timeout=60):
+        seen["headers"] = headers
+        return {"result": {"exists": True}}
+
+    monkeypatch.setattr(qs_mod, "request_json", fake)
+    QdrantStore(collection="c", url="http://q", api_key="")._exists()
+    assert seen["headers"] is None  # local Qdrant: no header
+
+
 def test_dense_only_is_a_plain_query_no_fusion(monkeypatch):
     seen = {}
 

@@ -27,6 +27,7 @@ class Settings:
     groq_api_key: str
     voyage_api_key: str
     qdrant_url: str
+    qdrant_api_key: str
     neo4j_url: str
     neo4j_user: str
     neo4j_password: str
@@ -66,6 +67,7 @@ def get_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY", ""),
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
+        qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),  # required by Qdrant Cloud, empty locally
         neo4j_url=os.getenv("NEO4J_URL", "http://localhost:7474"),
         neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
         neo4j_password=os.getenv("NEO4J_PASSWORD", "skein_password"),

@@ -20,9 +20,9 @@ def build_ablation_report(results: list[tuple[str, dict]], *, domain: str, note:
             meta.get("embed"), meta.get("rerank"), meta.get("top_k_in"), meta.get("generated")))
     first = results[0][1]
     cov = first["coverage"]
-    lines.append("top_k={}, measured {} qualitative question(s), {} deferred to M4/M5, "
-                 "abstain-set {}.".format(first["top_k"], cov["measured"], cov["deferred"],
-                                          cov["abstain_set"]))
+    lines.append("top_k={}, measured {} qualitative question(s), {} deferred (metric/graph routes "
+                 "answered outside this vector-retrieval harness), abstain-set {}.".format(
+                     first["top_k"], cov["measured"], cov["deferred"], cov["abstain_set"]))
     lines += [
         "",
         "| variant | scope | hit@k | entity_recall@k | mrr | false_abstain | abstain_recall |",

@@ -37,7 +37,7 @@ def _build_graph_retriever(domain: str):
 @lru_cache
 def get_components() -> dict:
     settings = get_settings()
-    lakehouse_db = os.getenv("LAKEHOUSE_DB", ".lakehouse.duckdb")
+    lakehouse_db = os.getenv("LAKEHOUSE_DB", "lakehouse.duckdb")
     # Chat still works vector-only without a lakehouse, but a missing one silently disables the
     # metric layer. Log it once so the loss is visible instead of a mystery in production.
     if not os.path.exists(lakehouse_db):

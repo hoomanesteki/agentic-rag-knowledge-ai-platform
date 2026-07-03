@@ -15,7 +15,7 @@
 **/*.db
 mlruns/
 traces/
-# NOTE: .lakehouse.duckdb is intentionally NOT excluded, so a locally-built lakehouse can be baked
+# NOTE: lakehouse.duckdb is intentionally NOT excluded, so a locally-built lakehouse can be baked
 # into the image to serve governed metric answers (see docs/DEPLOY.md step 3). It is absent by
 # default, in which case metric answers are simply disabled.
 

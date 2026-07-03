@@ -96,14 +96,14 @@ make ingest && make graph-load     # DOMAIN=apparel_ecommerce (or saas_support)
 To also serve governed **metric** answers, the DuckDB gold tables must be inside the image, because
 DuckDB is an embedded file with no hosted target. The `.dockerignore` already allows it in; the one
 extra step is telling `gcloud --source .` to upload it (it derives its ignore list from
-`.gitignore`, which excludes `.lakehouse.duckdb`). Create a `.gcloudignore` that keeps the
+`.gitignore`, which excludes `lakehouse.duckdb`). Create a `.gcloudignore` that keeps the
 `.gitignore` defaults and un-ignores just the lakehouse:
 
 ```bash
-make lakehouse                     # writes .lakehouse.duckdb (synthetic seed data only)
+make lakehouse                     # writes lakehouse.duckdb (synthetic seed data only)
 cat > .gcloudignore <<'EOF'
 #!include:.gitignore
-!.lakehouse.duckdb
+!lakehouse.duckdb
 EOF
 ```
 

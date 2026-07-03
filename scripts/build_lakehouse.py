@@ -13,7 +13,7 @@ from adapters.config import get_settings
 from data.contracts import check_contracts
 from data.lakehouse import build_lakehouse
 
-_DB = os.getenv("LAKEHOUSE_DB", ".lakehouse.duckdb")
+_DB = os.getenv("LAKEHOUSE_DB", "lakehouse.duckdb")
 
 
 def main() -> int:

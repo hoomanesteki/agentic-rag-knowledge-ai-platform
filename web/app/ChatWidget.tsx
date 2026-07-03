@@ -429,11 +429,20 @@ function Conversation({
     setHeard("");
     setVoiceState("greeting");
     await speakAsync("Hi, I'm your Aster assistant. How can I help you today?");
+    let quiet = 0;
     while (voiceLiveRef.current) {
       setVoiceState("listening");
       const said = await listenOnce();
       if (!voiceLiveRef.current) break;
-      if (!said.trim()) continue; // heard nothing, keep listening
+      if (!said.trim()) {
+        // nothing heard (silence, or the mic was blocked): give up after a few tries, do not spin
+        if (++quiet >= 3) {
+          await speakAsync("I did not catch that. Tap the mic when you are ready.");
+          break;
+        }
+        continue;
+      }
+      quiet = 0;
       setHeard(said);
       setVoiceState("thinking");
       const answer = await send(said);
@@ -441,6 +450,8 @@ function Conversation({
       setVoiceState("speaking");
       await speakAsync(answer);
     }
+    voiceLiveRef.current = false;
+    setVoiceOn(false);
   }
 
   function stopVoice() {

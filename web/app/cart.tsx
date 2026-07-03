@@ -16,10 +16,14 @@ type CartCtx = {
   count: number;
   subtotal: number;
   add: (line: Omit<CartLine, "qty">, qty?: number) => void;
-  setQty: (id: string, size: string, qty: number) => void;
-  remove: (id: string, size: string) => void;
+  setQty: (id: string, size: string, color: string, qty: number) => void;
+  remove: (id: string, size: string, color: string) => void;
   clear: () => void;
 };
+
+// a cart line is unique by product + size + color, so two colorways stay separate
+const sameLine = (a: { id: string; size: string; color: string }, b: { id: string; size: string; color: string }) =>
+  a.id === b.id && a.size === b.size && a.color === b.color;
 
 const Ctx = createContext<CartCtx | null>(null);
 const KEY = "aster_cart";
@@ -42,7 +46,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const add: CartCtx["add"] = (line, qty = 1) =>
     setLines((all) => {
-      const i = all.findIndex((l) => l.id === line.id && l.size === line.size);
+      const i = all.findIndex((l) => sameLine(l, line));
       if (i >= 0) {
         const copy = [...all];
         copy[i] = { ...copy[i], qty: copy[i].qty + qty };
@@ -51,15 +55,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...all, { ...line, qty }];
     });
 
-  const setQty: CartCtx["setQty"] = (id, size, qty) =>
+  const setQty: CartCtx["setQty"] = (id, size, color, qty) =>
     setLines((all) =>
       all
-        .map((l) => (l.id === id && l.size === size ? { ...l, qty: Math.max(0, qty) } : l))
+        .map((l) => (sameLine(l, { id, size, color }) ? { ...l, qty: Math.max(0, qty) } : l))
         .filter((l) => l.qty > 0),
     );
 
-  const remove: CartCtx["remove"] = (id, size) =>
-    setLines((all) => all.filter((l) => !(l.id === id && l.size === size)));
+  const remove: CartCtx["remove"] = (id, size, color) =>
+    setLines((all) => all.filter((l) => !sameLine(l, { id, size, color })));
 
   const clear = () => setLines([]);
 

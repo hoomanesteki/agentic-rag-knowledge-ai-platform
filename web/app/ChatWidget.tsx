@@ -112,11 +112,30 @@ type Recognizer = {
   continuous: boolean;
   maxAlternatives: number;
   onresult: (e: SpeechResult) => void;
-  onerror: () => void;
+  onerror: (e: { error?: string }) => void;
   onend: () => void;
   start: () => void;
   abort: () => void;
 };
+
+// Strip markdown so the voice speaks clean text (no "star star" or "bracket one").
+function plainSpeak(text: string): string {
+  return text
+    .replace(/\[\d+(?:,\s*\d+)*\]/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*[*-]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+// Significant words, for a fuzzy echo check that survives punctuation and casing differences.
+function normWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+}
 function makeRecognizer(): Recognizer | null {
   if (typeof window === "undefined") return null;
   const SR =
@@ -330,6 +349,7 @@ function Conversation({
   const speakingRef = useRef(false); // currently speaking, so a new utterance can barge in
   const utterRef = useRef(0); // id of the current utterance, to drop superseded ones
   const lastSpokenRef = useRef(""); // what we are saying, to ignore the mic hearing our own voice
+  const micDeadRef = useRef(false); // mic denied/unavailable, so do not restart the recognizer
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -360,10 +380,10 @@ function Conversation({
 
   async function send(q: string): Promise<string> {
     if (!q.trim() || loading) return "";
-    // light personalization: remember a name the shopper offers, and greet back if that is all
-    // they said, without bothering the model
-    const nameHit = /(?:my name is|call me|i am|i'm)\s+([a-zA-Z][a-zA-Z'-]{1,19})\b/i.exec(q);
-    if (nameHit && !/looking|not|from|trying|wondering|here|interested|sure|okay|good/i.test(nameHit[1])) {
+    // light personalization: remember a name the shopper explicitly gives, and greet back if that
+    // is all they said. Only the explicit forms, so "I'm between sizes" never becomes a name.
+    const nameHit = /(?:my name is|call me)\s+([a-zA-Z][a-zA-Z'-]{1,19})\b/i.exec(q);
+    if (nameHit) {
       const nm = nameHit[1][0].toUpperCase() + nameHit[1].slice(1).toLowerCase();
       localStorage.setItem("aster_name", nm);
       setName(nm);
@@ -485,8 +505,12 @@ function Conversation({
     if (!voiceLiveRef.current) return;
     if (processingRef.current && !speakingRef.current) return; // busy thinking, ignore
     if (speakingRef.current) {
-      // the mic may just be hearing our own voice; ignore an echo of what we are saying
-      if (lastSpokenRef.current.toLowerCase().includes(text.toLowerCase()) && text.length > 4) return;
+      // the mic may just be hearing our own voice; ignore an utterance that mostly echoes what we
+      // are saying, and only treat a genuinely new one as a barge-in
+      const spoken = new Set(normWords(lastSpokenRef.current));
+      const words = normWords(text);
+      const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
+      if (words.length >= 2 && overlap > 0.6) return;
       if (typeof window !== "undefined") window.speechSynthesis?.cancel(); // barge in
     }
     const myId = ++utterRef.current;
@@ -497,9 +521,10 @@ function Conversation({
     const answer = await send(text);
     if (!voiceLiveRef.current || myId !== utterRef.current) return; // stopped or superseded
     speakingRef.current = true;
-    lastSpokenRef.current = answer;
+    const spoken = plainSpeak(answer);
+    lastSpokenRef.current = spoken;
     setVoiceState("speaking");
-    await speakAsync(answer);
+    await speakAsync(spoken);
     if (myId !== utterRef.current) return; // a newer utterance took over while we spoke
     speakingRef.current = false;
     processingRef.current = false;
@@ -521,9 +546,20 @@ function Conversation({
       }
       if (finalText.trim()) handleUtterance(finalText.trim());
     };
-    rec.onerror = () => {};
+    rec.onerror = (e) => {
+      const err = e?.error || "";
+      // permission or hardware problems are fatal: stop, do not spin restarting the recognizer
+      if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
+        micDeadRef.current = true;
+        stopVoice();
+        setMessages((m) => [
+          ...m,
+          { role: "bot", text: "I couldn't reach the microphone. Please allow mic access, or type your question." },
+        ]);
+      }
+    };
     rec.onend = () => {
-      if (voiceLiveRef.current) {
+      if (voiceLiveRef.current && !micDeadRef.current) {
         try {
           rec.start(); // browsers stop after a pause; keep the mic alive until Stop
         } catch {
@@ -551,6 +587,7 @@ function Conversation({
     voiceLiveRef.current = true;
     processingRef.current = false;
     speakingRef.current = false;
+    micDeadRef.current = false;
     utterRef.current = 0;
     setHeard("");
     setVoiceState("greeting");

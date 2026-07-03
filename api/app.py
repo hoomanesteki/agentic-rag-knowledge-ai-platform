@@ -121,6 +121,13 @@ def _catalog(domain: str) -> list:
 
 
 @lru_cache
+def _brand(domain: str) -> str:
+    """The active domain's display brand, read from its manifest, so the storefront names itself
+    from the pack instead of the engine hardcoding it."""
+    return str(load_manifest(os.path.join("domains", domain)).get("brand", "") or "")[:80]
+
+
+@lru_cache
 def _suggestions(domain: str) -> list:
     """The active domain's starter prompts, read from its manifest. Only text/lang/kind are
     exposed and the list is capped, so a pack cannot push arbitrary fields to the client."""
@@ -333,8 +340,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
     @app.get("/api/catalog")
     def catalog():
-        # public: the storefront shows products before login, like a real store
-        return {"domain": settings.domain, "products": _catalog(settings.domain)}
+        # public: the storefront shows products before login, like a real store. The brand comes
+        # from the pack so the engine stays domain agnostic.
+        return {
+            "domain": settings.domain,
+            "brand": _brand(settings.domain),
+            "products": _catalog(settings.domain),
+        }
 
     @app.post("/api/transcribe")
     def transcribe(body: TranscribeRequest, request: Request,

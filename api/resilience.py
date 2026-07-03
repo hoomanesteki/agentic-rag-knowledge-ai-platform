@@ -71,23 +71,27 @@ class CachingEmbedder:
 
     def embed(self, texts: list[str], input_type: str = "document") -> list[list[float]]:
         out: list[list[float] | None] = [None] * len(texts)
-        miss_idx, miss_txt = [], []
+        need: dict[str, list[float] | None] = {}  # unique cache-miss texts, deduped
         for i, t in enumerate(texts):
             hit = self._cache.get((input_type, t))
             if hit is not None:
                 out[i] = hit
-            else:
-                miss_idx.append(i)
-                miss_txt.append(t)
-        if miss_txt:
-            vecs = self.inner.embed(miss_txt, input_type=input_type)
-            for j, i in enumerate(miss_idx):
-                key = (input_type, texts[i])
-                self._cache[key] = vecs[j]
-                self._order.append(key)
-                out[i] = vecs[j]
+            elif t not in need:
+                need[t] = None
+        if need:
+            uniq = list(need)
+            vecs = self.inner.embed(uniq, input_type=input_type)  # each miss embedded once
+            for t, v in zip(uniq, vecs):
+                key = (input_type, t)
+                if key not in self._cache:
+                    self._order.append(key)
+                self._cache[key] = v
+                need[t] = v
             while len(self._order) > self.maxsize:  # evict oldest
                 self._cache.pop(self._order.pop(0), None)
+        for i, t in enumerate(texts):  # fill misses, preserving input order
+            if out[i] is None:
+                out[i] = need[t]
         return [v for v in out if v is not None]
 
 
@@ -114,6 +118,26 @@ class CachingReranker:
         while len(self._order) > self.maxsize:
             self._cache.pop(self._order.pop(0), None)
         return out
+
+
+class ResilientReranker:
+    """Retries transient rerank failures; if they persist, returns the identity ranking so the
+    caller keeps the pre-rerank order and still answers, instead of the whole turn degrading over a
+    rerank blip. Rerank is a precision boost, not a hard dependency, so falling back is safe."""
+
+    def __init__(self, inner, attempts: int = 2, base_delay: float = 0.4) -> None:
+        self.inner = inner
+        self.attempts = attempts
+        self.base_delay = base_delay
+
+    def rerank(self, query: str, documents: list[str], top_n: int = 8) -> list[tuple[int, float]]:
+        try:
+            return with_retry(lambda: self.inner.rerank(query, documents, top_n=top_n),
+                              attempts=self.attempts, base_delay=self.base_delay)
+        except RuntimeError as exc:
+            if is_transient(exc):  # keep the answer, just without the rerank re-ordering
+                return [(i, 0.0) for i in range(min(top_n, len(documents)))]
+            raise
 
 
 class ResilientLLM:

@@ -255,6 +255,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                 settings.neo4j_password == _DEFAULT_NEO4J_PASSWORD:
             raise RuntimeError("NEO4J_PASSWORD is the documented default; set a real one before "
                                "SKEIN_ENV=production.")
+        if not (settings.gate_username and settings.gate_password):
+            # Empty gate credentials leave /api/gate-login open, and it mints a chat token.
+            raise RuntimeError("GATE_USERNAME and GATE_PASSWORD must be set before "
+                               "SKEIN_ENV=production, or the demo gate is open to anyone.")
     if not settings.turnstile_secret:
         _log.warning("TURNSTILE_SECRET_KEY is empty; the login captcha is bypassed (dev only).")
     if settings.demo_readonly:
@@ -323,9 +327,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     @app.post("/api/demo-login")
     def demo_login(request: Request):
         # Frictionless demo: outside production, hand a visitor a demo-user token so they can land
-        # on the store and just ask, no password wall. Disabled in production, where real login is
-        # required. Rate-limited so it cannot be used to mint tokens in a loop.
-        if settings.app_env == "production":
+        # on the store and just ask, no password wall. Disabled in production, where the gate is
+        # the only way in. Rate-limited so it cannot be used to mint tokens in a loop.
+        if production:
             raise HTTPException(status_code=404, detail="not found")
         if not login_limiter.allow(client_key(request)):
             raise HTTPException(status_code=429, detail="too many attempts",
@@ -348,11 +352,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
             raise HTTPException(status_code=403, detail="captcha verification failed")
         import hmac
         gu, gp = settings.gate_username, settings.gate_password
-        ok = (not gu and not gp) or (
-            hmac.compare_digest(body.username or "", gu)
-            and hmac.compare_digest(body.password or "", gp)
-        )
-        if not ok:
+        # compare bytes, so an accented character is a wrong password, not a 500. Both halves always
+        # run (no and-short-circuit) so timing does not leak whether the username matched.
+        user_ok = hmac.compare_digest((body.username or "").encode(), gu.encode())
+        pass_ok = hmac.compare_digest((body.password or "").encode(), gp.encode())
+        if not ((not gu and not gp) or (user_ok & pass_ok)):
             raise HTTPException(status_code=401, detail="invalid credentials")
         return {"access_token": create_access_token("gate", "gate", settings.jwt_secret),
                 "token_type": "bearer"}
@@ -443,8 +447,12 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         }
 
     @app.get("/api/product/{pid}")
-    def product(pid: str):
-        # public: a product detail page (basics + marketing copy + reviews)
+    def product(pid: str, request: Request):
+        # public: a product detail page (basics + marketing copy + reviews). Rate-limited so a
+        # scraper cannot cycle ids to hammer the file reads.
+        if not limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="rate limit exceeded",
+                                headers={"Retry-After": "10"})
         p = _product(settings.domain, pid)
         if not p:
             raise HTTPException(status_code=404, detail="product not found")

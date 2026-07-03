@@ -10,6 +10,7 @@ type Domain = {
   metrics: { name: string; grain: string | null; dimensions: string[]; params: string[] }[];
   lineage: { medallion: { role: string; layers: string[]; pii_columns: string[]; metrics: string[] }[] };
   mlflow_url: string | null;
+  langfuse_url: string | null;
 };
 
 type Gap = { question: string; count: number };
@@ -43,7 +44,29 @@ export default function InsightsPage() {
 
   return (
     <main className="admin">
+      <nav>
+        <a href="/admin">Queue</a>
+        <a href="/admin/quality">Quality</a>
+        <a href="/admin/health">Health</a>
+        <a href="/admin/insights">Insights</a>
+      </nav>
       <h1>Domain: {domain.domain}</h1>
+
+      {(domain.mlflow_url || domain.langfuse_url) && (
+        <div className="row">
+          <span className="meta">Observability:</span>
+          {domain.langfuse_url && (
+            <a className="ext" href={domain.langfuse_url} target="_blank" rel="noreferrer">
+              Langfuse traces
+            </a>
+          )}
+          {domain.mlflow_url && (
+            <a className="ext" href={domain.mlflow_url} target="_blank" rel="noreferrer">
+              MLflow runs
+            </a>
+          )}
+        </div>
+      )}
 
       <h2>Knowledge gaps</h2>
       {gaps.length === 0 ? (
@@ -87,12 +110,6 @@ export default function InsightsPage() {
           </li>
         ))}
       </ul>
-
-      {domain.mlflow_url && (
-        <p>
-          <a href={domain.mlflow_url}>Open MLflow</a>
-        </p>
-      )}
     </main>
   );
 }

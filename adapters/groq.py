@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 
-from ._http import request_json
+from ._http import _USER_AGENT, request_json
 from .base import LLMResult
 from .config import get_settings
 from .observability import observe, update_generation
@@ -66,6 +66,7 @@ class GroqClient:
         req = urllib.request.Request(
             self.base_url + "/chat/completions", data=json.dumps(body).encode(), method="POST")
         req.add_header("Content-Type", "application/json")
+        req.add_header("User-Agent", _USER_AGENT)  # else Groq's Cloudflare 403s the stream (1010)
         req.add_header("Authorization", "Bearer " + self.api_key)
         try:
             resp = urllib.request.urlopen(req, timeout=60)  # noqa: S310

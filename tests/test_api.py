@@ -308,6 +308,13 @@ def test_suggestions_requires_auth_and_returns_domain_prompts():
         assert set(first) == {"text", "lang", "kind"} and first["text"]
 
 
+def test_catalog_is_public_and_returns_a_product_list():
+    # the storefront shows products before login, so no auth; shape is a list (possibly empty
+    # without a built lakehouse)
+    body = _client(_components()).get("/api/catalog").json()
+    assert "products" in body and isinstance(body["products"], list)
+
+
 def test_chat_rejects_forged_token():
     forged = "Bearer " + create_access_token("demo", "customer", "a-different-secret")
     resp = _client(_components()).post("/api/chat", json={"query": "hi"},

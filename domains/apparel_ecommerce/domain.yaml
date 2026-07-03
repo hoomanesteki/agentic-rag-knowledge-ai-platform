@@ -31,6 +31,7 @@ sources:
         category: string
         size: string
         price: float
+        color: string
         supplier_id: string
       pii_columns: []
     - file: seed/structured/stores.csv
@@ -89,6 +90,21 @@ sources:
       text_field: text
       lang_field: lang
       meta_fields: [category]
+    # Product descriptions: the marketing copy with materials, fit, and what each piece is good
+    # for (weather, activity). This is what the assistant retrieves to recommend a product.
+    - file: seed/unstructured/products.jsonl
+      doc_type: product
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [product_id, category]
+      entity_ref: [product_id]
+      context_fields: [product_id]
+      mentions:
+        node_label: ProductDoc
+        edge_type: DESCRIBES
+        target_label: Product
+        target_name_property: name
 
 # Knowledge graph (M5): nodes come from gold tables, edges from foreign keys already in the
 # data. The engine reads this section and never hardcodes a label or relationship. Labels match
@@ -98,7 +114,7 @@ graph:
     - label: Product
       source: products
       key: product_id
-      properties: [name, category, size, price]
+      properties: [name, category, size, price, color]
     - label: Supplier
       source: suppliers
       key: supplier_id

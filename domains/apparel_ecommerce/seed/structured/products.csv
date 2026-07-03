@@ -1,9 +1,21 @@
-product_id,name,category,size,price,supplier_id
-P001,Aster Flow Legging,leggings,S,98.0,SUP01
-P002,Aster Flow Legging,leggings,M,98.0,SUP01
-P003,Aster Flow Legging,leggings,L,98.0,SUP01
-P004,Aster Vent Tech Tee,tops,M,78.0,SUP02
-P005,Aster Vent Tech Tee,tops,L,78.0,SUP02
-P006,Aster Daytrip Belt Bag,bags,OS,38.0,SUP01
-P007,Aster Cloud Hoodie,hoodies,M,118.0,SUP01
-P008,Aster Cloud Hoodie,hoodies,L,118.0,SUP01
+product_id,name,category,size,price,color,supplier_id
+P001,Aster Flow Legging,leggings,S,98.0,Black,SUP01
+P002,Aster Flow Legging,leggings,M,98.0,Black,SUP01
+P003,Aster Flow Legging,leggings,L,98.0,Black,SUP01
+P004,Aster Vent Tech Tee,tops,M,78.0,Slate,SUP02
+P005,Aster Vent Tech Tee,tops,L,78.0,Slate,SUP02
+P006,Aster Daytrip Belt Bag,bags,OS,38.0,Black,SUP01
+P007,Aster Cloud Hoodie,hoodies,M,118.0,Heather Grey,SUP01
+P008,Aster Cloud Hoodie,hoodies,L,118.0,Heather Grey,SUP01
+P009,Aster Storm Shell Jacket,jackets,S,178.0,Storm Blue,SUP02
+P010,Aster Storm Shell Jacket,jackets,M,178.0,Storm Blue,SUP02
+P011,Aster Storm Shell Jacket,jackets,L,178.0,Storm Blue,SUP02
+P012,Aster Trailhead Puffer,jackets,M,228.0,Black,SUP02
+P013,Aster Trailhead Puffer,jackets,L,228.0,Black,SUP02
+P014,Aster Base Merino Long Sleeve,tops,M,88.0,Oatmeal,SUP02
+P015,Aster Base Merino Long Sleeve,tops,L,88.0,Oatmeal,SUP02
+P016,Aster Studio Sports Bra,bras,M,58.0,Black,SUP01
+P017,Aster Momentum Short,shorts,M,68.0,Black,SUP01
+P018,Aster Everywhere Jogger,bottoms,M,108.0,Charcoal,SUP01
+P019,Aster Commute Tote,bags,OS,128.0,Black,SUP02
+P020,Aster Peak Beanie,accessories,OS,38.0,Charcoal,SUP01

@@ -37,7 +37,11 @@ reproduce: ## Reproduce the whole offline verification from a clean clone (deter
 	$(MAKE) check
 	@echo "reproduced: same result on any machine. Add keys + 'make up ingest' for the live stack."
 
-up: ## Start local infrastructure (qdrant, postgres)
+doctor: ## Check the environment is ready (Docker, .env, keys) so nothing hangs or fails cryptically
+	@PYTHONPATH=. uv run python scripts/doctor.py
+
+up: ## Start local infrastructure (needs Docker Desktop running; preflighted so it never hangs)
+	@PYTHONPATH=. uv run python scripts/doctor.py --require docker
 	docker compose up -d --wait
 
 down: ## Stop local infrastructure (data volumes are kept)
@@ -92,4 +96,4 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check reproduce up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive
+.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive

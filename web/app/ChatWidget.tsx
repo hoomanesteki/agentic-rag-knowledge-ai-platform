@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { API_BASE, fetchCatalog, Product, swatchStyle } from "./catalog";
+import { API_BASE, fetchStore, Product, swatchStyle } from "./catalog";
 import { useTurnstile } from "./turnstile";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
@@ -126,11 +126,19 @@ export default function ChatWidget({
 }) {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [brand, setBrand] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     setMounted(true);
     setToken(localStorage.getItem("skein_token"));
+    fetchStore().then((s) => {
+      setBrand(s.brand);
+      setProducts(s.products);
+    });
   }, []);
+
+  const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
 
   function onToken(t: string) {
     localStorage.setItem("skein_token", t);
@@ -146,17 +154,21 @@ export default function ChatWidget({
   return (
     <>
       {!open && (
-        <button className="fab" onClick={() => setOpen(true)} aria-label="Open the Aster assistant">
+        <button
+          className="fab"
+          onClick={() => setOpen(true)}
+          aria-label={`Open the ${short} assistant`}
+        >
           <span className="dot" />
           &#128172;
         </button>
       )}
       {open && (
-        <section className="panel" role="dialog" aria-label="Aster assistant">
+        <section className="panel" role="dialog" aria-label={`${short} assistant`}>
           <header className="panel-hdr">
-            <div className="avatar">A</div>
+            <div className="avatar">{short.charAt(0) || "A"}</div>
             <div>
-              <div className="t">Aster Assistant</div>
+              <div className="t">{short} Assistant</div>
               <div className="s">Grounded answers, always cited</div>
             </div>
             <button className="x" onClick={() => setOpen(false)} aria-label="Close">
@@ -164,7 +176,13 @@ export default function ChatWidget({
             </button>
           </header>
           {token ? (
-            <Conversation token={token} onSignOut={signOut} seed={seed} />
+            <Conversation
+              token={token}
+              onSignOut={signOut}
+              seed={seed}
+              brand={short}
+              products={products}
+            />
           ) : (
             <Login onToken={onToken} />
           )}
@@ -238,16 +256,19 @@ function Conversation({
   token,
   onSignOut,
   seed,
+  brand,
+  products,
 }: {
   token: string;
   onSignOut: () => void;
   seed?: string | null;
+  brand: string;
+  products: Product[];
 }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [voiceOn, setVoiceOn] = useState(false);
   const [voiceState, setVoiceState] = useState<"greeting" | "listening" | "thinking" | "speaking">(
     "greeting",
@@ -268,7 +289,6 @@ function Conversation({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setSuggestions(d.suggestions || []))
       .catch(() => {});
-    fetchCatalog().then(setProducts); // so answers can surface product cards
   }, [token]);
 
   useEffect(() => {
@@ -428,7 +448,7 @@ function Conversation({
     voiceLiveRef.current = true;
     setHeard("");
     setVoiceState("greeting");
-    await speakAsync("Hi, I'm your Aster assistant. How can I help you today?");
+    await speakAsync(`Hi, I'm your ${brand} assistant. How can I help you today?`);
     let quiet = 0;
     while (voiceLiveRef.current) {
       setVoiceState("listening");
@@ -504,7 +524,7 @@ function Conversation({
       <div className="stream" ref={streamRef}>
         {empty && (
           <div className="greet">
-            <div className="big">Hi, I&apos;m your Aster assistant.</div>
+            <div className="big">Hi, I&apos;m your {brand} assistant.</div>
             How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap
             the mic to talk.
           </div>

@@ -3,17 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 
 import ChatWidget from "./ChatWidget";
-import { fetchCatalog, Product, swatchStyle } from "./catalog";
+import { fetchStore, Product, swatchStyle } from "./catalog";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [brand, setBrand] = useState("");
   const [cat, setCat] = useState("all");
   const [open, setOpen] = useState(false);
   const [seed, setSeed] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCatalog().then(setProducts);
+    fetchStore().then((s) => {
+      setProducts(s.products);
+      setBrand(s.brand);
+    });
   }, []);
+
+  const short = brand.split(" ")[0] || "Store"; // a compact logo mark from the brand name
 
   const cats = useMemo(() => {
     const set = new Set(products.map((p) => p.category).filter(Boolean));
@@ -32,7 +38,8 @@ export default function Home() {
       <header className="hdr">
         <div className="hdr-in">
           <div className="brand">
-            Aster<span>.</span>
+            {short}
+            <span>.</span>
           </div>
           <nav className="nav">
             {cats.map((c) => (
@@ -107,7 +114,9 @@ export default function Home() {
 
       <footer className="foot">
         <div className="foot-in">
-          <span>Aster Athletics, a synthetic demo brand. No real products or people.</span>
+          <span>
+            {brand ? `${brand}, a` : "A"} synthetic demo brand. No real products or people.
+          </span>
           <a href="/admin">Backoffice</a>
         </div>
       </footer>

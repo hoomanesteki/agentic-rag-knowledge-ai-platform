@@ -37,13 +37,16 @@ export function swatchStyle(color: string | null): React.CSSProperties {
   return { background: `radial-gradient(120% 120% at 30% 20%, ${base}dd, ${base})` };
 }
 
-export async function fetchCatalog(): Promise<Product[]> {
+export type Store = { brand: string; products: Product[] };
+
+// The store names itself from the active domain pack, so nothing here hardcodes the brand.
+export async function fetchStore(): Promise<Store> {
   try {
     const res = await fetch(`${API_BASE}/api/catalog`);
-    if (!res.ok) return [];
+    if (!res.ok) return { brand: "", products: [] };
     const data = await res.json();
-    return (data.products || []) as Product[];
+    return { brand: data.brand || "", products: (data.products || []) as Product[] };
   } catch {
-    return [];
+    return { brand: "", products: [] };
   }
 }

@@ -234,3 +234,52 @@ img { max-width: 100%; }
 .admin .ext { color: var(--accent); text-decoration: none; font-size: 14px; }
 .signout { margin-top: 40px; background: none; border: none; color: var(--muted); font-size: 14px;
   cursor: pointer; padding: 0; text-decoration: underline; }
+
+/* ---------- Assistant avatar (Phase 3) ---------- */
+.ava { position: relative; display: inline-grid; place-items: center; flex: 0 0 auto; }
+.ava svg { border-radius: 50%; display: block; }
+.ava-dots { display: none; }
+.ava-idle svg, .ava-thinking svg, .ava-speaking svg { animation: ava-breathe 4s ease-in-out infinite; }
+@keyframes ava-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+.ava-idle .ava-eyes { animation: ava-blink 5.5s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ava-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+.ava-thinking svg { animation: ava-breathe 1.3s ease-in-out infinite; }
+.ava-speaking .ava-mouth { animation: ava-talk 0.26s ease-in-out infinite alternate;
+  transform-box: fill-box; transform-origin: center; }
+@keyframes ava-talk { from { transform: scaleY(0.5); } to { transform: scaleY(2); } }
+@media (prefers-reduced-motion: reduce) {
+  .ava svg, .ava-idle .ava-eyes, .ava-speaking .ava-mouth { animation: none; }
+}
+
+.online-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #16a34a; margin-right: 4px; vertical-align: middle; }
+
+/* typing indicator with the avatar */
+.msg.typing { display: flex; align-items: center; gap: 8px; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); display: inline-block;
+  animation: dot 1.2s infinite ease-in-out both; }
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+
+/* markdown inside a bot bubble: tidy lists and paragraphs */
+.msg.bot p { margin: 0 0 6px; }
+.msg.bot p:last-child { margin-bottom: 0; }
+.msg.bot ul, .msg.bot ol { margin: 4px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; }
+.msg.bot li { line-height: 1.45; }
+.msg.bot strong { font-weight: 600; }
+
+/* voice: avatar in a soft pulsing ring */
+.voice-ring { width: 150px; height: 150px; border-radius: 50%; margin: 0 auto 8px; display: grid;
+  place-items: center; background: radial-gradient(circle at 50% 45%, var(--accent-soft), transparent 70%); }
+.voice-ring.listening { animation: pulse 1.4s ease-in-out infinite; }
+.voice-ring.speaking { animation: pulse 0.6s ease-in-out infinite; }
+
+/* refined recommendation cards: smaller, tighter, clearly tappable */
+.recs { gap: 8px; }
+.rec { flex: 0 0 104px; border-radius: 10px; }
+.rec .sw { height: 60px; }
+.rec .rb { padding: 6px 8px; }
+.rec .rn { font-size: 12px; }
+.rec .rp { font-size: 11px; }

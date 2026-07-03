@@ -151,7 +151,8 @@ Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 make setup                 # venv + locked dependencies
 cp .env.example .env       # fill in GROQ_API_KEY and VOYAGE_API_KEY for real runs
 make check                 # lint, tests, dbt-ready checks, eval gate (fully offline)
-make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
+make doctor                # if a step hangs or fails, this says why (Docker, .env, keys)
+make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker (preflighted)
 make dbt-build             # build + test the semantic layer (medallion + governance tests)
 make ingest && make graph-load                     # build the vector index and the graph
 make serve                 # API on :8000     (set CHAT_BRAIN=agent for the full brain)

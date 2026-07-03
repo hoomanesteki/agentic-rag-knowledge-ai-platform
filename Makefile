@@ -32,6 +32,11 @@ leak-check: ## Fail if a domain's vocabulary leaked into engine folders
 check: lint test validate-all leak-check gate ## Run every check that CI runs
 	@echo "all checks passed"
 
+reproduce: ## Reproduce the whole offline verification from a clean clone (deterministic, no keys)
+	$(MAKE) setup
+	$(MAKE) check
+	@echo "reproduced: same result on any machine. Add keys + 'make up ingest' for the live stack."
+
 up: ## Start local infrastructure (qdrant, postgres)
 	docker compose up -d --wait
 
@@ -86,4 +91,4 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive
+.PHONY: help setup test lint validate validate-all leak-check check reproduce up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive

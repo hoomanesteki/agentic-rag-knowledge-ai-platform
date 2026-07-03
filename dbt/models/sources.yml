@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw apparel_ecommerce CSVs (bronze reads these unchanged)."
+    tables:
+      - name: products
+        description: "one row per product variant (name plus size)"
+      - name: stores
+        description: "one row per store"
+      - name: suppliers
+        description: "one row per supplier"
+      - name: sales
+        description: "one row per sale line"

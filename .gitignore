@@ -225,3 +225,9 @@ traces/
 *.duckdb
 .review_queue.db
 *.db
+
+# dbt build artifacts
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml

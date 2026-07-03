@@ -20,6 +20,7 @@ import uuid
 
 from langgraph.graph import END, START, StateGraph
 
+from adapters.observability import request_span, update_span
 from pipeline.answer import (
     _ABSTAIN,
     DEFAULT_MIN_CONFIDENCE,
@@ -236,8 +237,10 @@ def run_supervised(query: str, *, components: dict, history: list | None = None,
     returns, with the conflict flag and contributing specialists in the trace."""
     graph = graph or build_supervisor_graph(components, min_confidence=min_confidence,
                                              trace_path=trace_path)
-    state = graph.invoke({"query": query, "history": history or [],
-                          "message_id": message_id or uuid.uuid4().hex})
+    mid = message_id or uuid.uuid4().hex
+    with request_span("chat.agent", input=query, metadata={"message_id": mid}):
+        state = graph.invoke({"query": query, "history": history or [], "message_id": mid})
+        update_span(output=state.get("answer"), metadata={"tier": state.get("tier")})
     return AnswerResult(
         answer=state["answer"], tier=state["tier"], confidence=state.get("confidence", 0.0),
         grounding=state.get("grounding", 0.0), citations=state.get("citations", []),

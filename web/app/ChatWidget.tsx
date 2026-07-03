@@ -93,47 +93,75 @@ function recsFromAnswer(text: string, products: Product[]): Product[] {
 
 // Topic-narrowing follow-ups: after a policy answer, drill into that same topic rather than
 // jumping to random suggestions, so each question can go deeper.
-const TOPICS: { test: RegExp; qs: string[] }[] = [
-  { test: /return|refund|exchange/i, qs: ["How long do refunds take?", "Can I exchange for another size?", "What if my item arrived damaged?"] },
-  { test: /ship|deliver|arrive|warehouse|express/i, qs: ["When is shipping free?", "How fast is express shipping?", "How long to ship to Toronto?"] },
-  { test: /\bsize|fit|true to size|runs small|measurement/i, qs: ["Where is the size chart?", "Do the leggings run small?", "What if I'm between sizes?"] },
-  { test: /\bpay|payment|afterpay|installment|visa|paypal/i, qs: ["Can I pay in installments?", "Do you take Apple Pay?", "Do you sell gift cards?"] },
-  { test: /wash|care|dry|fabric softener|merino/i, qs: ["Can I tumble dry it?", "How do I wash merino?", "Does washing affect the warranty?"] },
-  { test: /warranty|defect|guarantee/i, qs: ["What does the warranty cover?", "How do I make a claim?", "What is your return policy?"] },
-  { test: /member|circle|points|loyalty/i, qs: ["How do I earn points?", "What are the member perks?", "Is membership free?"] },
-  { test: /discount|student|promo|adjust/i, qs: ["Do you have a student discount?", "Can I get a price adjustment?", "Do you run sales?"] },
-  { test: /store|pickup|location|gastown|yorkville|soho/i, qs: ["Where are your stores?", "Can I pick up in store?", "Do stores take returns?"] },
+// Topic threads: each keeps its own set of narrowing follow-ups, so a conversation about returns
+// keeps suggesting return questions instead of jumping to leggings.
+const TOPIC_MAP: Record<string, string[]> = {
+  returns: ["How long do refunds take?", "Can I exchange for another size?", "What if my item arrived damaged?"],
+  shipping: ["When is shipping free?", "How fast is express shipping?", "How long to ship to my city?"],
+  sizing: ["Where is the size chart?", "Do the leggings run small?", "What if I'm between sizes?"],
+  payment: ["Can I pay in installments?", "Do you take Apple Pay?", "Do you sell gift cards?"],
+  care: ["Can I tumble dry it?", "How do I wash merino?", "Does washing affect the warranty?"],
+  warranty: ["What does the warranty cover?", "How do I make a claim?", "How do I return a faulty item?"],
+  membership: ["How do I earn points?", "What are the member perks?", "Is membership free?"],
+  discounts: ["Do you have a student discount?", "Can I get a price adjustment?", "Do you run sales?"],
+  stores: ["Where are your stores?", "Can I pick up in store?", "Do stores take returns?"],
+  order: ["Where is my order?", "Can I change my order?", "How do I track my order?"],
+  gift: ["A gift for her?", "A gift for him?", "Any gifts under $50?"],
+};
+const TOPIC_PATTERNS: [string, RegExp][] = [
+  ["order", /\b(my order|track|order status|didn'?t (get|receive)|not arriv|where is my|hasn'?t arrived)\b/i],
+  ["returns", /return|refund|exchange/i],
+  ["warranty", /warranty|defect|guarantee|damaged|faulty|broken/i],
+  ["shipping", /ship|deliver|arrive|express|warehouse|how long.*(to|does)/i],
+  ["sizing", /\bsize|fit\b|true to size|runs small|measurement/i],
+  ["payment", /\bpay\b|payment|afterpay|installment|visa|paypal|klarna/i],
+  ["care", /wash|care|dry|fabric softener|merino|shrink/i],
+  ["membership", /member|circle|points|loyalty|reward/i],
+  ["discounts", /discount|student|promo|adjust|\bsale\b|coupon/i],
+  ["stores", /store|pickup|location|in person/i],
+  ["gift", /gift|present|for my (girlfriend|boyfriend|wife|husband|mom|dad|friend)/i],
 ];
 
-// Follow-ups that track the conversation: product-specific when it recommended something, topic
-// follow-ups after a policy answer, and starter suggestions when it was unsure.
-function followupsFor(final: FinalEvent, text: string, recs: Product[], suggestions: Suggestion[]): string[] {
-  const unsure =
-    final.tier !== "auto" ||
-    /(don't|do not|couldn't|could not|cannot) (have|find|see)|not sure|no information|don't know/i.test(text);
-  if (!unsure && recs.length > 0) {
-    const p = recs[0];
-    const short = p.name.replace(/^Aster\s+/, "");
-    const byCat: Record<string, string> = {
-      jackets: `What should I layer under the ${short} when it's cold?`,
-      leggings: `Is the ${short} squat proof?`,
-      bras: `Is the ${short} high support?`,
-      tops: `Is the ${short} good for hot yoga?`,
-      bottoms: `Is the ${short} okay for travel?`,
-      shorts: `Does the ${short} have pockets?`,
-      bags: `What fits in the ${short}?`,
-      hoodies: `Does the ${short} run oversized?`,
-      accessories: `Is the ${short} warm enough for winter?`,
-    };
-    const out = [`Does the ${short} run true to size?`];
-    if (byCat[p.category]) out.push(byCat[p.category]);
-    out.push("Is it in stock in my size?");
-    return out;
-  }
-  if (!unsure) {
-    for (const t of TOPICS) if (t.test.test(text)) return t.qs;
-  }
-  return suggestions.slice(0, 3).map((s) => s.text);
+function detectTopic(text: string): string {
+  for (const [key, rx] of TOPIC_PATTERNS) if (rx.test(text)) return key;
+  return "";
+}
+
+function productFollowups(p: Product): string[] {
+  const short = p.name.replace(/^Aster\s+/, "");
+  const byCat: Record<string, string> = {
+    jackets: `What should I layer under the ${short} when it's cold?`,
+    leggings: `Is the ${short} squat proof?`,
+    bras: `Is the ${short} high support?`,
+    tops: `Is the ${short} good for hot yoga?`,
+    bottoms: `Is the ${short} okay for travel?`,
+    shorts: `Does the ${short} have pockets?`,
+    bags: `What fits in the ${short}?`,
+    hoodies: `Does the ${short} run oversized?`,
+    accessories: `Is the ${short} warm enough for winter?`,
+  };
+  const out = [`Does the ${short} run true to size?`];
+  if (byCat[p.category]) out.push(byCat[p.category]);
+  out.push("Is it in stock in my size?");
+  return out;
+}
+
+// Sticky, narrowing follow-ups: a detected topic wins and is remembered; a product answer gets
+// product follow-ups; and a vague turn inside a thread keeps the last topic's follow-ups rather
+// than resetting to random suggestions.
+function followupsFor(
+  query: string,
+  final: FinalEvent,
+  recs: Product[],
+  suggestions: Suggestion[],
+  lastTopic: string,
+): { followups: string[]; topic: string } {
+  const unsure = final.tier !== "auto";
+  const detected = detectTopic(query);
+  if (detected) return { followups: TOPIC_MAP[detected], topic: detected };
+  if (!unsure && recs.length > 0) return { followups: productFollowups(recs[0]), topic: "" };
+  if (lastTopic && TOPIC_MAP[lastTopic]) return { followups: TOPIC_MAP[lastTopic], topic: lastTopic };
+  return { followups: suggestions.slice(0, 3).map((s) => s.text), topic: lastTopic };
 }
 
 // Minimal shape of the browser SpeechRecognition. We run it continuously so the shopper can
@@ -385,6 +413,7 @@ function Conversation({
   const [micOn, setMicOn] = useState(true);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
+  const lastTopicRef = useRef(""); // sticky conversation topic, so follow-ups narrow and stay put
   const recogRef = useRef<Recognizer | null>(null);
   const voiceLiveRef = useRef(false); // lets stopVoice break the async loop
   const processingRef = useRef(false); // handling an utterance (thinking or speaking)
@@ -533,12 +562,14 @@ function Conversation({
               const answer = fe.answer ?? acc;
               result = answer;
               const recs = recsFromAnswer(answer, products);
+              const fu = followupsFor(q, fe, recs, suggestions, lastTopicRef.current);
+              lastTopicRef.current = fu.topic; // remember the thread for the next turn
               patchBot((b) => ({
                 ...b,
                 text: fe.answer ?? b.text,
                 final: fe,
                 recs,
-                followups: followupsFor(fe, answer, recs, suggestions),
+                followups: fu.followups,
               }));
             } else if (event.type === "error")
               patchBot((b) => ({ ...b, text: "Sorry, something went wrong." }));
@@ -812,11 +843,13 @@ function Conversation({
           <div className="greet">
             {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}
             <div className="big">
-              {name ? `Hi ${name}, ` : "Hi, "}I&apos;m your {brand} assistant.
+              {name ? `Hi ${name}, ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
             </div>
             {context?.kind === "product"
-              ? `Ask me anything about the ${short2(context.name)}, or tap the mic to talk.`
-              : "How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap the mic to talk."}
+              ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears. Happy to help!`
+              : context?.kind === "category"
+                ? `Looking at ${cap(context.category)}? I can help you find the right one, compare options, or check sizing. What matters most to you?`
+                : "How can I help you today? Ask about a product, sizing, shipping, gifts, or what to wear, or tap the mic to talk."}
           </div>
         )}
         {empty && (

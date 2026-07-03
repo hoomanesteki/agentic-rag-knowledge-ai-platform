@@ -1,0 +1,326 @@
+{
+  "generated_sessions": 1240,
+  "kpis": {
+    "sessions": 1240,
+    "visitors": 979,
+    "searches": 1407,
+    "questions": 801,
+    "add_to_cart": 332,
+    "orders": 163,
+    "revenue": 25238,
+    "conversion": 13.1,
+    "aov": 155
+  },
+  "sessions_by_day": [
+    {
+      "day": "Jun 01",
+      "count": 41
+    },
+    {
+      "day": "Jun 02",
+      "count": 41
+    },
+    {
+      "day": "Jun 03",
+      "count": 51
+    },
+    {
+      "day": "Jun 04",
+      "count": 49
+    },
+    {
+      "day": "Jun 05",
+      "count": 62
+    },
+    {
+      "day": "Jun 06",
+      "count": 33
+    },
+    {
+      "day": "Jun 07",
+      "count": 50
+    },
+    {
+      "day": "Jun 08",
+      "count": 53
+    },
+    {
+      "day": "Jun 09",
+      "count": 51
+    },
+    {
+      "day": "Jun 10",
+      "count": 47
+    },
+    {
+      "day": "Jun 11",
+      "count": 26
+    },
+    {
+      "day": "Jun 12",
+      "count": 33
+    },
+    {
+      "day": "Jun 13",
+      "count": 37
+    },
+    {
+      "day": "Jun 14",
+      "count": 45
+    },
+    {
+      "day": "Jun 15",
+      "count": 51
+    },
+    {
+      "day": "Jul 01",
+      "count": 45
+    },
+    {
+      "day": "Jul 02",
+      "count": 36
+    },
+    {
+      "day": "Jul 03",
+      "count": 34
+    },
+    {
+      "day": "Jul 04",
+      "count": 43
+    },
+    {
+      "day": "Jul 05",
+      "count": 32
+    },
+    {
+      "day": "Jul 06",
+      "count": 31
+    },
+    {
+      "day": "Jul 07",
+      "count": 37
+    },
+    {
+      "day": "Jul 08",
+      "count": 35
+    },
+    {
+      "day": "Jul 09",
+      "count": 45
+    },
+    {
+      "day": "Jul 10",
+      "count": 42
+    },
+    {
+      "day": "Jul 11",
+      "count": 42
+    },
+    {
+      "day": "Jul 12",
+      "count": 35
+    },
+    {
+      "day": "Jul 13",
+      "count": 35
+    },
+    {
+      "day": "Jul 14",
+      "count": 36
+    },
+    {
+      "day": "Jul 15",
+      "count": 42
+    }
+  ],
+  "top_searches": [
+    {
+      "term": "leggings",
+      "count": 167
+    },
+    {
+      "term": "hoodie",
+      "count": 150
+    },
+    {
+      "term": "jacket",
+      "count": 144
+    },
+    {
+      "term": "sports bra",
+      "count": 98
+    },
+    {
+      "term": "shorts",
+      "count": 96
+    },
+    {
+      "term": "tops",
+      "count": 80
+    },
+    {
+      "term": "flow legging",
+      "count": 80
+    },
+    {
+      "term": "rain jacket",
+      "count": 67
+    }
+  ],
+  "top_questions": [
+    {
+      "question": "what is the return policy",
+      "count": 100
+    },
+    {
+      "question": "how long to ship to toronto",
+      "count": 77
+    },
+    {
+      "question": "is it in stock in my size",
+      "count": 62
+    },
+    {
+      "question": "how much is shipping",
+      "count": 62
+    },
+    {
+      "question": "do the leggings run small",
+      "count": 55
+    },
+    {
+      "question": "free shipping",
+      "count": 54
+    },
+    {
+      "question": "which jacket for rain",
+      "count": 51
+    },
+    {
+      "question": "what should I wear for summer",
+      "count": 51
+    }
+  ],
+  "top_products": [
+    {
+      "name": "Flow Legging",
+      "count": 215
+    },
+    {
+      "name": "Storm Shell Jacket",
+      "count": 188
+    },
+    {
+      "name": "Vent Tech Tee",
+      "count": 142
+    },
+    {
+      "name": "Cloud Hoodie",
+      "count": 139
+    },
+    {
+      "name": "Studio Sports Bra",
+      "count": 117
+    },
+    {
+      "name": "Trailhead Puffer",
+      "count": 89
+    },
+    {
+      "name": "Momentum Short",
+      "count": 81
+    },
+    {
+      "name": "Everywhere Jogger",
+      "count": 72
+    }
+  ],
+  "by_category": [
+    {
+      "label": "leggings",
+      "pct": 19
+    },
+    {
+      "label": "jackets",
+      "pct": 16
+    },
+    {
+      "label": "tops",
+      "pct": 15
+    },
+    {
+      "label": "hoodies",
+      "pct": 12
+    },
+    {
+      "label": "shorts",
+      "pct": 11
+    },
+    {
+      "label": "bras",
+      "pct": 9
+    },
+    {
+      "label": "bottoms",
+      "pct": 8
+    },
+    {
+      "label": "bags",
+      "pct": 6
+    },
+    {
+      "label": "accessories",
+      "pct": 4
+    }
+  ],
+  "by_device": [
+    {
+      "label": "Mobile",
+      "pct": 62
+    },
+    {
+      "label": "Desktop",
+      "pct": 31
+    },
+    {
+      "label": "Tablet",
+      "pct": 7
+    }
+  ],
+  "by_country": [
+    {
+      "label": "Canada",
+      "pct": 60
+    },
+    {
+      "label": "United States",
+      "pct": 35
+    },
+    {
+      "label": "Other",
+      "pct": 5
+    }
+  ],
+  "funnel": [
+    {
+      "step": "Visits",
+      "count": 1240
+    },
+    {
+      "step": "Engaged",
+      "count": 1019
+    },
+    {
+      "step": "Viewed a product",
+      "count": 749
+    },
+    {
+      "step": "Added to bag",
+      "count": 332
+    },
+    {
+      "step": "Ordered",
+      "count": 163
+    }
+  ]
+}

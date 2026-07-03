@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import Avatar, { AvatarState } from "./Avatar";
-import { API_BASE, fetchStore, Product, swatchStyle } from "./catalog";
+import { API_BASE, fetchStore, PageContext, Product, swatchStyle } from "./catalog";
 import { Markdown } from "./markdown";
 import { useTurnstile } from "./turnstile";
 
@@ -140,10 +141,12 @@ export default function ChatWidget({
   open,
   setOpen,
   seed,
+  context = null,
 }: {
   open: boolean;
   setOpen: (v: boolean) => void;
   seed?: string | null;
+  context?: PageContext;
 }) {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -220,6 +223,7 @@ export default function ChatWidget({
               seed={seed}
               brand={short}
               products={products}
+              context={context}
             />
           ) : (
             <Login onToken={onToken} />
@@ -296,12 +300,14 @@ function Conversation({
   seed,
   brand,
   products,
+  context,
 }: {
   token: string;
   onSignOut: () => void;
   seed?: string | null;
   brand: string;
   products: Product[];
+  context?: PageContext;
 }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -578,23 +584,44 @@ function Conversation({
     );
   }
 
+  // context-aware openers, so the first prompts match the page the shopper came from
+  const short2 = (s: string) => s.replace(/^Aster /, "");
+  const ctxSuggest: string[] =
+    context?.kind === "product"
+      ? [`Is the ${short2(context.name)} good for me?`, "Does it run true to size?", "Is it in stock?"]
+      : context?.kind === "category"
+        ? [`Best ${context.category.replace(/s$/, "")} for cold weather?`, `Show me ${context.category} under $100`]
+        : context?.kind === "help"
+          ? [`Tell me more about ${context.topic}`]
+          : [];
+  const ctxLabel =
+    context?.kind === "product"
+      ? `Viewing ${short2(context.name)}`
+      : context?.kind === "category"
+        ? `Browsing ${cap(context.category)}`
+        : context?.kind === "help"
+          ? `Help · ${cap(context.topic)}`
+          : "";
+
   return (
     <>
       <div className="stream" ref={streamRef}>
         {empty && (
           <div className="greet">
+            {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}
             <div className="big">
               {name ? `Hi ${name}, ` : "Hi, "}I&apos;m your {brand} assistant.
             </div>
-            How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap
-            the mic to talk.
+            {context?.kind === "product"
+              ? `Ask me anything about the ${short2(context.name)}, or tap the mic to talk.`
+              : "How can I help you today? Ask about a product, sizing, shipping, or what to wear, or tap the mic to talk."}
           </div>
         )}
-        {empty && suggestions.length > 0 && (
+        {empty && (
           <div className="sugg">
-            {suggestions.slice(0, 5).map((s, i) => (
-              <button key={`${i}-${s.text}`} type="button" onClick={() => send(s.text)}>
-                {s.text}
+            {[...ctxSuggest, ...suggestions.map((s) => s.text)].slice(0, 5).map((t, i) => (
+              <button key={`${i}-${t}`} type="button" onClick={() => send(t)}>
+                {t}
               </button>
             ))}
           </div>
@@ -646,11 +673,7 @@ function Conversation({
             {m.recs && m.recs.length > 0 && (
               <div className="recs">
                 {m.recs.map((p) => (
-                  <button
-                    key={p.id}
-                    className="rec"
-                    onClick={() => send(`Tell me more about the ${p.name}.`)}
-                  >
+                  <Link key={p.id} className="rec" href={`/product/${p.id}`}>
                     <div className="sw" style={swatchStyle(p.color)} />
                     <div className="rb">
                       <div className="rn">{p.name.replace(/^Aster /, "")}</div>
@@ -659,7 +682,7 @@ function Conversation({
                         {p.price != null ? ` · $${p.price.toFixed(0)}` : ""}
                       </div>
                     </div>
-                  </button>
+                  </Link>
                 ))}
               </div>
             )}

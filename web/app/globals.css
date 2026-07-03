@@ -3,8 +3,26 @@
   --fg: #1c1c1e;
   --muted: #6b7280;
   --accent: #2563eb;
+  --accent-soft: #e8f0fe;
   --card: #ffffff;
   --border: #ececec;
+  --chip: #f3f4f6;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --fg: #f2f2f7;
+    --muted: #9ca3af;
+    --accent: #4b8bff;
+    --accent-soft: #16233d;
+    --card: #161618;
+    --border: #2a2a2e;
+    --chip: #1f1f23;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -14,6 +32,12 @@ body {
   background: var(--bg);
   color: var(--fg);
   font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .answer, .starters, .followups, .meta { animation: rise 0.28s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 }
 
 .wrap {
@@ -43,17 +67,59 @@ h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
   color: #fff;
   font-size: 16px;
   cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
 }
+.ask button:hover:not(:disabled) { filter: brightness(1.06); }
+.ask button:active:not(:disabled) { transform: scale(0.98); }
 .ask button:disabled { opacity: 0.5; cursor: default; }
+.ask .mic { background: var(--card); color: var(--fg); border: 1px solid var(--border); }
+.ask .mic.recording { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
 
 .answer {
   margin-top: 28px;
   padding: 18px 20px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   white-space: pre-wrap;
 }
+.speak {
+  display: block;
+  margin-top: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.thinking { margin-top: 28px; color: var(--muted); }
+.thinking::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
+/* Guided starter prompts: the first screen offers what to ask instead of a blank box. */
+.starters { margin-top: 28px; }
+.hint { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-suggest {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease;
+}
+.chip-suggest:hover { border-color: var(--accent); background: var(--accent-soft); }
+.chip-suggest:active { transform: scale(0.98); }
+.chip-suggest.small { font-size: 13px; padding: 6px 12px; }
+
+.followups { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.followups .hint { margin: 0 4px 0 0; }
 
 .meta { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
         color: var(--muted); font-size: 14px; }

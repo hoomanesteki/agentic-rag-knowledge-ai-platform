@@ -19,7 +19,7 @@ type Item = {
 // hook ran on a parent that first renders null (the mounted gate), its one-shot effect would fire
 // against a missing ref and the widget would never appear, making production admin login impossible.
 function AdminLogin({ onToken }: { onToken: (t: string) => void }) {
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("newadmin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { token: captchaToken, widget: captchaWidget, reset: resetCaptcha } = useTurnstile();
@@ -51,14 +51,23 @@ function AdminLogin({ onToken }: { onToken: (t: string) => void }) {
 
   return (
     <main className="admin">
-      <h1>Review queue</h1>
       <form onSubmit={login} className="login">
-        <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" />
+        <div className="ax-brand">
+          Aster <span>Backoffice</span>
+        </div>
+        <p className="meta">Sign in to manage the review queue, quality, and health.</p>
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="newadmin"
+          aria-label="Username"
+        />
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="password"
+          aria-label="Password"
         />
         {captchaWidget}
         <button type="submit">Sign in</button>

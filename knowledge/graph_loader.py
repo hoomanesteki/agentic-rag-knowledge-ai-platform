@@ -52,8 +52,11 @@ def _fetch_rows(con, table: str, columns: list[str], key: str) -> list[dict]:
     # Skip null keys (Neo4j MERGE rejects a null key property) and coerce the key to a string, so
     # node ids match the string-coerced edge endpoints and query values on every backend. Drop
     # null/NaN properties so `SET n += row` never deletes a property on Neo4j (the fake matches).
-    stmt = "SELECT {} FROM {} WHERE {} IS NOT NULL".format(
-        projection, quote_ident(table), quote_ident(key))
+    # ORDER BY the key so the graph loads in a stable, reproducible order no matter how DuckDB
+    # returns aggregated gold rows. Neighbor queries cap results, so a stable order keeps
+    # traversals deterministic.
+    stmt = "SELECT {} FROM {} WHERE {} IS NOT NULL ORDER BY {}".format(
+        projection, quote_ident(table), quote_ident(key), quote_ident(key))
     out = []
     for row in con.execute(stmt).fetchall():
         record = {}
@@ -71,7 +74,7 @@ def _fetch_pairs(con, table: str, from_col: str, to_col: str) -> list[tuple[str,
     _ident(from_col, "column")
     _ident(to_col, "column")
     stmt = ("SELECT DISTINCT {f}, {t} FROM {tbl} "
-            "WHERE {f} IS NOT NULL AND {t} IS NOT NULL").format(
+            "WHERE {f} IS NOT NULL AND {t} IS NOT NULL ORDER BY {f}, {t}").format(
                 f=quote_ident(from_col), t=quote_ident(to_col), tbl=quote_ident(table))
     return [(str(f), str(t)) for f, t in con.execute(stmt).fetchall()]
 

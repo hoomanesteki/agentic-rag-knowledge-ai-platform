@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { useCart } from "../cart";
+import { FREE_SHIP, useCart } from "../cart";
 import { fetchStore } from "../catalog";
 import { useRequireGate } from "../gate";
 import StoreHeader from "../StoreHeader";
@@ -18,7 +18,7 @@ export default function CheckoutPage() {
   }, []);
   if (!gateOk) return null;
 
-  const shipping = subtotal >= 150 || subtotal === 0 ? 0 : 8;
+  const shipping = subtotal >= FREE_SHIP || subtotal === 0 ? 0 : 8;
 
   function placeOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -86,7 +86,7 @@ export default function CheckoutPage() {
             <aside className="co-summary">
               <h3>Order</h3>
               {lines.map((l) => (
-                <div key={`${l.id}-${l.size}`} className="co-line">
+                <div key={`${l.id}-${l.size}-${l.color}`} className="co-line">
                   <span>
                     {l.name.replace(/^Aster /, "")} × {l.qty}
                   </span>

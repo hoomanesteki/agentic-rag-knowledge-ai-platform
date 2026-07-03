@@ -429,6 +429,25 @@ img { max-width: 100%; }
 .help-card h3 { margin: 0 0 8px; font-size: 16px; }
 .help-card p { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0 0 14px; }
 
+/* info pages (shipping, payment, size guide, membership, contact) */
+.info { max-width: 860px; }
+.info-sec { margin: 28px 0 0; }
+.info-sec h3 { font-size: 17px; margin: 0 0 12px; }
+.info-sec p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 10px; }
+.info-note { font-size: 13px; color: var(--muted); margin-top: 12px; }
+.info-ask { margin-top: 36px; }
+.sizetable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sizetable th, .sizetable td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.sizetable thead th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.04em; border-bottom: 1px solid var(--line); }
+.sizetable td { font-variant-numeric: tabular-nums; }
+.sizetable tbody tr:hover { background: var(--accent-soft); }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; font-size: 13px; font-weight: 500; }
+.contact-value { color: var(--fg) !important; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+  margin: 0 0 4px !important; }
+
 /* chat context chip */
 .ctx-chip { display: inline-block; background: var(--accent-soft); color: var(--accent);
   font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; margin-bottom: 10px; }

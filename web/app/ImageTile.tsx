@@ -108,7 +108,7 @@ function shapeKey(category: string, name: string): string {
     if (/backpack/.test(n)) return "backpack";
     if (/duffel/.test(n)) return "duffel";
     if (/sling/.test(n)) return "sling";
-    if (/belt bag/.test(n)) return "beltbag";
+    if (/belt|waist|fanny/.test(n)) return "beltbag";
     return "tote";
   }
   return category;

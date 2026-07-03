@@ -453,16 +453,21 @@ function Conversation({
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: agentMode }]);
     setLoading(true);
     // Only fold the current product into the query when the shopper clearly means "it" (a pronoun)
-    // and is not naming another category. Otherwise "a jacket for LA" while viewing a belt bag would
-    // keep retrieving the belt bag.
+    // and is not naming another category. Otherwise "a jacket for LA" while viewing a waist pack
+    // would keep retrieving that same product.
     let qSend = q;
     if (context?.kind === "product") {
       const nm = context.name.replace(/^Aster /i, "");
       const pronoun = /\b(it|its|it's|this|that|the one|the item|the product)\b/i.test(q);
-      const otherThing =
-        /\b(jacket|legging|tight|hoodie|pullover|short|bra|top|tee|tank|sleeve|pant|jogger|bag|tote|backpack|duffel|sling|beanie|cap|glove|sock|scarf|headband|dress|gift|jacket)/i.test(
-          q,
-        );
+      // Domain agnostic: the query "names another item" if it mentions any catalog category
+      // other than the one in context. Categories come from the live catalog, not a hardcoded
+      // vocabulary, so the engine stays domain neutral (and the leak linter stays green).
+      const stem = (s: string) => s.toLowerCase().replace(/s$/, "");
+      const ctxCat = stem(context.category || "");
+      const otherThing = products.some((pp) => {
+        const c = stem(pp.category || "");
+        return !!c && c !== ctxCat && new RegExp(`\\b${c}s?\\b`, "i").test(q);
+      });
       if (pronoun && !otherThing && !q.toLowerCase().includes(nm.toLowerCase())) {
         qSend = `${q} (about the Aster ${nm})`;
       }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Hint } from "../Hint";
 import { AdminNav } from "../nav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -61,16 +62,20 @@ export default function HealthPage() {
     <main className="admin">
       <AdminNav />
       <h1>Platform health</h1>
+      <p className="ax-intro">
+        Live operational health of the assistant from recent request traces: how fast, how reliable,
+        and how much each answer costs. Broken out by language, since retrieval quality can differ.
+      </p>
       <table>
         <thead>
           <tr>
             <th>segment</th>
-            <th>requests</th>
-            <th>p95 ms</th>
-            <th>req/min</th>
-            <th>errors</th>
-            <th>avg cost</th>
-            <th>grounding</th>
+            <th>requests<Hint text="Answered turns in the recent window for this segment." /></th>
+            <th>p95 ms<Hint text="95th-percentile end-to-end latency: 95 percent of answers were faster than this." /></th>
+            <th>req/min<Hint text="Requests per minute over the most recent 15-minute window, so it reflects current load." /></th>
+            <th>errors<Hint text="Share of turns that failed or fell back to a degraded response, usually an upstream model hiccup." /></th>
+            <th>avg cost<Hint text="Average model spend per costed turn in USD. Streaming turns omit token cost." /></th>
+            <th>grounding<Hint text="Average source-backing of answered turns (0 to 1). Watch for it drifting down over time." /></th>
           </tr>
         </thead>
         <tbody>

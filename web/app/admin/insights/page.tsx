@@ -15,7 +15,7 @@ type Domain = {
   langfuse_url: string | null;
 };
 
-type Gap = { question: string; count: number };
+type Gap = { question: string; count: number; lang?: string };
 
 export default function InsightsPage() {
   const [mounted, setMounted] = useState(false);
@@ -66,13 +66,20 @@ export default function InsightsPage() {
       )}
 
       <h2>Knowledge gaps</h2>
+      <p className="ax-intro">
+        Real questions shoppers asked that the assistant could not answer well, most frequent first.
+        This is the worklist for what to teach it next: add a policy or product doc, and the gap
+        closes. Not test queries, actual demand.
+      </p>
       {gaps.length === 0 ? (
         <p>No unanswered questions yet.</p>
       ) : (
-        <ul>
+        <ul className="gap-list">
           {gaps.map((g) => (
             <li key={g.question}>
-              <strong>{g.count}x</strong> {g.question}
+              <span className="gap-count">{g.count}×</span>
+              <span className="gap-q">{g.question}</span>
+              {g.lang && g.lang !== "en" && <span className="gap-lang">{g.lang}</span>}
             </li>
           ))}
         </ul>

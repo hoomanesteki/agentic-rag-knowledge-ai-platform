@@ -5,15 +5,18 @@ import { useEffect, useState } from "react";
 
 import { useCart } from "../cart";
 import { fetchStore } from "../catalog";
+import { useRequireGate } from "../gate";
 import StoreHeader from "../StoreHeader";
 
 export default function CheckoutPage() {
+  const gateOk = useRequireGate();
   const { lines, subtotal, clear } = useCart();
   const [brand, setBrand] = useState("");
   const [done, setDone] = useState<string | null>(null);
   useEffect(() => {
     fetchStore().then((s) => setBrand(s.brand));
   }, []);
+  if (!gateOk) return null;
 
   const shipping = subtotal >= 150 || subtotal === 0 ? 0 : 8;
 

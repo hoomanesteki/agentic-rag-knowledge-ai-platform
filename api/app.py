@@ -336,6 +336,27 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         token = create_access_token(user["username"], user["role"], settings.jwt_secret)
         return {"access_token": token, "token_type": "bearer", "role": user["role"]}
 
+    @app.post("/api/gate-login")
+    def gate_login(body: LoginRequest, request: Request):
+        # The public landing page gates the demo behind one shared credential plus a captcha, so a
+        # link shared with a reviewer is not open to bots. Rate-limited to deter brute force / DDoS.
+        # If no gate credential is configured, the gate is open (local dev).
+        if not login_limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="too many attempts",
+                                headers={"Retry-After": "30"})
+        if not verify_turnstile(body.turnstile_token, settings.turnstile_secret):
+            raise HTTPException(status_code=403, detail="captcha verification failed")
+        import hmac
+        gu, gp = settings.gate_username, settings.gate_password
+        ok = (not gu and not gp) or (
+            hmac.compare_digest(body.username or "", gu)
+            and hmac.compare_digest(body.password or "", gp)
+        )
+        if not ok:
+            raise HTTPException(status_code=401, detail="invalid credentials")
+        return {"access_token": create_access_token("gate", "gate", settings.jwt_secret),
+                "token_type": "bearer"}
+
     @app.post("/api/chat")
     def chat(req: ChatRequest, request: Request, comp: dict = Depends(get_components),
              user: dict = Depends(current_user)):

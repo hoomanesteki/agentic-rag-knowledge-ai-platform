@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { useCart } from "./cart";
-import { fetchStore, Product } from "./catalog";
+import { colorHex, fetchStore, Product } from "./catalog";
 import { useChat } from "./ChatProvider";
-import { colorHex } from "./catalog";
+import { isGated } from "./gate";
 import ImageTile from "./ImageTile";
+import Landing from "./Landing";
 import StoreHeader from "./StoreHeader";
 
 function cap(s: string): string {
@@ -16,6 +17,10 @@ function cap(s: string): string {
 }
 
 export default function Page() {
+  const [gated, setGated] = useState<boolean | null>(null);
+  useEffect(() => setGated(isGated()), []);
+  if (gated === null) return null; // brief hold to avoid a flash before we know
+  if (!gated) return <Landing onEnter={() => setGated(true)} />;
   return (
     <Suspense fallback={null}>
       <Home />

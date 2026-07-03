@@ -40,6 +40,8 @@ class Settings:
     demo_password: str
     admin_username: str
     admin_password: str
+    gate_username: str
+    gate_password: str
     chat_brain: str
     review_queue_db: str
     mlflow_url: str
@@ -82,6 +84,10 @@ def get_settings() -> Settings:
         demo_password=os.getenv("DEMO_PASSWORD", "Canada54321"),
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "skein-admin-2026"),
+        # The public landing page gates the demo behind this one shared credential (emailed to a
+        # reviewer). Empty by default, so the gate is open in local dev unless you set it.
+        gate_username=os.getenv("GATE_USERNAME", ""),
+        gate_password=os.getenv("GATE_PASSWORD", ""),
         # linear streams tokens (the proven default); agent runs the full M6 brain (supervisor,
         # gate, escalation to the review queue) as a buffered response.
         chat_brain=os.getenv("CHAT_BRAIN", "linear"),

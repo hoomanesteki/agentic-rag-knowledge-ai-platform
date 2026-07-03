@@ -7,10 +7,33 @@ export type Product = {
   id: string;
   name: string;
   category: string;
+  gender?: string;
   price: number | null;
   color: string | null;
+  colors?: string[];
+  weather?: string;
   sizes: string[];
+  stock?: number;
 };
+
+export type ProductDetail = Product & { description: string; reviews: { text: string; rating: number | null }[] };
+
+// What the shopper is currently viewing, so the assistant has page context.
+export type PageContext =
+  | { kind: "product"; id: string; name: string; category: string }
+  | { kind: "category"; category: string; gender?: string }
+  | { kind: "help"; topic: string }
+  | null;
+
+export async function fetchProduct(id: string): Promise<ProductDetail | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/product/${encodeURIComponent(id)}`);
+    if (!res.ok) return null;
+    return (await res.json()) as ProductDetail;
+  } catch {
+    return null;
+  }
+}
 
 // Named colors from the catalog mapped to a base hex. Unknowns fall back to a neutral.
 const COLORS: Record<string, string> = {

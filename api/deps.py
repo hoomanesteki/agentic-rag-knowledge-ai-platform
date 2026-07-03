@@ -15,7 +15,7 @@ from adapters.factory import (
     make_store,
     make_transcriber,
 )
-from api.resilience import ResilientEmbedder
+from api.resilience import CachingEmbedder, CachingReranker, ResilientEmbedder, ResilientLLM
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
 from rag.hitl import ReviewQueue
@@ -43,11 +43,13 @@ def get_components() -> dict:
     if not os.path.exists(lakehouse_db):
         _log.warning("lakehouse not found at %s; metric answers are disabled. Run make lakehouse.",
                      lakehouse_db)
+    reranker = make_reranker()  # may be None when RERANK_PROVIDER=none
     return {
-        "embedder": ResilientEmbedder(make_embedder()),
+        # cache query embeds (fewer metered Voyage calls), then retry transient failures
+        "embedder": CachingEmbedder(ResilientEmbedder(make_embedder())),
         "store": make_store(collection=collection_name(settings.domain, settings.embed_model)),
-        "llm": make_llm(),
-        "reranker": make_reranker(),
+        "llm": ResilientLLM(make_llm()),
+        "reranker": CachingReranker(reranker) if reranker is not None else None,
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),
         "graph_retriever": _build_graph_retriever(settings.domain),
         "transcriber": make_transcriber(),

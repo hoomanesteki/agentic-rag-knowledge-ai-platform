@@ -42,6 +42,8 @@ _MAX_BODY_BYTES = 15 * 1024 * 1024   # reject an oversized body before parsing i
 _ALLOWED_AUDIO_MIME = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/mp3",
                        "audio/wav", "audio/x-wav", "audio/flac"}
 _DEGRADED = "The assistant is busy right now. Please try again in a moment."
+_RATE_LIMITED = ("I'm getting more questions than the demo's free API tier allows right now. "
+                 "Please wait about 20 seconds and ask again.")
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 # Placeholders that must never sign real tokens. The length check below catches anything else
 # too short, but the shipped .env.example value is 33 chars, so it has to be named explicitly.
@@ -266,6 +268,22 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         token = create_access_token(user["username"], user["role"], settings.jwt_secret)
         return {"access_token": token, "token_type": "bearer", "role": user["role"]}
 
+    @app.post("/api/demo-login")
+    def demo_login(request: Request):
+        # Frictionless demo: outside production, hand a visitor a demo-user token so they can land
+        # on the store and just ask, no password wall. Disabled in production, where real login is
+        # required. Rate-limited so it cannot be used to mint tokens in a loop.
+        if settings.app_env == "production":
+            raise HTTPException(status_code=404, detail="not found")
+        if not login_limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="too many attempts",
+                                headers={"Retry-After": "30"})
+        user = store.get(settings.demo_username)
+        if not user:
+            raise HTTPException(status_code=404, detail="no demo user")
+        token = create_access_token(user["username"], user["role"], settings.jwt_secret)
+        return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+
     @app.post("/api/chat")
     def chat(req: ChatRequest, request: Request, comp: dict = Depends(get_components),
              user: dict = Depends(current_user)):
@@ -321,9 +339,12 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                              "tier": "degraded" if transient else "error", "streamed": True,
                              "error": str(exc)[:200], "latency_ms": latency}, DEFAULT_TRACE_PATH)
                 if transient:
-                    yield _sse({"type": "token", "text": _DEGRADED})
+                    # a 429 is the metered free tier, not a real outage: say so, so the demo reads
+                    # as a rate limit to wait out rather than a broken assistant
+                    msg = _RATE_LIMITED if "429" in str(exc) else _DEGRADED
+                    yield _sse({"type": "token", "text": msg})
                     yield _sse({"type": "final", "message_id": message_id, "tier": "degraded",
-                                "answer": _DEGRADED, "confidence": 0.0, "grounding": 0.0,
+                                "answer": msg, "confidence": 0.0, "grounding": 0.0,
                                 "citations": []})
                 else:
                     yield _sse({"type": "error", "message_id": message_id,

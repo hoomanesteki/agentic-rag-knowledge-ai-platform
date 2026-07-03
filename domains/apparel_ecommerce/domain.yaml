@@ -126,3 +126,14 @@ defaults:
   top_n_out: 8
   confidence_high: 0.7
   confidence_low: 0.4
+
+# Starter prompts for the chat UI, one per capability (a product fact, a governed metric, a graph
+# relationship, what reviewers say, and a policy), so a new user knows what they can ask. The API
+# serves these for the active domain; the engine never hardcodes a question.
+suggestions:
+  - { text: "How much does the Aster Flow Legging cost?", lang: en, kind: fact }
+  - { text: "What is the return rate for size M?", lang: en, kind: metric }
+  - { text: "Which supplier makes the Cloud Hoodie?", lang: en, kind: graph }
+  - { text: "Do customers say the Flow Legging runs small?", lang: en, kind: reviews }
+  - { text: "What is your return policy?", lang: en, kind: policy }
+  - { text: "Combien coute le legging Flow ?", lang: fr, kind: fact }

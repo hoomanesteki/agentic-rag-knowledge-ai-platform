@@ -29,7 +29,7 @@ validate-all: ## Validate every domain pack under domains/ (no-op if none yet)
 leak-check: ## Fail if a domain's vocabulary leaked into engine folders
 	uv run python scripts/check_domain_leak.py
 
-check: lint test validate-all leak-check ## Run every check that CI runs
+check: lint test validate-all leak-check gate ## Run every check that CI runs
 	@echo "all checks passed"
 
 up: ## Start local infrastructure (qdrant, postgres)

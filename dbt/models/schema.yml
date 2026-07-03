@@ -13,6 +13,11 @@ models:
       - name: size
       - name: price
       - name: supplier_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('suppliers')
+                field: supplier_id
   - name: stores
     description: "Gold: one row per store"
     columns:
@@ -41,11 +46,17 @@ models:
           - not_null
           - unique
       - name: product_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('products')
+                field: product_id
       - name: store_id
         tests:
           - relationships:
-              to: ref('stores')
-              field: store_id
+              arguments:
+                to: ref('stores')
+                field: store_id
       - name: quantity
       - name: returned
       - name: sold_at

@@ -3,7 +3,7 @@ import duckdb
 import pytest
 
 from data.contracts import check_contracts
-from data.lakehouse import build_lakehouse
+from data.lakehouse import build_lakehouse, validate_source
 
 _MANIFEST = """\
 name: testdom
@@ -61,6 +61,29 @@ def test_build_types_and_pii_mask(tmp_path):
         assert any("example.com" in e for e in raw)
     finally:
         con.close()
+
+
+def test_validate_source_rejects_undeclared_pii():
+    # fail loud, never open: a PII column not in `columns` would fall through to an unmasked
+    # select *, so both the Python builder and the dbt codegen must refuse it.
+    with pytest.raises(ValueError, match="pii_columns"):
+        validate_source({"role": "accounts", "file": "a.csv", "columns": {},
+                         "pii_columns": ["email"]})
+
+
+def test_validate_source_rejects_unsafe_role_and_path():
+    with pytest.raises(ValueError, match="invalid role"):
+        validate_source({"role": "../escape", "file": "a.csv"})
+    with pytest.raises(ValueError, match="unsafe source path"):
+        validate_source({"role": "accounts", "file": "../../etc/passwd"})
+    with pytest.raises(ValueError, match="unsafe source path"):
+        validate_source({"role": "accounts", "file": "/abs/path.csv"})
+
+
+def test_validate_source_accepts_a_clean_source():
+    validate_source({"role": "accounts", "file": "seed/structured/a.csv",
+                     "columns": {"account_id": "string", "email": "string"},
+                     "pii_columns": ["email"]})  # does not raise
 
 
 def test_contracts_pass_on_clean_data(tmp_path):

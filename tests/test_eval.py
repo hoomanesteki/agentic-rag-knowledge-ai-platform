@@ -60,7 +60,7 @@ def test_scoping_ranking_and_gate():
     ]
     sc = evaluate(golden, embedder=embedder, store=store, entity_fields=ENTITY_FIELDS, top_k=8)
     assert sc["coverage"]["measured"] == 1     # only the qualitative question is measurable now
-    assert sc["coverage"]["deferred"] == 1     # the factual one is deferred to M4
+    assert sc["coverage"]["deferred"] == 1     # the factual one is answered outside this harness
     r = sc["overall"]["retrieval"]
     assert r["n"] == 1
     assert r["hit_rate_at_k"] == 1.0

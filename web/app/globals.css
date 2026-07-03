@@ -202,36 +202,71 @@ img { max-width: 100%; }
 .err { color: #b91c1c; font-size: 13px; margin: 2px 0 0; }
 @media (prefers-color-scheme: dark) { .err, .admin .error { color: #f87171; } }
 
-/* ---------- Backoffice / admin (kept) ---------- */
-.admin { max-width: 900px; margin: 0 auto; padding: 48px 24px 96px; }
-.admin h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 20px; }
-.admin h2 { font-size: 17px; margin: 28px 0 8px; }
-.admin .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; }
-.admin .meta { color: var(--muted); font-size: 14px; }
-.admin table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
-.admin th, .admin td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.admin th { color: var(--muted); font-weight: 600; }
+/* ---------- Backoffice / admin console ---------- */
+.admin { max-width: 1080px; margin: 0 auto; padding: 20px 24px 96px; }
+.admin h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 4px; }
+.admin h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  margin: 30px 0 12px; }
+.admin > p, .admin .meta { color: var(--muted); font-size: 14px; }
+.admin .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0; }
+
+/* top bar */
+.ax-topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 24px;
+  padding: 12px 20px; margin: 0 0 28px; background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+  border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.ax-brand { font-weight: 700; font-size: 16px; letter-spacing: 0.01em; text-decoration: none; color: var(--fg); }
+.ax-brand span { color: var(--accent); font-weight: 600; }
+.ax-tabs { display: flex; gap: 4px; flex: 1; }
+.ax-tabs a { text-decoration: none; color: var(--muted); font-size: 14px; padding: 7px 14px;
+  border-radius: 999px; transition: background 0.15s ease, color 0.15s ease; }
+.ax-tabs a:hover { color: var(--fg); background: var(--bg); }
+.ax-tabs a.on { background: var(--ink); color: #fff; font-weight: 600; }
+.ax-exit { text-decoration: none; color: var(--accent); font-size: 14px; font-weight: 600; }
+
+/* tables */
+.admin table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.admin th, .admin td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.admin th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.05em; background: var(--bg); }
+.admin tbody tr:last-child td { border-bottom: none; }
 .admin tbody tr:hover { background: #f4f3ee; }
-.admin button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--card); color: var(--fg); font-size: 14px; cursor: pointer; }
-.admin button:hover { border-color: var(--accent); }
+
+.admin button { padding: 9px 16px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--fg); font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease; }
+.admin button:hover { border-color: var(--ink); }
+.admin .row button { background: var(--ink); color: #fff; border-color: var(--ink); }
+.admin .row button:hover { filter: brightness(1.15); }
 .admin textarea { width: 100%; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line);
   border-radius: 10px; font: inherit; background: var(--bg); min-height: 80px; }
-.queue-item { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius);
+
+/* review queue cards */
+.queue-item { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius);
   background: var(--card); box-shadow: var(--shadow-sm); margin-bottom: 14px; }
-.queue-item .q { font-weight: 600; margin: 0 0 4px; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 28px; }
-.stat { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-sm); }
-.stat-label { color: var(--muted); font-size: 13px; }
-.stat-value { font-size: 26px; font-weight: 700; margin: 4px 0 10px; }
-.bar { height: 6px; background: #eeece6; border-radius: 999px; overflow: hidden; }
-.bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.4s ease; }
+.queue-item .q { font-weight: 600; font-size: 15px; margin: 0 0 6px; }
+
+/* stat tiles */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 30px; }
+.stat { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+  box-shadow: var(--shadow-sm); }
+.stat-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 30px; font-weight: 700; margin: 6px 0 12px; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; }
+.bar { height: 7px; background: #eeece6; border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.5s ease; }
 .bar-fill.good { background: #16a34a; }
 .bar-fill.warn { background: #d97706; }
-.admin nav { display: flex; gap: 16px; margin-bottom: 24px; font-size: 14px; }
-.admin nav a { color: var(--muted); text-decoration: none; }
-.admin nav a:hover { color: var(--accent); }
-.admin .ext { color: var(--accent); text-decoration: none; font-size: 14px; }
+.admin .ext { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+
+/* admin login as a centered card */
+.admin .login { max-width: 360px; margin: 12vh auto 0; padding: 32px; border: 1px solid var(--line);
+  border-radius: 20px; background: var(--card); box-shadow: var(--shadow); gap: 12px; }
+.admin .login input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+  font-size: 15px; background: var(--bg); }
+.admin .login input:focus { outline: none; border-color: var(--fg); }
+.admin .login button { background: var(--ink); color: #fff; border-color: var(--ink); padding: 12px; }
+.admin .error { color: #b91c1c; font-size: 13px; }
 .signout { margin-top: 40px; background: none; border: none; color: var(--muted); font-size: 14px;
   cursor: pointer; padding: 0; text-decoration: underline; }
 

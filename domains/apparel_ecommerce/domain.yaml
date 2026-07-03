@@ -86,6 +86,21 @@ sources:
         edge_type: MENTIONS
         target_label: Product
         target_name_property: name
+    # Generated reviews, two to four per product (tools/gen_catalog.py). Same shape, so each becomes
+    # a Review node linked to its Product, which deepens the graph and feeds product pages.
+    - file: seed/unstructured/reviews_generated.jsonl
+      doc_type: review
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [product_id, rating, date]
+      entity_ref: [product_id]
+      context_fields: [product_id]
+      mentions:
+        node_label: Review
+        edge_type: MENTIONS
+        target_label: Product
+        target_name_property: name
     # Company knowledge: policies and guides (shipping, returns, sizing, care, payment). General
     # store knowledge, not tied to one product, so no entity_ref or graph mentions.
     - file: seed/unstructured/company_knowledge.jsonl

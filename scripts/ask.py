@@ -31,7 +31,7 @@ def main() -> int:
               file=sys.stderr)
 
     store = make_store(collection=collection_name(settings.domain, settings.embed_model))
-    resolver = MetricResolver(settings.domain, os.getenv("LAKEHOUSE_DB", ".lakehouse.duckdb"))
+    resolver = MetricResolver(settings.domain, os.getenv("LAKEHOUSE_DB", "lakehouse.duckdb"))
     try:
         graph_retriever = make_graph_retriever(settings.domain, make_graph())
     except Exception as exc:  # noqa: BLE001 - graph is optional; degrade to vector + metric

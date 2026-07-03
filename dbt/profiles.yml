@@ -5,6 +5,6 @@ skein:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('LAKEHOUSE_DB', '.lakehouse.duckdb') }}"
+      path: "{{ env_var('LAKEHOUSE_DB', 'lakehouse.duckdb') }}"
       schema: main
       threads: 4

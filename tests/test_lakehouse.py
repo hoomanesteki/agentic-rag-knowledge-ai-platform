@@ -1,9 +1,30 @@
 """M4.1 lakehouse: manifest-driven build, type casting, PII masking, and data contracts."""
+import os
+from pathlib import Path
+
 import duckdb
 import pytest
 
 from data.contracts import check_contracts
 from data.lakehouse import build_lakehouse, validate_source
+
+
+def _dbt_catalog_safe(filename: str) -> bool:
+    # dbt-duckdb derives the database/catalog name from Path.stem, but DuckDB derives it from the
+    # text before the FIRST dot. They only agree when the shared file has one extension and no
+    # leading dot, so dbt can bind the catalog.
+    return os.path.basename(filename).split(".")[0] == Path(filename).stem
+
+
+def test_default_lakehouse_filename_is_dbt_catalog_safe():
+    # `.lakehouse.duckdb` broke `make dbt-build` (Binder Error: Catalog ".lakehouse" does not
+    # exist), because dbt and DuckDB derived different catalog names from it. The app and dbt share
+    # this file, so the default must stay dbt-safe.
+    assert not _dbt_catalog_safe(".lakehouse.duckdb")   # the name that broke it
+    assert _dbt_catalog_safe("lakehouse.duckdb")        # the fixed default
+    if not os.getenv("LAKEHOUSE_DB"):
+        from scripts.build_lakehouse import _DB
+        assert _dbt_catalog_safe(_DB), "the default LAKEHOUSE_DB is not a dbt-safe catalog name"
 
 _MANIFEST = """\
 name: testdom

@@ -21,7 +21,7 @@ _REVIEW_QUEUE = os.getenv("ENTITY_REVIEW_PATH", "traces/entity_link_review.jsonl
 
 def main() -> int:
     settings = get_settings()
-    db = os.getenv("LAKEHOUSE_DB", ".lakehouse.duckdb")
+    db = os.getenv("LAKEHOUSE_DB", "lakehouse.duckdb")
     if not os.path.exists(db):
         print("no lakehouse at {}; run make lakehouse first".format(db), file=sys.stderr)
         return 1

@@ -23,6 +23,11 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
+# The analytics/semantic layer runs on dbt-duckdb. Kept optional so the offline engine and its
+# tests install light; `make dbt-build` and CI pull it in with `uv sync --extra dbt`.
+dbt = [
+    "dbt-duckdb>=1.9.0",
+]
 
 # This is an application, not a library. Do not try to build or install it as a package.
 [tool.uv]

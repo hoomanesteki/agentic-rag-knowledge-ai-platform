@@ -83,7 +83,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       <StoreHeader brand={brand} />
       <main className="pdp">
         <div className="pdp-media">
-          <ImageTile category={p.category} color={color} className="pdp-tile" />
+          <ImageTile category={p.category} color={color} name={p.name} className="pdp-tile" />
         </div>
         <div className="pdp-info">
           <Link href="/" className="back">

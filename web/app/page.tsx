@@ -168,7 +168,7 @@ function ProductCard({ p }: { p: Product }) {
   return (
     <article className="card rise">
       <Link href={`/product/${p.id}`} className="card-link">
-        <ImageTile category={p.category} color={p.color} />
+        <ImageTile category={p.category} color={p.color} name={p.name} />
         <div className="body">
           <p className="name">{p.name.replace(/^Aster /, "")}</p>
           <div className="sub">

@@ -437,8 +437,13 @@ function Conversation({
         return "";
       }
     }
-    // human handoff: only on a clear request (verb + person), so "a gift for a person" is not one
-    if (!agentMode && /\b(talk|speak|chat|connect|transfer|reach)\b.{0,24}\b(human|person|agent|someone|representative|rep|advisor)\b/i.test(q)) {
+    // human handoff: a short bare request ("human", "agent", "human plz") or a verb+person phrase.
+    // The length guard keeps "a gift for a person who loves yoga" from being an escalation.
+    const shortHuman =
+      q.trim().split(/\s+/).length <= 4 && /\b(human|agent|representative|real person|advisor)\b/i.test(q);
+    const verbHuman =
+      /\b(talk|speak|chat|connect|transfer|reach)\b.{0,24}\b(human|person|agent|someone|representative|rep|advisor)\b/i.test(q);
+    if (!agentMode && (shortHuman || verbHuman)) {
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
@@ -447,12 +452,20 @@ function Conversation({
     setInput("");
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: agentMode }]);
     setLoading(true);
-    // if the shopper is on a product page, fold that product into the query the API sees (but not
-    // what we display), so "what color is it" or "is it in stock" resolve to the right item
+    // Only fold the current product into the query when the shopper clearly means "it" (a pronoun)
+    // and is not naming another category. Otherwise "a jacket for LA" while viewing a belt bag would
+    // keep retrieving the belt bag.
     let qSend = q;
     if (context?.kind === "product") {
       const nm = context.name.replace(/^Aster /i, "");
-      if (!q.toLowerCase().includes(nm.toLowerCase())) qSend = `${q} (about the Aster ${nm})`;
+      const pronoun = /\b(it|its|it's|this|that|the one|the item|the product)\b/i.test(q);
+      const otherThing =
+        /\b(jacket|legging|tight|hoodie|pullover|short|bra|top|tee|tank|sleeve|pant|jogger|bag|tote|backpack|duffel|sling|beanie|cap|glove|sock|scarf|headband|dress|gift|jacket)/i.test(
+          q,
+        );
+      if (pronoun && !otherThing && !q.toLowerCase().includes(nm.toLowerCase())) {
+        qSend = `${q} (about the Aster ${nm})`;
+      }
     }
     let result = "";
     const patchBot = (fn: (m: Message) => Message) =>
@@ -612,8 +625,21 @@ function Conversation({
     rec.maxAlternatives = 1;
     rec.onresult = (e) => {
       let finalText = "";
+      let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        const t = e.results[i][0].transcript;
+        interim += t;
+        if (e.results[i].isFinal) finalText += t;
+      }
+      // barge-in the instant the shopper starts speaking: if the assistant is talking and this is
+      // not just the mic hearing its own voice, stop speaking so they can talk
+      if (speakingRef.current && micOnRef.current && interim.trim()) {
+        const spoken = new Set(normWords(lastSpokenRef.current));
+        const words = normWords(interim);
+        const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
+        if (words.length >= 1 && overlap < 0.5 && typeof window !== "undefined") {
+          window.speechSynthesis?.cancel();
+        }
       }
       if (finalText.trim()) handlerRef.current(finalText.trim());
     };
@@ -665,7 +691,7 @@ function Conversation({
     setHeard("");
     setVoiceState("greeting");
     speakingRef.current = true;
-    const greeting = `Hi${name ? " " + name : ""}, I'm your ${brand} assistant. How can I help you today?`;
+    const greeting = `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
     lastSpokenRef.current = greeting;
     await speakAsync(greeting);
     speakingRef.current = false;

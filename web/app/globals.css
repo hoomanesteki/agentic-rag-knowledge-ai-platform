@@ -278,7 +278,13 @@ img { max-width: 100%; }
 @keyframes ava-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
 .ava-idle .ava-eyes { animation: ava-blink 5.5s infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes ava-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-.ava-thinking svg { animation: ava-breathe 1.3s ease-in-out infinite; }
+/* thinking: a gentle head tilt and a brow raise, so it reads as pondering, not just lips */
+.ava-thinking svg { animation: ava-think 1.8s ease-in-out infinite; transform-origin: 32px 60px; }
+@keyframes ava-think { 0%, 100% { transform: rotate(0) translateY(0); } 50% { transform: rotate(-5deg) translateY(-1px); } }
+.ava-thinking .ava-brows { animation: ava-brow 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ava-brow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.2px); } }
+.ava-idle svg { animation: ava-nod 5s ease-in-out infinite; }
+@keyframes ava-nod { 0%, 90%, 100% { transform: rotate(0); } 94% { transform: rotate(2deg); } }
 .ava-speaking .ava-mouth { animation: ava-talk 0.26s ease-in-out infinite alternate;
   transform-box: fill-box; transform-origin: center; }
 @keyframes ava-talk { from { transform: scaleY(0.5); } to { transform: scaleY(2); } }

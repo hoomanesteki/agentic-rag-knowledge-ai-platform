@@ -19,25 +19,31 @@ export default function Avatar({ state = "idle", size = 34 }: { state?: AvatarSt
         </defs>
         <g clipPath="url(#ava-c)">
           <rect width="64" height="64" fill="url(#ava-bg)" />
-          {/* shoulders / collar */}
-          <path d="M12 64 Q32 46 52 64 Z" fill="#f2f1ec" />
-          <path d="M28 52 h8 v8 h-8 Z" fill="#e7e5df" />
-          {/* hair back */}
-          <path d="M15 34 Q15 12 32 12 Q49 12 49 34 L49 46 Q49 40 44 40 L20 40 Q15 40 15 46 Z" fill="#3a2c28" />
+          {/* shoulders */}
+          <path d="M10 64 Q32 45 54 64 Z" fill="#f2f1ec" />
+          {/* neck */}
+          <rect x="29" y="42" width="6" height="8" fill="#eec0a0" />
+          {/* hair: light, open bob framing the face */}
+          <path className="ava-hair" d="M17 34 Q16 13 32 12 Q48 13 47 34 Q47 45 43 49 L43 30 Q43 21 32 21 Q21 21 21 30 L21 49 Q17 45 17 34 Z" fill="#c98f52" />
           {/* face */}
-          <ellipse className="ava-face" cx="32" cy="32" rx="14" ry="15" fill="#f2c8a8" />
-          {/* fringe */}
-          <path d="M18 28 Q20 18 32 18 Q44 18 46 28 Q40 24 32 24 Q24 24 18 28 Z" fill="#3a2c28" />
+          <ellipse className="ava-face" cx="32" cy="31" rx="13.5" ry="15" fill="#f4cdaa" />
+          {/* side-swept fringe */}
+          <path d="M20 30 Q23 18 33 19 Q44 20 44 30 Q40 24 31 24 Q25 24 20 30 Z" fill="#bd8347" />
+          {/* brows */}
+          <g className="ava-brows" stroke="#a5763f" strokeWidth="1.4" strokeLinecap="round">
+            <path d="M23 27 Q26 25.5 29 27" fill="none" />
+            <path d="M35 27 Q38 25.5 41 27" fill="none" />
+          </g>
           {/* eyes */}
-          <g className="ava-eyes" fill="#2a211e">
-            <ellipse cx="26" cy="32" rx="2.1" ry="2.6" />
-            <ellipse cx="38" cy="32" rx="2.1" ry="2.6" />
+          <g className="ava-eyes" fill="#40342b">
+            <ellipse cx="26.5" cy="31" rx="2" ry="2.6" />
+            <ellipse cx="37.5" cy="31" rx="2" ry="2.6" />
           </g>
           {/* blush */}
-          <circle cx="24" cy="37" r="2.2" fill="#eeae90" opacity="0.6" />
-          <circle cx="40" cy="37" r="2.2" fill="#eeae90" opacity="0.6" />
+          <circle cx="23.5" cy="36" r="2.1" fill="#f0a488" opacity="0.55" />
+          <circle cx="40.5" cy="36" r="2.1" fill="#f0a488" opacity="0.55" />
           {/* mouth */}
-          <path className="ava-mouth" d="M28 40 Q32 43 36 40" stroke="#a85a52" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          <path className="ava-mouth" d="M28 39 Q32 42 36 39" stroke="#b5615a" strokeWidth="1.6" fill="none" strokeLinecap="round" />
         </g>
       </svg>
       <span className="ava-dots">

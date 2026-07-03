@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import Avatar, { AvatarState } from "./Avatar";
 import { API_BASE, fetchStore, PageContext, Product, swatchStyle } from "./catalog";
 import { Markdown } from "./markdown";
-import { useTurnstile } from "./turnstile";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
 type Suggestion = { text: string; lang: string; kind: string };
@@ -249,17 +248,26 @@ export default function ChatWidget({
     if (existing) {
       setToken(existing);
     } else {
-      // frictionless demo: mint a demo token so the visitor can just ask, no password wall. If the
-      // server is in production this 404s and we fall back to the sign-in form below.
-      fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d?.access_token) {
-            localStorage.setItem("skein_token", d.access_token);
-            setToken(d.access_token);
-          }
-        })
-        .catch(() => {});
+      // frictionless demo: the chat never asks for a password. Silently mint a demo token (the
+      // landing gate has already authorized this visitor). Retry a couple of times if the API is
+      // slow, so it always connects rather than showing a login form.
+      let tries = 0;
+      const connect = () => {
+        fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.access_token) {
+              localStorage.setItem("skein_token", d.access_token);
+              setToken(d.access_token);
+            } else if (++tries < 3) {
+              setTimeout(connect, 1500);
+            }
+          })
+          .catch(() => {
+            if (++tries < 3) setTimeout(connect, 1500);
+          });
+      };
+      connect();
     }
     fetchStore().then((s) => {
       setBrand(s.brand);
@@ -269,10 +277,6 @@ export default function ChatWidget({
 
   const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
 
-  function onToken(t: string) {
-    localStorage.setItem("skein_token", t);
-    setToken(t);
-  }
   function signOut() {
     localStorage.removeItem("skein_token");
     setToken(null);
@@ -316,71 +320,14 @@ export default function ChatWidget({
               context={context}
             />
           ) : (
-            <Login onToken={onToken} />
+            <div className="chat-connecting">
+              <Avatar state="thinking" size={34} />
+              <p>Connecting you to the assistant...</p>
+            </div>
           )}
         </section>
       )}
     </>
-  );
-}
-
-function Login({ onToken }: { onToken: (t: string) => void }) {
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const { token: captchaToken, widget: captchaWidget, reset: resetCaptcha } = useTurnstile();
-
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (busy) return;
-    setError(null);
-    setBusy(true);
-    const data = new FormData(e.currentTarget);
-    try {
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: data.get("username"),
-          password: data.get("password"),
-          turnstile_token: captchaToken || undefined,
-        }),
-      });
-      if (res.ok) {
-        onToken((await res.json()).access_token);
-      } else if (res.status === 401) {
-        setError("Wrong username or password.");
-        resetCaptcha();
-      } else if (res.status === 403) {
-        setError("Captcha check failed. Please try again.");
-        resetCaptcha();
-      } else {
-        setError("Could not sign in. Please try again.");
-        resetCaptcha();
-      }
-    } catch {
-      setError("Could not reach the server.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="login" onSubmit={submit}>
-      <p>Sign in to chat with the assistant about products, sizing, and policies.</p>
-      <input name="username" placeholder="Username" aria-label="Username" autoComplete="username" />
-      <input
-        name="password"
-        type="password"
-        placeholder="Password"
-        aria-label="Password"
-        autoComplete="current-password"
-      />
-      {captchaWidget}
-      <button type="submit" className="btn btn-primary" disabled={busy}>
-        {busy ? "..." : "Sign in"}
-      </button>
-      {error && <p className="err">{error}</p>}
-    </form>
   );
 }
 
@@ -400,7 +347,17 @@ function Conversation({
   context?: PageContext;
 }) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // restore the session's history at mount, so closing and reopening the chat keeps it. A lazy
+    // initializer avoids the empty-state save effect from clobbering the saved history.
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("aster_chat") : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [voiceOn, setVoiceOn] = useState(false);
@@ -436,19 +393,12 @@ function Conversation({
       .catch(() => {});
     const saved = localStorage.getItem("aster_name");
     if (saved) setName(saved);
-    try {
-      // restore the conversation, so closing and reopening the chat keeps the history
-      const raw = localStorage.getItem("aster_chat");
-      const parsed = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed)) setMessages(parsed); // guard against null/non-array
-    } catch {
-      /* ignore a corrupt history */
-    }
   }, [token]);
 
   useEffect(() => {
+    // persist the running conversation (history restored by the useState initializer above)
     try {
-      localStorage.setItem("aster_chat", JSON.stringify(messages.slice(-40)));
+      if (messages.length) localStorage.setItem("aster_chat", JSON.stringify(messages.slice(-40)));
     } catch {
       /* storage full: skip persisting */
     }
@@ -639,12 +589,7 @@ function Conversation({
     setVoiceState("thinking");
     const answer = await send(text);
     if (!voiceLiveRef.current || myId !== utterRef.current) return; // stopped or superseded
-    if (!micOnRef.current) {
-      // muted while thinking: show the answer but do not speak it
-      processingRef.current = false;
-      if (voiceLiveRef.current) setVoiceState("listening");
-      return;
-    }
+    // note: a mute does NOT stop the assistant from speaking; muting only stops listening to you
     speakingRef.current = true;
     const spoken = plainSpeak(answer);
     lastSpokenRef.current = spoken;
@@ -740,10 +685,11 @@ function Conversation({
   }
 
   function toggleMute() {
+    // mute only your microphone (so background noise does not interrupt); the assistant keeps
+    // talking, and you just listen
     const on = !micOnRef.current;
     micOnRef.current = on;
     setMicOn(on);
-    if (!on && typeof window !== "undefined") window.speechSynthesis?.cancel(); // muting stops speech too
   }
 
   useEffect(() => {
@@ -775,7 +721,9 @@ function Conversation({
           <div className={`voice-ring ${voiceState}`}>
             <Avatar state={avatarState} size={104} />
           </div>
-          <div className="state">{micOn ? voiceLabel : "Muted"}</div>
+          <div className="state">
+            {!micOn && voiceState !== "speaking" ? "Your mic is muted" : voiceLabel}
+          </div>
           {/* live transcript, like ChatGPT voice: see what you said and the answer as it streams */}
           {(heard || lastBot) && (
             <div className="voice-live">

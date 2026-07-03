@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AdminNav } from "./nav";
@@ -78,6 +79,7 @@ function AdminLogin({ onToken }: { onToken: (t: string) => void }) {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -123,8 +125,9 @@ export default function AdminPage() {
   }, [token]);
 
   function onToken(t: string) {
+    // land on the Overview dashboard after sign-in, not the bare review queue
     localStorage.setItem("skein_admin_token", t);
-    setToken(t);
+    router.push("/admin/analytics");
   }
 
   async function claim(id: string) {

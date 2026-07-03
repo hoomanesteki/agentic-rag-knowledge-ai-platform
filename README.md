@@ -159,7 +159,7 @@ make serve                 # API on :8000     (set CHAT_BRAIN=agent for the full
 cd web && npm install && npm run dev             # web chat on :3000
 ```
 
-Demo login: `demo` / `skein-demo-2026`. Admin console at `/admin` (`admin` / `skein-admin-2026`).
+Demo login: `demo` / `Canada54321`. Admin console at `/admin` (`admin` / `skein-admin-2026`).
 Switch topic with `DOMAIN=saas_support` (the starter prompts switch with it). Voice needs
 `TRANSCRIBE_PROVIDER=groq`; tracing needs the `LANGFUSE_*` keys. `make reproduce` runs the whole
 offline verification in one command.

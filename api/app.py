@@ -48,7 +48,7 @@ _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 _INSECURE_JWT_SECRETS = {"dev-insecure-change-me", "change-me", "change-me-to-a-long-random-string"}
 _MIN_JWT_SECRET_LEN = 32
 _DEFAULT_ADMIN_PASSWORD = "skein-admin-2026"  # the value committed in .env.example / config.py
-_DEFAULT_DEMO_PASSWORD = "skein-demo-2026"
+_DEFAULT_DEMO_PASSWORD = "Canada54321"
 _DEFAULT_NEO4J_PASSWORD = "skein_password"
 _log = logging.getLogger("skein.api")
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { API_BASE } from "./catalog";
+import { API_BASE, fetchCatalog, Product, swatchStyle } from "./catalog";
 import { useTurnstile } from "./turnstile";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
@@ -28,7 +28,56 @@ type Message = {
   text: string;
   final?: FinalEvent;
   feedback?: "up" | "down";
+  recs?: Product[];
+  followups?: string[];
 };
+
+function cap(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+// Products the assistant named in its answer, matched by catalog name, so we can show them as cards.
+function recsFromAnswer(text: string, products: Product[]): Product[] {
+  if (!text) return [];
+  const low = text.toLowerCase();
+  const seen = new Set<string>();
+  const hits: Product[] = [];
+  for (const p of products) {
+    const full = p.name.toLowerCase();
+    const short = full.replace(/^aster\s+/, "");
+    if ((low.includes(full) || low.includes(short)) && !seen.has(p.id)) {
+      seen.add(p.id);
+      hits.push(p);
+    }
+  }
+  return hits.slice(0, 4);
+}
+
+// Follow-ups that track the conversation: product-specific when it recommended something, and a
+// gentle "here is what I can answer" when it did not know, so the shopper always has a next step.
+function followupsFor(final: FinalEvent, text: string, recs: Product[], suggestions: Suggestion[]): string[] {
+  const unsure =
+    final.tier !== "auto" ||
+    /(don't|do not|couldn't|could not|cannot) (have|find|see)|not sure|no information|don't know/i.test(text);
+  if (unsure || recs.length === 0) return suggestions.slice(0, 3).map((s) => s.text);
+  const p = recs[0];
+  const short = p.name.replace(/^Aster\s+/, "");
+  const byCat: Record<string, string> = {
+    jackets: `What should I layer under the ${short} when it's cold?`,
+    leggings: `Is the ${short} squat proof?`,
+    bras: `Is the ${short} high support?`,
+    tops: `Is the ${short} good for hot yoga?`,
+    bottoms: `Is the ${short} okay for travel?`,
+    shorts: `Does the ${short} have pockets?`,
+    bags: `What fits in the ${short}?`,
+    hoodies: `Does the ${short} run oversized?`,
+    accessories: `Is the ${short} warm enough for winter?`,
+  };
+  const out = [`Does the ${short} run true to size?`];
+  if (byCat[p.category]) out.push(byCat[p.category]);
+  out.push("What is your return policy?");
+  return out;
+}
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -172,6 +221,7 @@ function Conversation({
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
@@ -186,6 +236,7 @@ function Conversation({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setSuggestions(d.suggestions || []))
       .catch(() => {});
+    fetchCatalog().then(setProducts); // so answers can surface product cards
   }, [token]);
 
   useEffect(() => {
@@ -239,6 +290,7 @@ function Conversation({
       const decoder = new TextDecoder();
       let buffer = "";
       let received = false;
+      let acc = "";
       try {
         for (;;) {
           const { value, done } = await reader.read();
@@ -256,10 +308,21 @@ function Conversation({
               continue;
             }
             received = true;
-            if (event.type === "token") patchBot((b) => ({ ...b, text: b.text + event.text }));
-            else if (event.type === "final")
-              patchBot((b) => ({ ...b, text: event.answer ?? b.text, final: event }));
-            else if (event.type === "error")
+            if (event.type === "token") {
+              acc += event.text;
+              patchBot((b) => ({ ...b, text: b.text + event.text }));
+            } else if (event.type === "final") {
+              const fe = event;
+              const answer = fe.answer ?? acc;
+              const recs = recsFromAnswer(answer, products);
+              patchBot((b) => ({
+                ...b,
+                text: fe.answer ?? b.text,
+                final: fe,
+                recs,
+                followups: followupsFor(fe, answer, recs, suggestions),
+              }));
+            } else if (event.type === "error")
               patchBot((b) => ({ ...b, text: "Sorry, something went wrong." }));
           }
         }
@@ -385,8 +448,38 @@ function Conversation({
                     >
                       &#128078;
                     </button>
+                    {m.feedback && <span>thanks</span>}
                   </span>
                 )}
+              </div>
+            )}
+            {m.recs && m.recs.length > 0 && (
+              <div className="recs">
+                {m.recs.map((p) => (
+                  <button
+                    key={p.id}
+                    className="rec"
+                    onClick={() => send(`Tell me more about the ${p.name}.`)}
+                  >
+                    <div className="sw" style={swatchStyle(p.color)} />
+                    <div className="rb">
+                      <div className="rn">{p.name.replace(/^Aster /, "")}</div>
+                      <div className="rp">
+                        {cap(p.category)}
+                        {p.price != null ? ` · $${p.price.toFixed(0)}` : ""}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {m.followups && m.followups.length > 0 && (
+              <div className="sugg">
+                {m.followups.map((f, k) => (
+                  <button key={k} type="button" onClick={() => send(f)}>
+                    {f}
+                  </button>
+                ))}
               </div>
             )}
           </div>

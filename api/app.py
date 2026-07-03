@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
-from adapters.observability import flush, request_span
+from adapters.observability import flush, request_span, update_span
 from api.auth import (
     DUMMY_HASH,
     UserStore,
@@ -191,6 +191,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def health():
         return {"status": "ok"}
 
+    @app.on_event("shutdown")
+    def _flush_traces():
+        # The batch processor exports traces on an interval; flush once on shutdown so a final
+        # turn is not lost. Not per-request: a per-turn flush would block the response on a slow
+        # or unreachable Langfuse. No-op when tracing is off.
+        flush()
+
     @app.post("/api/login")
     def login(body: LoginRequest, request: Request):
         if not login_limiter.allow(client_key(request)):
@@ -220,18 +227,19 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         started = time.perf_counter()
 
         def event_stream():
-          # one Langfuse trace per turn, grouping every LLM generation inside it (no-op when
-          # tracing is off); flush at the end so nothing is lost when the stream closes.
-          with request_span("chat", input=req.query,
-                            metadata={"message_id": message_id, "brain": brain, "lang": req.lang}):
             try:
                 if brain == "agent":
                     # the full M6 brain (supervisor, gate, escalation to the review queue) as a
-                    # buffered response over the same SSE contract
-                    result = answer_with_agent(
-                        req.query, components=comp, history=req.history or [],
-                        message_id=message_id, review_queue=comp.get("review_queue"),
-                        domain=comp.get("domain"), lang=req.lang)
+                    # buffered response. The whole turn runs synchronously here before the first
+                    # yield, so the Langfuse span opens and closes within one execution (no cross-
+                    # yield context hop) and every LLM generation nests under it. No-op when off.
+                    with request_span("chat.agent", input=req.query,
+                                      metadata={"message_id": message_id, "lang": req.lang}):
+                        result = answer_with_agent(
+                            req.query, components=comp, history=req.history or [],
+                            message_id=message_id, review_queue=comp.get("review_queue"),
+                            domain=comp.get("domain"), lang=req.lang)
+                        update_span(output=result.answer, metadata={"tier": result.tier})
                     yield _sse({"type": "token", "text": result.answer})
                     yield _sse({"type": "final", "message_id": message_id,
                                 "answer": result.answer, "tier": result.tier,
@@ -240,6 +248,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                 "citations": result.citations,
                                 "escalation_id": result.trace.get("escalation_id")})
                     return
+                # Linear path: tokens stream across threadpool resumes, so we do not open a span
+                # around the generator (its OTel context would not survive the hops). The individual
+                # generate() calls are still traced by the adapter.
                 for event in stream_answer(req.query, message_id=message_id,
                                            embedder=comp["embedder"], store=comp["store"],
                                            llm=comp["llm"], reranker=comp["reranker"],
@@ -265,8 +276,6 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                 else:
                     yield _sse({"type": "error", "message_id": message_id,
                                 "message": "internal error"})
-            finally:
-                flush()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream",
                                  headers=_SSE_HEADERS)

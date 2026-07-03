@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { AdminNav } from "../nav";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Bucket = {
@@ -57,6 +59,7 @@ export default function HealthPage() {
   const trend = data.overall.grounding_trend;
   return (
     <main className="admin">
+      <AdminNav />
       <h1>Platform health</h1>
       <table>
         <thead>

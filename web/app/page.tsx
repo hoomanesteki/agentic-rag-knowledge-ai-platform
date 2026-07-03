@@ -342,9 +342,9 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
             says it does not know.
           </p>
           <div className="chips">
-            {suggestions.map((s) => (
+            {suggestions.map((s, i) => (
               <button
-                key={s.text}
+                key={`${i}-${s.text}`}
                 type="button"
                 className="chip-suggest"
                 onClick={() => send(s.text)}
@@ -403,9 +403,9 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
       {final && suggestions.length > 0 && (
         <div className="followups">
           <span className="hint">Ask another</span>
-          {suggestions.slice(0, 4).map((s) => (
+          {suggestions.slice(0, 4).map((s, i) => (
             <button
-              key={s.text}
+              key={`${i}-${s.text}`}
               type="button"
               className="chip-suggest small"
               onClick={() => send(s.text)}

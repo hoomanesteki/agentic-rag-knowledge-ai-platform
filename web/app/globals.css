@@ -40,6 +40,11 @@ body {
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 }
 
+/* Error red needs a lighter shade on the dark background to keep WCAG AA contrast. */
+@media (prefers-color-scheme: dark) {
+  .err, .admin .error { color: #f87171; }
+}
+
 .wrap {
   max-width: 680px;
   margin: 0 auto;

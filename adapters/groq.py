@@ -32,7 +32,10 @@ class GroqClient:
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    @observe(as_type="generation", name="groq.generate")
+    # capture_input/output off so `self` (which holds the API key) and the raw result are never
+    # serialized into the trace; the prompt and answer are set explicitly via update_generation.
+    @observe(as_type="generation", name="groq.generate",
+             capture_input=False, capture_output=False)
     def generate(self, prompt: str, *, system: str | None = None,
                  max_tokens: int = 512) -> LLMResult:
         if not self.api_key:

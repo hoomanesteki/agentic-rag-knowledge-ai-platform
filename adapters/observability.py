@@ -27,13 +27,19 @@ def enabled() -> bool:
     return _ENABLED
 
 
-def observe(func=None, *, name=None, as_type=None):
+def observe(func=None, *, name=None, as_type=None, capture_input=None, capture_output=None):
     """Decorator: trace the wrapped function as a Langfuse span or generation when enabled, else
-    return it unchanged (zero overhead, no logging). Usable as @observe or @observe(as_type=...)."""
+    return it unchanged (zero overhead, no logging). Usable as @observe or @observe(as_type=...).
+
+    capture_input/capture_output default to Langfuse's automatic argument capture. Turn them off
+    when wrapping a method whose arguments should not be serialized into the trace (for example the
+    LLM client, which holds the API key) and set the input/output explicitly via update_generation.
+    """
     def wrap(fn):
         if not _ENABLED:
             return fn
-        return _lf_observe(name=name, as_type=as_type)(fn)
+        return _lf_observe(name=name, as_type=as_type,
+                           capture_input=capture_input, capture_output=capture_output)(fn)
     return wrap(func) if callable(func) else wrap
 
 

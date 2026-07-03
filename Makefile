@@ -86,7 +86,8 @@ drift: ## Report drift across the four monitors from recent traffic
 	PYTHONPATH=. uv run python scripts/run_drift.py
 
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
-	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000
+	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000 \
+	  --reload-exclude '.venv/*' --reload-exclude 'web/*' --reload-exclude 'dbt/target/*'
 
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive

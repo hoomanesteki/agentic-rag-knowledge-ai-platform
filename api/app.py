@@ -111,8 +111,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     settings = get_settings()
     brain = chat_brain or settings.chat_brain  # "linear" streams; "agent" runs the M6 brain
     limiter = RateLimiter(rate_limit or settings.rate_limit)
-    origins = [o.strip() for o in
-               os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+    # Default allows the web app at either localhost or 127.0.0.1 (browsers pick either), so local
+    # dev works without CORS surprises. Production sets ALLOWED_ORIGINS to the real origin.
+    origins = [o.strip() for o in os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins,
                        allow_methods=["POST", "GET", "OPTIONS"], allow_headers=["*"])
 

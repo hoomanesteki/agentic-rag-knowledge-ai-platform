@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
+from adapters.observability import flush, request_span
 from api.auth import (
     DUMMY_HASH,
     UserStore,
@@ -219,6 +220,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         started = time.perf_counter()
 
         def event_stream():
+          # one Langfuse trace per turn, grouping every LLM generation inside it (no-op when
+          # tracing is off); flush at the end so nothing is lost when the stream closes.
+          with request_span("chat", input=req.query,
+                            metadata={"message_id": message_id, "brain": brain, "lang": req.lang}):
             try:
                 if brain == "agent":
                     # the full M6 brain (supervisor, gate, escalation to the review queue) as a
@@ -260,6 +265,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                 else:
                     yield _sse({"type": "error", "message_id": message_id,
                                 "message": "internal error"})
+            finally:
+                flush()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream",
                                  headers=_SSE_HEADERS)
@@ -324,7 +331,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         domain = settings.domain
         return {"domain": domain, "ontology": ontology_view(domain),
                 "metrics": metrics_view(domain), "lineage": lineage_view(domain),
-                "mlflow_url": settings.mlflow_url or None}
+                "mlflow_url": settings.mlflow_url or None,
+                "langfuse_url": settings.langfuse_url or None}
 
     @app.post("/api/admin/flywheel")
     def admin_flywheel(comp: dict = Depends(get_components), _: dict = Depends(require_admin)):

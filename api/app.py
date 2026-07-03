@@ -7,6 +7,7 @@ import logging
 import os
 import time
 import uuid
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -29,6 +30,7 @@ from api.deps import get_components
 from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from data.introspect import lineage_view, metrics_view, ontology_view
+from data.lakehouse import load_manifest
 from evaluation.monitoring import aggregate_gaps, aggregate_health, aggregate_quality, read_jsonl
 from pipeline.answer import DEFAULT_MIN_CONFIDENCE, DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.agent import answer_with_agent
@@ -88,6 +90,19 @@ class LoginRequest(BaseModel):
 
 def _sse(event: dict) -> str:
     return "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+
+
+@lru_cache
+def _suggestions(domain: str) -> list:
+    """The active domain's starter prompts, read from its manifest. Only text/lang/kind are
+    exposed and the list is capped, so a pack cannot push arbitrary fields to the client."""
+    items = load_manifest(os.path.join("domains", domain)).get("suggestions", []) or []
+    if not isinstance(items, list):  # a malformed pack (mapping, not list) must not 500 the route
+        return []
+    return [{"text": str(s.get("text", ""))[:200],
+             "lang": str(s.get("lang", "en"))[:8],
+             "kind": str(s.get("kind", "fact"))[:16]}
+            for s in items[:12] if isinstance(s, dict) and s.get("text")]
 
 
 def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
@@ -279,6 +294,12 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
         return StreamingResponse(event_stream(), media_type="text/event-stream",
                                  headers=_SSE_HEADERS)
+
+    @app.get("/api/suggestions")
+    def suggestions(user: dict = Depends(current_user)):
+        # starter prompts for the active domain, so the chat guides the user instead of showing a
+        # blank box; served from the pack, so switching DOMAIN switches the suggestions
+        return {"domain": settings.domain, "suggestions": _suggestions(settings.domain)}
 
     @app.post("/api/transcribe")
     def transcribe(body: TranscribeRequest, request: Request,

@@ -7,6 +7,7 @@ import { useTurnstile } from "./turnstile";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
+type Suggestion = { text: string; lang: string; kind: string };
 
 type FinalEvent = {
   type: "final";
@@ -139,6 +140,7 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
 
   const authHeaders = {
@@ -146,9 +148,22 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
     Authorization: `Bearer ${token}`,
   };
 
+  useEffect(() => {
+    // starter prompts for the active domain, so the first screen guides instead of a blank box
+    fetch(`${API_BASE}/api/suggestions`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSuggestions(d.suggestions || []))
+      .catch(() => {});
+  }, [token]);
+
   async function ask(e: React.FormEvent) {
     e.preventDefault();
-    if (!query.trim() || loading) return;
+    send(query);
+  }
+
+  async function send(q: string) {
+    if (!q.trim() || loading) return;
+    setQuery(q);
     setAnswer("");
     setFinal(null);
     setFeedback(null);
@@ -157,7 +172,7 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: q }),
       });
       if (res.status === 401) {
         onSignOut();
@@ -320,6 +335,29 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
         </button>
       </form>
 
+      {!shown && !loading && suggestions.length > 0 && (
+        <div className="starters">
+          <p className="hint">
+            Try one of these, or ask your own. Every answer is grounded and cited, or it honestly
+            says it does not know.
+          </p>
+          <div className="chips">
+            {suggestions.map((s, i) => (
+              <button
+                key={`${i}-${s.text}`}
+                type="button"
+                className="chip-suggest"
+                onClick={() => send(s.text)}
+              >
+                {s.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading && !shown && <div className="thinking">Thinking...</div>}
+
       {shown && (
         <div className="answer" aria-live="polite">
           {shown}
@@ -359,6 +397,22 @@ function Chat({ token, onSignOut }: { token: string; onSignOut: () => void }) {
               {feedback && <span>thanks</span>}
             </div>
           )}
+        </div>
+      )}
+
+      {final && suggestions.length > 0 && (
+        <div className="followups">
+          <span className="hint">Ask another</span>
+          {suggestions.slice(0, 4).map((s, i) => (
+            <button
+              key={`${i}-${s.text}`}
+              type="button"
+              className="chip-suggest small"
+              onClick={() => send(s.text)}
+            >
+              {s.text}
+            </button>
+          ))}
         </div>
       )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { AdminNav } from "./nav";
 import { useTurnstile } from "../turnstile";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -158,6 +159,7 @@ export default function AdminPage() {
 
   return (
     <main className="admin">
+      <AdminNav />
       <h1>Review queue ({items.length})</h1>
       <div className="row">
         <button onClick={runFlywheel}>Run flywheel</button>

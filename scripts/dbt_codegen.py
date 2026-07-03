@@ -36,7 +36,7 @@ def _clean_generated() -> None:
             for name in os.listdir(d):
                 if name.endswith(".sql"):
                     os.remove(os.path.join(d, name))
-    for name in ("sources.yml", "schema.yml"):
+    for name in ("sources.yml", "schema.yml", "exposures.yml"):
         p = os.path.join(_MODELS, name)
         if os.path.exists(p):
             os.remove(p)
@@ -115,7 +115,32 @@ def generate(domain: str, domains_dir: str = "domains") -> list[str]:
            "    tables:\n{}".format(domain, "".join(source_tables)))
     _write(os.path.join(_MODELS, "schema.yml"),
            "version: 2\n\nmodels:\n{}".format("".join(schema_models)))
+    _write(os.path.join(_MODELS, "exposures.yml"), _exposures(built))
     return built
+
+
+# Who reads gold: naming the downstream consumers as dbt exposures makes lineage answer "what does
+# this table feed", so a change to a gold model shows its blast radius (the app, the dashboard, the
+# eval) in `dbt docs`.
+_EXPOSURES = [
+    ("rag_assistant", "application",
+     "The grounded RAG assistant answers over these gold tables via the governed metric layer."),
+    ("admin_dashboard", "dashboard",
+     "The backoffice dashboard reads quality, drift, and governed metrics from these tables."),
+    ("offline_eval", "analysis",
+     "The offline eval and RAGAS harness scores answers grounded in these tables."),
+]
+
+
+def _exposures(built: list[str]) -> str:
+    depends = "".join("        - ref('{}')\n".format(role) for role in built)
+    blocks = []
+    for name, kind, desc in _EXPOSURES:
+        blocks.append(
+            "  - name: {}\n    type: {}\n    maturity: high\n"
+            "    owner:\n      name: Skein\n      email: data@skein.local\n"
+            "    description: \"{}\"\n    depends_on:\n{}".format(name, kind, desc, depends))
+    return "version: 2\n\nexposures:\n{}".format("".join(blocks))
 
 
 def _model_schema(role, columns, pii, pk, grain, rels) -> str:

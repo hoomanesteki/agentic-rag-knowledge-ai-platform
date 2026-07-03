@@ -136,6 +136,48 @@ def gen():
     return rows, docs
 
 
+_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "OS"]
+_GWORD = {"women": "women's", "men": "men's", "unisex": "unisex"}
+
+
+def summaries(rows):
+    """Per gender+category and per category facts (counts, sizes, colors, price range, examples), so
+    the assistant can answer 'what bags do you have for women', 'price range for hoodies', 'what
+    sizes / colors', which are catalog aggregates that plain description retrieval misses."""
+    from collections import defaultdict
+
+    groups = defaultdict(lambda: {"names": {}, "sizes": set(), "colors": set(), "prices": []})
+    for r in rows:
+        g = groups[(r[3], r[2])]  # (gender, category)
+        g["names"][r[1]] = r[5]   # name -> price
+        g["sizes"].add(r[4])
+        g["colors"].update(c for c in r[7].split("|") if c)
+        g["prices"].append(r[5])
+
+    facts, i = [], 1
+    for (gender, cat), g in sorted(groups.items()):
+        names = sorted(g["names"])
+        sizes = [s for s in _SIZE_ORDER if s in g["sizes"]]
+        colors = sorted(g["colors"])
+        examples = ", ".join("{} (${:.0f})".format(n.replace("Aster ", ""), g["names"][n])
+                             for n in names[:6])
+        text = ("Aster {gw} {cat}: {n} styles, in sizes {sizes}, in colors including {colors}. "
+                "Prices range from ${lo:.0f} to ${hi:.0f}. Styles include {ex}.").format(
+                    gw=_GWORD[gender], cat=cat, n=len(names), sizes="/".join(sizes),
+                    colors=", ".join(colors[:8]), lo=min(g["prices"]), hi=max(g["prices"]), ex=examples)
+        facts.append({"id": "CAT%03d" % i, "lang": "en", "category": cat, "gender": gender, "text": text})
+        i += 1
+
+    bycat = defaultdict(list)
+    for (gender, cat), g in groups.items():
+        bycat[cat] += g["prices"]
+    for cat, prices in sorted(bycat.items()):
+        facts.append({"id": "CATR-%s" % cat, "lang": "en", "category": cat,
+                      "text": "Aster {cat} range in price from ${lo:.0f} to ${hi:.0f} across "
+                              "women's and men's styles.".format(cat=cat, lo=min(prices), hi=max(prices))})
+    return facts
+
+
 def main():
     rows, docs = gen()
     with open(os.path.join(STRUCT, "products.csv"), "w", newline="") as f:
@@ -145,9 +187,14 @@ def main():
     with open(os.path.join(UNSTRUCT, "products_catalog.jsonl"), "w") as f:
         for d in docs:
             f.write(json.dumps(d) + "\n")
+    facts = summaries(rows)
+    with open(os.path.join(UNSTRUCT, "catalog_facts.jsonl"), "w") as f:
+        for d in facts:
+            f.write(json.dumps(d) + "\n")
     products = len({r[1] for r in rows})
     print("wrote {} rows ({} products) to products.csv".format(len(rows), products))
     print("wrote {} descriptions to products_catalog.jsonl".format(len(docs)))
+    print("wrote {} category facts to catalog_facts.jsonl".format(len(facts)))
 
 
 if __name__ == "__main__":

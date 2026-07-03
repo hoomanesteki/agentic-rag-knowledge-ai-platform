@@ -39,6 +39,37 @@ function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// Turn an internal citation id (CK33, graph:Product:P007, metric:...) into a human-readable source.
+function citeLabel(c: Citation): string {
+  const id = c.id || "";
+  if (id.startsWith("graph:")) return "Product data";
+  if (id.startsWith("metric:")) return "Store metric";
+  if (/^CK/i.test(id)) return "Store policy";
+  if (/^(CATR|CAT)/i.test(id)) return "Catalog";
+  if (/^OC/i.test(id)) return "Buying guide";
+  if (/^(PD|PC)/i.test(id)) return "Product info";
+  if (/^R\d/i.test(id)) return "Customer review";
+  if (c.doc_type === "review") return "Customer review";
+  if (c.doc_type === "product") return "Product info";
+  if (c.doc_type === "guide") return "Store info";
+  return id;
+}
+
+// Collapse citations to unique human-readable sources (many CK ids all read as "Store policy").
+function dedupeCites(cites?: Citation[]): Citation[] {
+  if (!cites) return [];
+  const seen = new Set<string>();
+  const out: Citation[] = [];
+  for (const c of cites) {
+    const label = citeLabel(c);
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push(c);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 // Products the assistant named in its answer, matched by catalog name, so we can show them as cards.
 function recsFromAnswer(text: string, products: Product[]): Product[] {
   if (!text) return [];
@@ -400,6 +431,13 @@ function Conversation({
     setInput("");
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "" }]);
     setLoading(true);
+    // if the shopper is on a product page, fold that product into the query the API sees (but not
+    // what we display), so "what color is it" or "is it in stock" resolve to the right item
+    let qSend = q;
+    if (context?.kind === "product") {
+      const nm = context.name.replace(/^Aster /i, "");
+      if (!q.toLowerCase().includes(nm.toLowerCase())) qSend = `${q} (about the Aster ${nm})`;
+    }
     let result = "";
     const patchBot = (fn: (m: Message) => Message) =>
       setMessages((all) => {
@@ -416,7 +454,7 @@ function Conversation({
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ query: q }),
+        body: JSON.stringify({ query: qSend }),
       });
       if (res.status === 401) {
         onSignOut();
@@ -710,9 +748,9 @@ function Conversation({
             {m.final && (
               <div className="meta-row">
                 <span className={`tier tier-${m.final.tier}`}>{m.final.tier}</span>
-                {m.final.citations?.slice(0, 4).map((c) => (
-                  <span key={c.n} className="cite">
-                    [{c.n}] {c.id}
+                {dedupeCites(m.final.citations).map((c) => (
+                  <span key={c.n} className="cite" title={c.id}>
+                    {citeLabel(c)}
                   </span>
                 ))}
                 {m.final.message_id && (
@@ -791,6 +829,14 @@ function Conversation({
           &#8593;
         </button>
       </form>
+      <a
+        className="chat-credit"
+        href="https://esteki.ca/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Created by esteki.ca
+      </a>
     </>
   );
 }

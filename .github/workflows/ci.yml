@@ -25,6 +25,30 @@ jobs:
       - name: Eval gate (blocks a retrieval/abstain regression on recorded fixtures)
         run: make gate
 
+  dbt:
+    # The semantic layer: build the dbt medallion for both domains so the schema, relationships,
+    # and PII-masking governance tests run in CI, then assert parity, well-formed metrics, and a
+    # deterministic build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (with the dbt extra)
+        run: uv sync --extra dbt --extra dev
+
+      - name: Build and test the dbt semantic layer (both domains)
+        run: |
+          make dbt-build DOMAIN=apparel_ecommerce
+          make dbt-build DOMAIN=saas_support
+
+      - name: Parity test (dbt gold matches the in-app builder)
+        run: PYTHONPATH=. uv run pytest tests/test_dbt_parity.py -q
+
   web:
     runs-on: ubuntu-latest
     defaults:

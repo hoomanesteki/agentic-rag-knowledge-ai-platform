@@ -65,6 +65,14 @@ sources:
         edge_type: ABOUT
         target_label: Plan
         target_name_property: name
+    # Company knowledge: how-to guides and policies (onboarding, roles, SSO setup, API keys,
+    # billing, data, security). General product knowledge, not tied to one plan.
+    - file: seed/unstructured/company_knowledge.jsonl
+      doc_type: guide
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [category]
 
 # Knowledge graph (M5): nodes from gold tables, edges from foreign keys in the data. Same
 # engine, different schema, so the graph is declared here, never in code.

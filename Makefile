@@ -44,6 +44,15 @@ ps: ## Show infrastructure status
 lakehouse: ## Build the active DOMAIN's DuckDB medallion lakehouse and run data contracts
 	PYTHONPATH=. uv run python scripts/build_lakehouse.py
 
+dbt-build: ## Build the semantic layer with dbt (generate models from the manifest, then dbt build)
+	DOMAIN=$(DOMAIN) PYTHONPATH=. uv run python scripts/dbt_codegen.py
+	DOMAIN=$(DOMAIN) DBT_PROFILES_DIR=dbt uv run --extra dbt dbt build --project-dir dbt
+
+dbt-docs: ## Generate and serve the dbt lineage docs (the DAG and column-level docs)
+	DOMAIN=$(DOMAIN) PYTHONPATH=. uv run python scripts/dbt_codegen.py
+	DOMAIN=$(DOMAIN) DBT_PROFILES_DIR=dbt uv run --extra dbt dbt docs generate --project-dir dbt
+	DBT_PROFILES_DIR=dbt uv run --extra dbt dbt docs serve --project-dir dbt
+
 graph-load: ## Load the active DOMAIN's knowledge graph from gold into Neo4j (needs make up)
 	PYTHONPATH=. uv run python scripts/build_graph.py
 
@@ -77,4 +86,4 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive
+.PHONY: help setup test lint validate validate-all leak-check check up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive

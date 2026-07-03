@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from ._http import request_json
 from .base import LLMResult
 from .config import get_settings
+from .observability import observe, update_generation
 
 _DEFAULT_BASE = "https://api.groq.com/openai/v1"
 _DEFAULT_MODEL = "llama-3.3-70b-versatile"
@@ -31,6 +32,10 @@ class GroqClient:
         messages.append({"role": "user", "content": prompt})
         return messages
 
+    # capture_input/output off so `self` (which holds the API key) and the raw result are never
+    # serialized into the trace; the prompt and answer are set explicitly via update_generation.
+    @observe(as_type="generation", name="groq.generate",
+             capture_input=False, capture_output=False)
     def generate(self, prompt: str, *, system: str | None = None,
                  max_tokens: int = 512) -> LLMResult:
         if not self.api_key:
@@ -41,6 +46,12 @@ class GroqClient:
                             {"Authorization": "Bearer " + self.api_key})
         text = resp["choices"][0]["message"]["content"]
         usage = resp.get("usage", {})
+        # record the model, prompt/answer, and token counts on the Langfuse generation (no-op when
+        # tracing is off). Cost is derived by Langfuse from the model and token counts.
+        update_generation(
+            model=self.model, input=prompt, output=text,
+            usage_details={"input": usage.get("prompt_tokens", 0),
+                           "output": usage.get("completion_tokens", 0)})
         return LLMResult(text=text,
                          prompt_tokens=usage.get("prompt_tokens", 0),
                          completion_tokens=usage.get("completion_tokens", 0),

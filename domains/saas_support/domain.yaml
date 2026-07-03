@@ -99,3 +99,12 @@ defaults:
   top_n_out: 8
   confidence_high: 0.7
   confidence_low: 0.4
+
+# Starter prompts for the chat UI, one per capability, so a new user knows what they can ask.
+suggestions:
+  - { text: "How do I reset my Northwind Cloud password?", lang: en, kind: fact }
+  - { text: "What is the resolution rate for high priority tickets?", lang: en, kind: metric }
+  - { text: "Which plan is ticket T0003 associated with?", lang: en, kind: graph }
+  - { text: "What does the Business plan offer for single sign-on?", lang: en, kind: reviews }
+  - { text: "How do I create an API key?", lang: en, kind: policy }
+  - { text: "Comment configurer l'authentification unique ?", lang: fr, kind: fact }

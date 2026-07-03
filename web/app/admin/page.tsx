@@ -82,11 +82,20 @@ export default function AdminPage() {
 
   const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
+  function signOut() {
+    localStorage.removeItem("skein_admin_token");
+    setToken(null); // re-renders AdminLogin
+  }
+
   async function loadQueue(t = token) {
     setError(null);
     const res = await fetch(`${API_BASE}/api/admin/queue`, {
       headers: { Authorization: `Bearer ${t}` },
     });
+    if (res.status === 401) {
+      signOut(); // the token expired; send the operator back to the login instead of a dead page
+      return;
+    }
     if (res.status === 403) {
       setError("This account is not an admin.");
       return;
@@ -131,6 +140,10 @@ export default function AdminPage() {
   async function runFlywheel() {
     setFlywheel("Running...");
     const res = await fetch(`${API_BASE}/api/admin/flywheel`, { method: "POST", headers: auth });
+    if (res.status === 401) {
+      signOut();
+      return;
+    }
     if (!res.ok) {
       setFlywheel("Flywheel failed.");
       return;
@@ -148,6 +161,7 @@ export default function AdminPage() {
       <h1>Review queue ({items.length})</h1>
       <div className="row">
         <button onClick={runFlywheel}>Run flywheel</button>
+        <button className="signout" onClick={signOut}>Sign out</button>
         {flywheel && <span className="meta">{flywheel}</span>}
       </div>
       {error && <p className="error">{error}</p>}

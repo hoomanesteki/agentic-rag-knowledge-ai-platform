@@ -6,22 +6,28 @@ not automatic: the config is logged to MLflow and transitioned to Production onl
 production bar, to Staging if it clears the staging bar, otherwise left as a rejected candidate.
 This is the dev -> staging -> prod gate flow.
 
-What the gate actually scores (be precise): `make promote` runs the offline **CI eval gate**
-(`evaluation/ci_gate.py`) over recorded fixtures with deterministic fakes, so it proves the
-retrieval/grounding/abstain **pipeline** is wired and behaving, not the live model's answer quality.
-For a model-quality promotion, run `make ragas` first (RAGAS on the golden set with the real
-providers) and gate on that score; this script is the offline, CI-runnable half of that gate. The
-promoted config's real providers are still recorded as MLflow params for provenance.
+How the gate works (two stages, in order):
+  1. PRECONDITION: the offline CI eval gate (`evaluation/ci_gate.py`) must pass on recorded
+     fixtures with deterministic fakes. This proves the retrieval/grounding/abstain PIPELINE is
+     wired; it is not a quality score and can never by itself promote.
+  2. QUALITY GATE: promotion is decided by the measured RAGAS answer-quality aggregate from the
+     REAL providers, written to evaluation/ragas_scores.json by `make ragas`. A candidate reaches
+     Staging at PROMOTE_STAGING_MIN and Production at PROMOTE_PROD_MIN, and a Production candidate
+     must also beat the frozen champion (evaluation/ragas_baseline.json) or it is capped at Staging.
 
-Offline-safe: the gate needs no keys, and MLflow logs to ./mlruns by default. The full model
-registry needs the MLflow server (docker compose, MLFLOW_TRACKING_URI); without it the stage is
-recorded as a run tag and printed, so the gate decision still holds.
+If no real RAGAS score exists (or it was produced offline with fakes), promotion is REJECTED with
+guidance to run `make ragas` first: you cannot promote on a quality you never measured. This is the
+fix for the old behavior, where the gate scored fake providers and always promoted to Production.
+
+MLflow logs to ./mlruns by default. The full model registry needs the MLflow server (docker
+compose, MLFLOW_TRACKING_URI); without it the stage is recorded as a run tag and printed.
 
 Run: make promote   (or: uv run python scripts/promote_model.py)
 Exit code is 0 when promoted (Staging or Production), 1 when rejected, so CI can block on it.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -30,8 +36,25 @@ from adapters.config import get_settings
 from evaluation.ci_gate import load_gate, run_gate
 
 MODEL_NAME = os.getenv("PROMOTE_MODEL_NAME", "skein-rag")
-STAGING_MIN = float(os.getenv("PROMOTE_STAGING_MIN", "0.8"))
-PROD_MIN = float(os.getenv("PROMOTE_PROD_MIN", "1.0"))
+# These bars apply to the measured RAGAS answer-quality aggregate (0..1), not the offline pipeline
+# smoke score. Typical RAGAS aggregates land in 0.6..0.9, so the defaults are set for that range.
+STAGING_MIN = float(os.getenv("PROMOTE_STAGING_MIN", "0.65"))
+PROD_MIN = float(os.getenv("PROMOTE_PROD_MIN", "0.78"))
+RAGAS_SCORES_PATH = os.getenv("RAGAS_SCORES_PATH", "evaluation/ragas_scores.json")
+BASELINE_PATH = os.getenv("RAGAS_BASELINE_PATH", "evaluation/ragas_baseline.json")
+
+
+def _load_quality() -> dict | None:
+    """The RAGAS answer-quality record written by `make ragas` with the real providers. Returns None
+    when it is missing or was produced offline (fake providers), because you cannot promote on a
+    quality you never measured."""
+    if not os.path.exists(RAGAS_SCORES_PATH):
+        return None
+    try:
+        record = json.load(open(RAGAS_SCORES_PATH, encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return None if record.get("offline") else record
 
 
 def _stage_for(score: float) -> str:
@@ -75,11 +98,34 @@ def _log_and_promote(name: str, params: dict, score: float, stage: str, tracking
 
 def main() -> int:
     settings = get_settings()
+
+    # 1) PRECONDITION: the offline pipeline smoke gate must pass (retrieval/grounding/abstain are
+    # wired). This is a gate on the pipeline, not on answer quality, so it can never itself promote.
     fixtures = os.getenv("GATE_FIXTURES", "evaluation/fixtures/gate.json")
     trace_path = os.path.join(tempfile.mkdtemp(), "gate.jsonl")  # never touch real traces
-    result = run_gate(load_gate(fixtures), min_score=PROD_MIN, trace_path=trace_path)
-    score = float(result["score"])
+    smoke = run_gate(load_gate(fixtures), min_score=1.0, trace_path=trace_path)
+    if not smoke["passed"]:
+        print("REJECTED: pipeline smoke gate failed (score {:.3f}); fix the pipeline before "
+              "promoting.".format(float(smoke["score"])))
+        return 1
+
+    # 2) QUALITY GATE: promote on the measured RAGAS answer-quality score from the REAL providers.
+    quality = _load_quality()
+    if quality is None:
+        print("REJECTED: no measured answer-quality score. The pipeline is wired (smoke gate "
+              "passed), but promotion requires a real RAGAS run: set the real providers, "
+              "`make ingest`, then `make ragas`, and re-run `make promote`.")
+        return 1
+
+    score = float(quality["aggregate"])
     stage = _stage_for(score)
+
+    # A Production candidate must also beat the frozen champion, so quality never silently slips.
+    champion = None
+    if stage == "Production" and os.path.exists(BASELINE_PATH):
+        champion = float(json.load(open(BASELINE_PATH, encoding="utf-8")).get("aggregate", 0.0))
+        if score <= champion:
+            stage = "Staging"  # good enough to stage, but not better than the current champion
 
     params = {
         "llm_provider": settings.llm_provider,
@@ -88,6 +134,8 @@ def main() -> int:
         "rerank_provider": settings.rerank_provider,
         "rerank_model": settings.rerank_model,
         "chat_brain": settings.chat_brain,
+        "ragas_aggregate": score,
+        "smoke_score": float(smoke["score"]),
     }
     tracking_uri = settings.mlflow_url or "./mlruns"
     try:
@@ -95,8 +143,9 @@ def main() -> int:
     except Exception as exc:  # never let an MLflow hiccup hide the gate decision
         print("mlflow logging skipped ({}: {})".format(type(exc).__name__, str(exc)[:120]))
 
-    print("eval score {:.3f} -> stage {} (staging >= {}, prod >= {})".format(
-        score, stage, STAGING_MIN, PROD_MIN))
+    champ_note = "" if champion is None else " (champion {:.3f})".format(champion)
+    print("ragas quality {:.3f} -> stage {} (staging >= {}, prod >= {}){}".format(
+        score, stage, STAGING_MIN, PROD_MIN, champ_note))
     print(("PROMOTED to {}" if stage != "None" else "REJECTED (below staging bar)").format(stage))
     return 0 if stage != "None" else 1
 

@@ -21,9 +21,10 @@ class ElevenLabsTTS:
         self.model = model
         self.output_format = output_format
 
-    def synthesize(self, text: str, voice_id: str, timeout: int = 30) -> bytes:
+    def synthesize(self, text: str, voice_id: str, timeout: int = 10) -> bytes:
         """Return MP3 audio for `text` in the given voice. Raises RuntimeError on failure so the
-        endpoint can fall back to the browser voice rather than 500."""
+        endpoint can fall back to the browser voice rather than 500. A short timeout keeps a slow
+        upstream from tying up a request thread and starving the rest of the app."""
         if not self.api_key:
             raise RuntimeError("ElevenLabs API key is not set")
         url = "{}/{}?output_format={}".format(_BASE, voice_id, self.output_format)
@@ -46,3 +47,5 @@ class ElevenLabsTTS:
             raise RuntimeError("ElevenLabs TTS HTTP {}: {}".format(exc.code, detail)) from exc
         except urllib.error.URLError as exc:
             raise RuntimeError("ElevenLabs TTS failed: {}".format(exc.reason)) from exc
+        except (TimeoutError, OSError) as exc:  # socket read timeout / connection reset
+            raise RuntimeError("ElevenLabs TTS failed: {}".format(exc)) from exc

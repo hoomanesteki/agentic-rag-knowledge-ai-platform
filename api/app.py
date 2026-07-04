@@ -232,6 +232,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         return await call_next(request)
 
     login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
+    # a separate, roomier bucket for voice: each spoken turn is one /api/chat plus one /api/tts, so
+    # sharing the chat bucket would halve the real conversation rate and cut the voice mid-demo
+    tts_limiter = RateLimiter("60/minute")
     store = UserStore(auth_db_path or settings.auth_db_path)
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
@@ -494,7 +497,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def tts(body: TTSRequest, request: Request, user: dict = Depends(current_user)):
         # Premium voice for spoken answers. The API key never leaves the server. With no provider
         # or key configured, return 204 so the browser uses its built-in speechSynthesis instead.
-        if not limiter.allow(client_key(request)):
+        if not tts_limiter.allow(client_key(request)):
             raise HTTPException(status_code=429, detail="rate limit exceeded",
                                 headers={"Retry-After": "10"})
         if settings.tts_provider != "elevenlabs" or not settings.elevenlabs_api_key:

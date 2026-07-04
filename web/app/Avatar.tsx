@@ -14,8 +14,9 @@ export default function Avatar({
   size?: number;
   level?: number;
 }) {
-  // when speaking, drive the mouth from the audio level; otherwise it rests as a soft smile
-  const open = state === "speaking" ? Math.max(0.12, Math.min(1, level)) : 0;
+  // when speaking, drive the mouth from the audio level (real amplitude, or a faked oscillation on
+  // the browser-voice fallback); otherwise it rests as a soft smile
+  const open = state === "speaking" ? Math.max(0.08, Math.min(1, level)) : 0;
   const mouthRy = 0.5 + open * 4.2; // vertical opening
   const mouthRx = 3.6 - open * 0.7; // narrows slightly as it opens, like real speech
   return (

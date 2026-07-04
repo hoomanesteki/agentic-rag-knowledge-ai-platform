@@ -393,9 +393,11 @@ function Conversation({
   // premium (ElevenLabs) voice playback + lip-sync
   const audioElRef = useRef<HTMLAudioElement | null>(null); // the currently playing answer audio
   const audioCtxRef = useRef<AudioContext | null>(null); // reused Web Audio context for the analyser
-  const rafRef = useRef<number | null>(null); // lip-sync animation frame
+  const speakSeqRef = useRef(0); // monotonic token: bumped on every speak() and every stopSpeaking()
   const speakDoneRef = useRef<null | (() => void)>(null); // resolves the play promise on barge-in
   const [speakLevel, setSpeakLevel] = useState(0); // 0..1 mouth openness, drives the avatar lips
+  const agentModeRef = useRef(false); // mirror of agentMode, read inside already-running voice closures
+  const bargedRef = useRef(false); // an interim barge-in fired: accept the next final utterance as-is
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -421,6 +423,7 @@ function Conversation({
   }, [messages]);
 
   useEffect(() => {
+    agentModeRef.current = agentMode; // keep the ref in sync for already-running voice closures
     try {
       localStorage.setItem("aster_agent", agentMode ? "1" : "0");
     } catch {
@@ -431,6 +434,7 @@ function Conversation({
   function clearChat() {
     setMessages([]);
     setAgentMode(false);
+    agentModeRef.current = false;
     lastTopicRef.current = "";
     try {
       localStorage.removeItem("aster_chat");
@@ -495,6 +499,7 @@ function Conversation({
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
+      agentModeRef.current = true; // sync now so the intro is spoken in Aaron's voice, not Aria's
       return AGENT_INTRO; // return the intro so voice mode speaks it
     }
     setInput("");
@@ -554,8 +559,9 @@ function Conversation({
         return m;
       }
       if (!res.ok || !res.body) {
-        patchBot((b) => ({ ...b, text: "Sorry, something went wrong. Please try again." }));
-        return "";
+        const m = "Sorry, something went wrong. Please try again.";
+        patchBot((b) => ({ ...b, text: m }));
+        return m; // return the text so voice mode speaks it instead of going silent
       }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -596,16 +602,22 @@ function Conversation({
                 recs,
                 followups: fu.followups,
               }));
-            } else if (event.type === "error")
-              patchBot((b) => ({ ...b, text: "Sorry, something went wrong." }));
+            } else if (event.type === "error") {
+              result = "Sorry, something went wrong.";
+              patchBot((b) => ({ ...b, text: result }));
+            }
           }
         }
       } finally {
         reader.cancel().catch(() => {});
       }
-      if (!received) patchBot((b) => ({ ...b, text: "No response received. Please try again." }));
+      if (!received) {
+        result = "No response received. Please try again.";
+        patchBot((b) => ({ ...b, text: result }));
+      }
     } catch {
-      patchBot((b) => ({ ...b, text: "Could not reach the assistant. Is the API running?" }));
+      result = "Could not reach the assistant. Is the API running?";
+      patchBot((b) => ({ ...b, text: result }));
     } finally {
       setLoading(false);
     }
@@ -634,6 +646,7 @@ function Conversation({
   }
   function endAgent() {
     setAgentMode(false);
+    agentModeRef.current = false;
     setMessages((m) => [
       ...m,
       { role: "bot", text: "You're back with Aria, your shopping assistant. 😊 What else can I help you find?" },
@@ -646,81 +659,135 @@ function Conversation({
   async function speak(text: string, persona?: string): Promise<void> {
     const clean = plainSpeak(text);
     if (!clean) return;
+    const seq = ++speakSeqRef.current; // this call owns `seq`; stopSpeaking() bumps it to cancel
     try {
       const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({ text: clean.slice(0, 1200), persona: persona || null }),
       });
+      if (speakSeqRef.current !== seq) return; // barged in during the fetch: do not play stale audio
       if (res.ok && res.status !== 204) {
-        await playWithLipSync(await res.blob());
-        return;
+        const played = await playWithLipSync(await res.blob(), seq);
+        if (played || speakSeqRef.current !== seq) return; // spoke it, or superseded: no double voice
       }
     } catch {
       /* network/blocked: fall through to the browser voice */
     }
-    await speakAsync(clean); // browser fallback (the ava-speaking CSS still animates the mouth)
+    if (speakSeqRef.current !== seq) return;
+    // browser fallback (204 / error / premium playback failed): the browser voice gives no
+    // amplitude, so fake a gentle mouth oscillation while it speaks, then close it
+    let t = 0;
+    const iv = window.setInterval(() => {
+      if (speakSeqRef.current !== seq) return;
+      t += 0.4;
+      setSpeakLevel(0.2 + 0.22 * Math.abs(Math.sin(t)));
+    }, 90);
+    try {
+      await speakAsync(clean);
+    } finally {
+      clearInterval(iv);
+      if (speakSeqRef.current === seq) setSpeakLevel(0);
+    }
   }
 
-  function playWithLipSync(blob: Blob): Promise<void> {
+  // Play the answer MP3 with amplitude lip-sync. Resolves true only if audio actually played, so the
+  // caller can fall back to the browser voice on failure. All per-play nodes are local and cleaned
+  // up on every exit path; shared lip-sync state is only touched while this play still owns `seq`.
+  function playWithLipSync(blob: Blob, seq: number): Promise<boolean> {
     return new Promise((resolve) => {
+      if (speakSeqRef.current !== seq) {
+        resolve(false);
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioElRef.current = audio;
-      const finish = () => {
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-        setSpeakLevel(0);
-        URL.revokeObjectURL(url);
-        if (audioElRef.current === audio) audioElRef.current = null;
-        speakDoneRef.current = null;
-        resolve();
-      };
-      speakDoneRef.current = finish; // so stopSpeaking() can resolve us on barge-in
-      audio.onended = finish;
-      audio.onerror = finish;
-      try {
-        const Ctx = (window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-        let ctx = audioCtxRef.current;
-        if (!ctx) {
-          ctx = new Ctx();
-          audioCtxRef.current = ctx;
+      let srcNode: MediaElementAudioSourceNode | null = null;
+      let analyser: AnalyserNode | null = null;
+      let rafId = 0;
+      let played = false;
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (rafId) cancelAnimationFrame(rafId);
+        try {
+          srcNode?.disconnect();
+          analyser?.disconnect();
+        } catch {
+          /* already torn down */
         }
-        if (ctx.state === "suspended") ctx.resume();
-        const srcNode = ctx.createMediaElementSource(audio);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        srcNode.connect(analyser);
-        analyser.connect(ctx.destination);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        let last = 0;
-        const tick = () => {
-          analyser.getByteTimeDomainData(data);
-          let sum = 0;
-          for (let i = 0; i < data.length; i++) {
-            const v = (data[i] - 128) / 128;
-            sum += v * v;
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* ignore */
+        }
+        if (speakSeqRef.current === seq) setSpeakLevel(0); // only reset the mouth if still our turn
+        if (audioElRef.current === audio) audioElRef.current = null;
+        if (speakDoneRef.current === onBargeIn) speakDoneRef.current = null;
+        resolve(ok && played);
+      };
+      const onBargeIn = () => finish(false);
+      speakDoneRef.current = onBargeIn; // stopSpeaking() calls this to cut us off instantly
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      (async () => {
+        try {
+          const Ctx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          let ctx = audioCtxRef.current;
+          if (!ctx) {
+            ctx = new Ctx();
+            audioCtxRef.current = ctx;
           }
-          const level = Math.min(1, Math.sqrt(sum / data.length) * 2.4);
-          const now = performance.now();
-          if (now - last > 45) {
-            setSpeakLevel(Math.round(level * 100) / 100); // throttle to ~22fps
-            last = now;
+          if (ctx.state === "suspended") await ctx.resume(); // await, or the first answer is silent
+          if (speakSeqRef.current !== seq) {
+            finish(false);
+            return;
           }
-          rafRef.current = requestAnimationFrame(tick);
-        };
-        rafRef.current = requestAnimationFrame(tick);
-      } catch {
-        /* Web Audio unsupported: play without lip-sync */
-      }
-      audio.play().catch(finish);
+          srcNode = ctx.createMediaElementSource(audio);
+          analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          srcNode.connect(analyser);
+          analyser.connect(ctx.destination);
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          let last = 0;
+          const tick = () => {
+            if (speakSeqRef.current !== seq || settled) return;
+            analyser!.getByteTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+              const v = (data[i] - 128) / 128;
+              sum += v * v;
+            }
+            const level = Math.min(1, Math.sqrt(sum / data.length) * 2.4);
+            const now = performance.now();
+            if (now - last > 45) {
+              setSpeakLevel(Math.round(level * 100) / 100); // throttle to ~22fps
+              last = now;
+            }
+            rafId = requestAnimationFrame(tick);
+          };
+          rafId = requestAnimationFrame(tick);
+        } catch {
+          /* Web Audio unavailable/exhausted: play the element raw (still audible, no lip-sync) */
+        }
+        try {
+          await audio.play();
+          played = true;
+        } catch {
+          finish(false); // autoplay blocked / decode error: let the caller use the browser voice
+        }
+      })();
     });
   }
 
-  // Stop any speech immediately (barge-in / stop): cancels the browser voice and the audio element,
-  // resolves a pending play promise, and closes the mouth.
+  // Stop any speech immediately (barge-in / stop): cancels the current speak (via the seq bump),
+  // the browser voice, and the audio element, resolves a pending play promise, and closes the mouth.
   function stopSpeaking() {
+    speakSeqRef.current++; // invalidate any in-flight or playing speak()
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     const a = audioElRef.current;
     if (a) {
@@ -729,37 +796,42 @@ function Conversation({
       } catch {
         /* ignore */
       }
-    }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+      audioElRef.current = null;
     }
     setSpeakLevel(0);
     const done = speakDoneRef.current;
     speakDoneRef.current = null;
-    if (done) done();
+    if (done) done(); // resolves the pending play promise so its handleUtterance can continue
   }
 
   // we cut the speech and take the new question. Superseded utterances drop out via the id check.
   async function handleUtterance(text: string) {
     if (!voiceLiveRef.current || !micOnRef.current) return;
-    if (processingRef.current && !speakingRef.current) return; // busy thinking, ignore
-    if (speakingRef.current) {
-      // the mic may just be hearing our own voice; ignore an utterance that mostly echoes what we
-      // are saying, and only treat a genuinely new one as a barge-in
-      const spoken = new Set(normWords(lastSpokenRef.current));
-      const words = normWords(text);
-      const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
-      if (words.length < 2) return; // a single word while speaking is almost always an echo/noise
-      if (overlap > 0.6) return;
-      stopSpeaking(); // barge in: cut the premium audio (or browser voice) instantly
-    } else if (Date.now() - spokeEndRef.current < 1500) {
-      // recognition can finalize the tail of our own answer just after we stop speaking; drop an
-      // utterance in that brief window if it mostly matches what we just said
-      const spoken = new Set(normWords(lastSpokenRef.current));
-      const words = normWords(text);
-      const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
-      if (words.length < 2 || overlap > 0.6) return;
+    // if the interim path already detected a real interruption, accept this final utterance as-is
+    // rather than dropping it on the echo/length guards below (which would swallow "stop"/"wait")
+    const barged = bargedRef.current;
+    bargedRef.current = false;
+    if (barged) {
+      stopSpeaking(); // ensure the audio is cut, then take this question
+    } else {
+      if (processingRef.current && !speakingRef.current) return; // busy thinking, ignore
+      if (speakingRef.current) {
+        // the mic may just be hearing our own voice; ignore an utterance that mostly echoes what we
+        // are saying, and only treat a genuinely new one as a barge-in
+        const spoken = new Set(normWords(lastSpokenRef.current));
+        const words = normWords(text);
+        const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
+        if (words.length < 2) return; // a single word while speaking is almost always echo/noise
+        if (overlap > 0.6) return;
+        stopSpeaking(); // barge in: cut the premium audio (or browser voice) instantly
+      } else if (Date.now() - spokeEndRef.current < 1500) {
+        // recognition can finalize the tail of our own answer just after we stop speaking; drop an
+        // utterance in that brief window if it mostly matches what we just said
+        const spoken = new Set(normWords(lastSpokenRef.current));
+        const words = normWords(text);
+        const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
+        if (words.length < 2 || overlap > 0.6) return;
+      }
     }
     const myId = ++utterRef.current;
     processingRef.current = true;
@@ -773,7 +845,7 @@ function Conversation({
     const spoken = plainSpeak(answer);
     lastSpokenRef.current = spoken;
     setVoiceState("speaking");
-    await speak(spoken, agentMode ? "agent" : undefined);
+    await speak(spoken, agentModeRef.current ? "agent" : undefined); // ref, not stale closure state
     if (myId !== utterRef.current) return; // a newer utterance took over while we spoke
     speakingRef.current = false;
     spokeEndRef.current = Date.now(); // start the echo-tail window
@@ -806,6 +878,7 @@ function Conversation({
         const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
         if (words.length >= 1 && overlap < 0.5 && typeof window !== "undefined") {
           stopSpeaking();
+          bargedRef.current = true; // so the final transcript ("stop"/"wait") is not dropped later
         }
       }
       if (finalText.trim()) handlerRef.current(finalText.trim());
@@ -854,17 +927,19 @@ function Conversation({
     micDeadRef.current = false;
     micOnRef.current = true;
     setMicOn(true);
-    utterRef.current = 0;
+    bargedRef.current = false;
+    // note: utterRef is NOT reset here (stopVoice already bumped it); resetting to 0 would let a
+    // stale in-flight turn from the previous session match the new session's first id and hijack it
     setHeard("");
     setVoiceState("greeting");
     speakingRef.current = true;
     // greet in the right voice: if the shopper was already handed to the human specialist, keep
     // it Aaron, not Aria
-    const greeting = agentMode
+    const greeting = agentModeRef.current
       ? `Hi${name ? " " + name : ""}, Aaron here. How can I help?`
       : `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
     lastSpokenRef.current = greeting;
-    await speak(greeting, agentMode ? "agent" : undefined);
+    await speak(greeting, agentModeRef.current ? "agent" : undefined);
     speakingRef.current = false;
     spokeEndRef.current = Date.now();
     if (!voiceLiveRef.current) return;
@@ -891,13 +966,20 @@ function Conversation({
   }
 
   useEffect(() => {
-    // stop the mic and any speech if the widget unmounts mid-conversation (no setState here)
+    // stop the mic and any speech if the widget unmounts mid-conversation, and release Web Audio so
+    // repeated open/close does not leak running AudioContexts (browsers cap them at ~6). These are
+    // data refs (not DOM nodes); reading their live values at unmount is exactly the intent.
     return () => {
       voiceLiveRef.current = false;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      speakSeqRef.current++;
       recogRef.current?.abort();
       if (typeof window !== "undefined") window.speechSynthesis?.cancel();
       audioElRef.current?.pause();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      speakDoneRef.current?.(); // revokes the object URL, cancels the RAF, disconnects nodes
+      speakDoneRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
     };
   }, []);
 

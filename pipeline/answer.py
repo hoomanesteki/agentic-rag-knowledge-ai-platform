@@ -643,6 +643,56 @@ def _product_genders(domain: str) -> frozenset:
     return frozenset(out.items())
 
 
+@lru_cache(maxsize=8)
+def _domain_vocab(domain: str) -> frozenset:
+    """Correct-spelling vocabulary for typo repair: product-name words, glossary terms, and category
+    values, read from the manifest and catalog. Domain agnostic (no words hardcoded here)."""
+    import csv as _csv
+
+    import yaml
+    pack = os.path.join("domains", domain)
+    vocab: set[str] = set()
+    try:
+        manifest = yaml.safe_load(open(os.path.join(pack, "domain.yaml"), encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return frozenset()
+    for key, syns in (manifest.get("glossary", {}) or {}).items():
+        vocab.update(str(key).lower().split())
+        for s in syns or []:
+            vocab.update(str(s).lower().split())
+    for src in (manifest.get("sources", {}) or {}).get("structured", []) or []:
+        if src.get("role") != "products":
+            continue
+        try:
+            for row in _csv.DictReader(open(os.path.join(pack, src["file"]), encoding="utf-8")):
+                vocab.update(w.lower() for w in (row.get("name") or "").split())
+                if row.get("category"):
+                    vocab.add(row["category"].lower())
+        except OSError:
+            continue
+    return frozenset(w for w in vocab if len(w) >= 4)
+
+
+def _correct_typos(query: str, domain: str) -> str:
+    """Repair obvious misspellings of product/category/glossary words ('legings' -> 'leggings',
+    'hoody' -> 'hoodie') before retrieval, so a typo does not wrongly abstain. Conservative: only a
+    token of 5+ letters that is not already a known word and is a close fuzzy match is replaced."""
+    import difflib
+    vocab = _domain_vocab(domain)
+    if not vocab:
+        return query
+    out = []
+    for tok in re.findall(r"\w+|\W+", query):
+        low = tok.lower()
+        if low.isalpha() and len(low) >= 5 and low not in vocab:
+            match = difflib.get_close_matches(low, vocab, n=1, cutoff=0.84)
+            if match and match[0] != low:
+                out.append(tok[0].upper() + match[0][1:] if tok[0].isupper() else match[0])
+                continue
+        out.append(tok)
+    return "".join(out)
+
+
 def _redact_contexts_by_gender(contexts: list[dict], gender: str | None,
                                domain: str | None = None) -> list[dict]:
     if gender not in ("men", "women"):
@@ -890,6 +940,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                "confidence": 1.0, "grounding": 1.0, "citations": []}
         return
     rquery = _followup_query(query, history)  # expand a short follow-up with the prior turns
+    from adapters.config import get_settings
+    rquery = _correct_typos(rquery, get_settings().domain)  # repair typos before retrieval
     # Identity for the order-PII gate is proven from the shopper's own turns (name on one turn,
     # email on the next both count), never from the assistant's words or retrieved text.
     hits = retrieve(rquery, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,

@@ -13,12 +13,14 @@ electricity and disk a local 70B would cost.
 
 - **Why:** Groq's LPU serves tokens faster than any GPU host I tested, which matters for a streaming
   chat where time-to-first-token is what the user feels. Llama-3.3-70B is strong enough for grounded
-  synthesis and citation, and Llama-3.1-8B-instant handles the small jobs (query rewrite, metric
-  slot-fill, routing) for a fraction of the cost.
-- **Two-tier:** small model for the cheap, frequent calls; large model only for the final answer.
-  Most tokens go through the cheap model.
+  synthesis and citation.
+- **Current state, honestly:** the app runs the 70B for all its LLM calls today (final synthesis and
+  the small jobs like query rewrite and metric slot-fill). A cheap-model tier
+  (`GROQ_MODEL_SMALL`, Llama-3.1-8B-instant) is already wired for the independent RAGAS judge, and
+  the obvious next cost optimization is to route rewrite/slot-fill through it too; the adapter seam
+  makes that a config change, not a rewrite.
 - **Cost and latency:** among the lowest available for open-weight models of this quality. A typical
-  answer is well under a cent.
+  answer is well under a cent, and the exact per-turn cost is on the Health dashboard.
 
 ## Embeddings and rerank: Cohere
 

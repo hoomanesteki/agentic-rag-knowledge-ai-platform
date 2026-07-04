@@ -33,7 +33,13 @@ from api.resilience import is_transient
 from data.introspect import lineage_view, metrics_view, ontology_view
 from data.lakehouse import load_manifest
 from evaluation.monitoring import aggregate_gaps, aggregate_health, aggregate_quality, read_jsonl
-from pipeline.answer import DEFAULT_MIN_CONFIDENCE, DEFAULT_TRACE_PATH, stream_answer, write_trace
+from pipeline.answer import (
+    DEFAULT_MIN_CONFIDENCE,
+    DEFAULT_TRACE_PATH,
+    _smalltalk,
+    stream_answer,
+    write_trace,
+)
 from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
 
@@ -388,6 +394,16 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         def event_stream():
             try:
                 if brain == "agent":
+                    # safety/greeting intercept BEFORE the brain, so the agent path gets the same
+                    # harm-decline and small-talk handling as the linear path (the brain does not
+                    # call _smalltalk itself)
+                    chat = _smalltalk(req.query, req.persona)
+                    if chat is not None:
+                        yield _sse({"type": "token", "text": chat})
+                        yield _sse({"type": "final", "message_id": message_id, "answer": chat,
+                                    "tier": "auto", "confidence": 1.0, "grounding": 1.0,
+                                    "citations": []})
+                        return
                     # the full M6 brain (supervisor, gate, escalation to the review queue) as a
                     # buffered response. The whole turn runs synchronously here before the first
                     # yield, so the Langfuse span opens and closes within one execution (no cross-

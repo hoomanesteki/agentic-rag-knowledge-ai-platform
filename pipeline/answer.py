@@ -38,11 +38,12 @@ _SYSTEM = (
     "apparel brand, in the style of a great customer-service rep. "
     "Answer only using the numbered context below, and cite the sources you use like [1] or [2]. "
     "Keep it short and scannable. When you recommend more than one product, ALWAYS use a short "
-    "bulleted list, one product per line, each with the product name followed by a brief reason "
-    "(format each bullet as '- <product name>: <one short reason>'). Never write a wall of text. "
-    "Lead with one short framing sentence, then the bullets. Do not paste web links: the shopper "
-    "sees clickable product cards under your message. Use one or two tasteful emoji so it feels "
-    "human. Recommend specific products by name when they fit, and always try to help. "
+    "bulleted list, one product per line, each with the product name, a brief reason, and its "
+    "citation (format each bullet as '- <product name>: <one short reason> [n]'). Never write a "
+    "wall of text. Lead with one short framing sentence that also carries a citation, then the "
+    "bullets. Do not paste web links: the shopper sees clickable product cards under your message. "
+    "Use one or two tasteful emoji so it feels human. Recommend specific products by name when "
+    "they fit, and always try to help. "
     "If asked to list or show all products, do not dump the catalog: say there are many and ask "
     "them to narrow it down by category, use, or budget, or offer a few top picks. "
     "Politely decline harmful, dangerous, or illegal requests and never recommend a product for "
@@ -114,9 +115,13 @@ def _smalltalk(query: str, persona: str | None = None) -> str | None:
     q = re.sub(r"\bu\b", "you", q)
     q = re.sub(r"\bwat\b", "what", q)
     agent = persona == "agent"
-    # clear harm intent: decline briefly and warmly, not with the "missing detail" fallback
-    if re.search(r"\b(bomb|explo\w*|detonat|weapon|grenade|poison|shoot|stab|kill|hurt (someone|"
-                 r"people|somebody)|make a knife|self ?harm|suicide)\b", q):
+    # clear harm intent: decline briefly and warmly, not with the "missing detail" fallback. Scoped
+    # so ordinary shopping words are safe: "explore" / "photo shoot" / "kill it at the gym" / an
+    # "explosive sprint" must NOT trip it, only real weapon/violence phrasings.
+    _victim = r"(someone|somebody|people|him|her|myself|them|a person)"
+    if re.search(r"\b(bomb|detonat\w*|grenade|weapon|explos\w+ (device|belt|vest)|"
+                 r"make a (knife|weapon|bomb)|self[ -]?harm|suicide|"
+                 r"(kill|shoot|stab|poison|hurt|attack|harm)\s+" + _victim + r")\b", q):
         return ("I can't help with that, but I'm happy to help you shop 😊. Looking for something "
                 "for the gym, a gift, or the weather where you are?")
     # a light joke / chit-chat, so it never cites sources for a joke
@@ -297,12 +302,14 @@ def _format_history(history: list[dict] | None) -> str:
 
 
 def _followup_query(query: str, history: list[dict] | None) -> str:
-    """For a short follow-up ('which is cheaper', 'the warmer one'), prepend the last shopper turn
-    so retrieval still finds the products being discussed instead of abstaining."""
+    """For a short follow-up ('which is cheaper', a name given after an email) prepend the last few
+    shopper turns, so retrieval still finds the subject and multi-turn account intent ('where is my
+    order' ... 'info@x.com' ... 'Aaron Esteki') carries through instead of abstaining."""
     if history and len(query.split()) <= 6:
-        for turn in reversed(history):
-            if turn.get("role") == "user" and (turn.get("content") or "").strip():
-                return (turn["content"].strip() + " " + query)[:400]
+        prior = [t["content"].strip() for t in history
+                 if t.get("role") == "user" and (t.get("content") or "").strip()]
+        if prior:
+            return (" ".join(prior[-3:]) + " " + query)[:400]
     return query
 
 
@@ -343,13 +350,30 @@ _ORDER_TERM = re.compile(
 # "my"/"I" only, not bare "me"/"we": "show me every order in the system" is an admin-style dump,
 # not the shopper asking about their own order, and must not surface order records.
 _FIRST_PERSON = re.compile(r"\b(my|mine|i|i'?ve|i'?m)\b", re.I)
+# Third-party framing: the email/name is the OWNER being looked up ("orders placed by x@y",
+# "orders for x@y", "x@y's orders"). Even wrapped in a polite "can I ...", this must never surface
+# order records, so a bare "I" cannot be used to pull a stranger's history.
+_THIRD_PARTY = re.compile(
+    r"\b(orders?|purchases?|account|history)\b[^.?!]{0,30}\b(placed |made )?"
+    r"(by|for|of|belonging to)\s+[\w.+-]+@"
+    r"|[\w.+-]+@[\w-]+\.[\w.-]+\s*('s\b|\s+(order|account|purchase|history))", re.I)
 
 
 def _account_intent(query: str) -> bool:
-    # Only surface order/PII docs for a FIRST-PERSON account question ("my order", "where's my
-    # package", plus an email). A third-person lookup ("list all orders placed by <email>", "who is
-    # X", "has anyone bought X") never qualifies, so a stranger's email can't dump a purchase
-    # history. The prompt still requires a name+email match before revealing anything.
+    # Only surface order/PII docs for a genuine FIRST-PERSON account question ("my order", "where's
+    # my package"). A third-person lookup keyed on someone's email ("list all orders placed by
+    # <email>", even "can I see orders for <email>"), a "who is X", or "has anyone bought X" never
+    # qualifies, so a stranger's email can't dump a purchase history. The prompt still requires a
+    # name+email match before revealing anything.
+    if _THIRD_PARTY.search(query):
+        return False
+    # when an email is present it must be claimed possessively ("my email is ...", "my order"),
+    # never just referenced with a bare "I", which polite third-party lookups ("can I see ...") use
+    if _EMAIL_RE.search(query) and not re.search(r"\bmy\b", query, re.I):
+        # allow a first-person subject that is clearly about the speaker's own orders
+        if not re.search(r"\b(i|i'?ve|i'?m)\b[^.?!]{0,20}\b(order|bought|purchase|place|track|"
+                         r"return|receiv)", query, re.I):
+            return False
     if not _FIRST_PERSON.search(query):
         return False
     return bool(_EMAIL_RE.search(query) or _ORDER_TERM.search(query))
@@ -528,12 +552,14 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         yield {"type": "final", "message_id": message_id, "answer": chat, "tier": "auto",
                "confidence": 1.0, "grounding": 1.0, "citations": []}
         return
-    rquery = _followup_query(query, history)  # expand a short follow-up with the prior turn
+    rquery = _followup_query(query, history)  # expand a short follow-up with the prior turns
     hits = retrieve(rquery, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
+    # use the expanded query for graph/metric evidence too, so "what about size M?" can still
+    # slot-fill a governed stock metric with the product from the prior turn
     contexts, has_graph, graph_auth = with_graph_evidence(
-        query, build_contexts(hits), graph_retriever)
-    contexts, has_metric = with_metric_evidence(query, contexts, llm, metric_resolver)
+        rquery, build_contexts(hits), graph_retriever)
+    contexts, has_metric = with_metric_evidence(rquery, contexts, llm, metric_resolver)
     if has_metric or graph_auth:
         abstained = False  # a governed metric or a query-named graph fact is authoritative
     trace = {

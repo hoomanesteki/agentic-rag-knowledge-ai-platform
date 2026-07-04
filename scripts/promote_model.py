@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Promote the current RAG configuration through MLflow stages, gated by the eval score.
+"""Promote the current RAG configuration through MLflow stages, gated by an eval score.
 
-A "model" here is the serving configuration (LLM, embeddings, reranker, prompt/brain) evaluated on
-the recorded gate fixtures. Promotion is not automatic: the config is logged to MLflow with its
-eval score, then transitioned to Production only if it clears the production bar, to Staging if it
-clears the staging bar, otherwise left as a rejected candidate. This is the dev -> staging -> prod
-gate, so nothing reaches "production" without passing evaluation first.
+A "model" here is the serving configuration (LLM, embeddings, reranker, prompt/brain). Promotion is
+not automatic: the config is logged to MLflow and transitioned to Production only if it clears the
+production bar, to Staging if it clears the staging bar, otherwise left as a rejected candidate.
+This is the dev -> staging -> prod gate flow.
 
-Offline-safe: the gate runs on recorded fixtures (no keys), and MLflow logs to ./mlruns by default.
-The full model registry needs the MLflow server (docker compose, MLFLOW_TRACKING_URI); when it is
-not available the stage is recorded as a run tag and printed, so the gate decision still holds.
+What the gate actually scores (be precise): `make promote` runs the offline **CI eval gate**
+(`evaluation/ci_gate.py`) over recorded fixtures with deterministic fakes, so it proves the
+retrieval/grounding/abstain **pipeline** is wired and behaving, not the live model's answer quality.
+For a model-quality promotion, run `make ragas` first (RAGAS on the golden set with the real
+providers) and gate on that score; this script is the offline, CI-runnable half of that gate. The
+promoted config's real providers are still recorded as MLflow params for provenance.
+
+Offline-safe: the gate needs no keys, and MLflow logs to ./mlruns by default. The full model
+registry needs the MLflow server (docker compose, MLFLOW_TRACKING_URI); without it the stage is
+recorded as a run tag and printed, so the gate decision still holds.
 
 Run: make promote   (or: uv run python scripts/promote_model.py)
-Exit code is 0 when promoted (Staging or Production), 1 when rejected, so CI can block a bad config.
+Exit code is 0 when promoted (Staging or Production), 1 when rejected, so CI can block on it.
 """
 from __future__ import annotations
 

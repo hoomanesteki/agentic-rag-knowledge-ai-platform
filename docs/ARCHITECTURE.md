@@ -40,16 +40,20 @@ learns. Every hosted call has a **fallback** so the system degrades instead of f
 
 ## The agentic loop (per turn)
 
-Built with LangGraph (`rag/graph.py`); the supervisor and specialists live in `rag/supervisor.py`
-and `rag/specialists.py`.
+Two serving paths share the same retrieval, gate, and grounding. The default `CHAT_BRAIN=linear`
+(`stream_answer`) streams tokens and is what the demo runs; `CHAT_BRAIN=agent` swaps in the full
+LangGraph brain below (`rag/graph.py`, `rag/supervisor.py`, `rag/specialists.py`) with the
+supervisor, specialist reconciliation, a bounded retry loop, and escalation to the review queue.
+The diagram is the agent path.
 
 ```
         ┌─────────────┐
   query │  understand │  route + rewrite a follow-up using history
         └──────┬──────┘
                ▼
-        ┌─────────────┐   supervisor dispatches specialists in parallel:
-        │   retrieve  │──▶  • Retriever  (hybrid dense+sparse + rerank)
+        ┌─────────────┐   supervisor dispatches specialists in sequence (retriever first, its
+        │   retrieve  │──▶  top text seeds the graph specialist):
+        │             │     • Retriever  (hybrid dense+sparse + rerank)
         │  + evidence │     • Metrics    (governed SQL over gold, validated params, read-only)
         └──────┬──────┘     • Graph      (allowlisted traversals, e.g. supplier of a product)
                ▼            reconcile: a governed number beats a contradicting review

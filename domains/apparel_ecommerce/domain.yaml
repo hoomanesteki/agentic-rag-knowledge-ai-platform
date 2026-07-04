@@ -127,7 +127,7 @@ sources:
       lang_field: lang
       meta_fields: [category]
     # Demo order history for one customer, so the assistant can look up orders and reason about a
-    # delivery delay when the shopper gives their email (info@esteki.ca).
+    # delivery delay when the shopper gives their email (info@esteki.ca), verified with their name.
     - file: seed/unstructured/orders.jsonl
       doc_type: order
       id_field: id

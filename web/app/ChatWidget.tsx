@@ -582,11 +582,15 @@ function Conversation({
     const shortHuman =
       qt.split(/\s+/).length <= 4 &&
       /\b(human|agent|representative|real person|advisor|operator|manager)\b/i.test(q);
-    // A verb+person phrase, but NOT "get" (too generic: "get someone a gift", "get the most
-    // support") and NOT the vague nouns "someone/somebody/support" that ordinary shopping uses.
-    // The gap is tight so "connect me with a plan that has good support" cannot match.
+    // A verb+person phrase in EITHER order, so "talk to a human" and "a human I can talk to" both
+    // escalate. NOT "get" (too generic: "get someone a gift", "get the most support") and NOT the
+    // vague nouns "someone/somebody/support" that ordinary shopping uses. The gap is tight so
+    // "connect me with a plan that has good support" cannot match.
     const verbHuman =
       /\b(talk|speak|chat|connect|transfer|reach|escalate)\b.{0,20}\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b/i.test(
+        q,
+      ) ||
+      /\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b.{0,20}\b(talk|speak|chat|connect|transfer|reach|escalate)\b/i.test(
         q,
       );
     // An explicit refusal must not escalate. Two shapes: (1) a negated desire/handoff

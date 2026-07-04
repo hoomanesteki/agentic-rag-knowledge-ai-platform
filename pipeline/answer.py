@@ -674,9 +674,9 @@ def _domain_vocab(domain: str) -> frozenset:
 
 
 def _correct_typos(query: str, domain: str) -> str:
-    """Repair obvious misspellings of product/category/glossary words ('legings' -> 'leggings',
-    'hoody' -> 'hoodie') before retrieval, so a typo does not wrongly abstain. Conservative: only a
-    token of 5+ letters that is not already a known word and is a close fuzzy match is replaced."""
+    """Repair an obvious misspelling of a catalog word to its nearest correct spelling before
+    retrieval, so a typo does not wrongly abstain. Conservative: only a token of 5+ letters that is
+    not already a known word and is a close fuzzy match to the domain vocabulary is replaced."""
     import difflib
     vocab = _domain_vocab(domain)
     if not vocab:

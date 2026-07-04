@@ -101,6 +101,7 @@ def main() -> int:
         "config": {
             "llm_provider": settings.llm_provider, "embed_provider": settings.embed_provider,
             "embed_model": settings.embed_model, "rerank_provider": settings.rerank_provider,
+            "rerank_model": settings.rerank_model,
             "chat_brain": settings.chat_brain, "judge_model": settings.judge_model or "self",
         },
     }

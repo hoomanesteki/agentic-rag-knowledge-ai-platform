@@ -221,9 +221,11 @@ class InMemoryGraphStore:
             if node is None:
                 continue  # edge points at a node that was not loaded; skip it
             out.append(GraphNeighbor(edge_type=etype, direction=seen_dir, node=node))
-            if len(out) >= limit:
-                break
-        return out
+        # Sort deterministically (edge type, then node id) BEFORE applying the limit, so which
+        # neighbors survive truncation is stable and matches the Neo4j store's ORDER BY, not just
+        # insertion order (which made fake-backed tests disagree with the real store under a cap).
+        out.sort(key=lambda nb: (nb.edge_type, str(nb.node.id)))
+        return out[:limit]
 
 
 class EchoLLM:

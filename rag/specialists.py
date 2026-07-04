@@ -24,7 +24,7 @@ from pipeline.answer import (
     retrieve,
     should_abstain,
 )
-from retrieval.metric_router import metric_context, route_metric
+from retrieval.metric_router import _small_sample_note, metric_context, route_metric
 
 
 @dataclass
@@ -94,9 +94,12 @@ def metrics_finding(query: str, *, llm, metric_resolver) -> Finding:
         return Finding("metrics", "metric", found=False)
     block = metric_context(result)
     block["n"] = 1
+    # Bake the small-sample caveat into the authoritative answer too, not just the context, so the
+    # supervisor's conflict-fallback path (which ships this answer verbatim, past the LLM) still
+    # carries "based on only N sales" for a tiny-sample rate.
     return Finding("metrics", "metric", found=True, authoritative=True,
-                   answer="Governed metric: " + result.summary(), confidence=1.0,
-                   contexts=[block], citations=_cite([block]))
+                   answer="Governed metric: " + result.summary() + _small_sample_note(result),
+                   confidence=1.0, contexts=[block], citations=_cite([block]))
 
 
 def graph_finding(query: str, *, graph_retriever, extra_texts: tuple = ()) -> Finding:

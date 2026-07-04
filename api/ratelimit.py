@@ -28,8 +28,10 @@ class RateLimiter:
         return min(self.capacity, tokens + (now - last) * self.refill_per_sec)
 
     def _prune(self, now: float) -> None:
+        # Iterate over a snapshot: FastAPI serves requests on a threadpool, so another request could
+        # insert a bucket mid-iteration and raise "dict changed size during iteration".
         self._buckets = {
-            k: (t, ts) for k, (t, ts) in self._buckets.items()
+            k: (t, ts) for k, (t, ts) in list(self._buckets.items())
             if self._current_tokens(t, ts, now) < self.capacity}
 
     def allow(self, key: str, now: float | None = None) -> bool:

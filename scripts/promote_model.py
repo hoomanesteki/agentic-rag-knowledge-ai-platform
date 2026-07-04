@@ -122,7 +122,7 @@ def main() -> int:
     measured = quality.get("config", {}) or {}
     serving = {"llm_provider": settings.llm_provider, "embed_provider": settings.embed_provider,
                "embed_model": settings.embed_model, "rerank_provider": settings.rerank_provider,
-               "chat_brain": settings.chat_brain}
+               "rerank_model": settings.rerank_model, "chat_brain": settings.chat_brain}
     drift = {k: (measured.get(k), v) for k, v in serving.items() if measured.get(k) != v}
     if drift:
         print("REJECTED: the RAGAS score was measured on a different config than the one being "
@@ -138,7 +138,13 @@ def main() -> int:
     stage = _stage_for(score)
 
     # A Production candidate must also beat the frozen champion, so quality never silently slips.
+    # With no champion committed yet, cap at Staging rather than promote to Production unchecked:
+    # the first Production promotion should always be deliberate, compared against a baseline.
     champion = None
+    if stage == "Production" and not os.path.exists(BASELINE_PATH):
+        print("note: no champion baseline ({}) yet, so capping at Staging. Freeze this score as "
+              "ragas_baseline.json to enable Production promotion.".format(BASELINE_PATH))
+        stage = "Staging"
     if stage == "Production" and os.path.exists(BASELINE_PATH):
         champion = float(json.load(open(BASELINE_PATH, encoding="utf-8")).get("aggregate", 0.0))
         if score <= champion:

@@ -335,6 +335,22 @@ export default function ChatWidget({
     };
   }, [token]);
 
+  // If the storefront failed to load on a cold first paint (fetchStore swallows errors and returns
+  // empty), refetch once the token confirms the API is up, so the greeting names the brand and the
+  // product rec cards render instead of staying blank for the whole session.
+  useEffect(() => {
+    if (!token || products.length) return;
+    let alive = true;
+    fetchStore().then((s) => {
+      if (!alive) return;
+      if (s.brand) setBrand(s.brand);
+      if (s.products.length) setProducts(s.products);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [token, products.length]);
+
   const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
 
   // one-shot manual reconnect, so a stuck visitor never has to refresh the page
@@ -776,11 +792,17 @@ function Conversation({
         signal: ttsCtrl.signal,
         body: JSON.stringify({ text: clean.slice(0, 1200), persona: persona || null }),
       });
-      clearTimeout(ttsTimer);
-      if (speakSeqRef.current !== seq) return; // barged in during the fetch: do not play stale audio
+      if (speakSeqRef.current !== seq) {
+        clearTimeout(ttsTimer);
+        return; // barged in during the fetch: do not play stale audio
+      }
       if (res.ok && res.status !== 204) {
-        const played = await playWithLipSync(await res.blob(), seq);
+        const blob = await res.blob(); // keep the timer armed across the body read (shares the signal)
+        clearTimeout(ttsTimer);
+        const played = await playWithLipSync(blob, seq);
         if (played || speakSeqRef.current !== seq) return; // spoke it, or superseded: no double voice
+      } else {
+        clearTimeout(ttsTimer);
       }
     } catch {
       clearTimeout(ttsTimer);
@@ -974,6 +996,10 @@ function Conversation({
     rec.interimResults = true;
     rec.continuous = true;
     rec.maxAlternatives = 1;
+    // Track consecutive 'network' errors (Chrome's speech service offline) so onend does not spin
+    // restarting the recognizer with zero backoff, stuck at "Listening..." while nothing is heard.
+    let netErr = 0;
+    let hadNetError = false;
     rec.onresult = (e) => {
       let finalText = "";
       let interim = "";
@@ -982,6 +1008,7 @@ function Conversation({
         interim += t;
         if (e.results[i].isFinal) finalText += t;
       }
+      if (interim.trim()) netErr = 0; // the service is working again; clear the error streak
       // barge-in the instant the shopper starts speaking: if the assistant is talking and this is
       // not just the mic hearing its own voice, stop speaking so they can talk
       if (speakingRef.current && micOnRef.current && interim.trim()) {
@@ -1005,16 +1032,34 @@ function Conversation({
           ...m,
           { role: "bot", text: "I couldn't reach the microphone. Please allow mic access, or type your question." },
         ]);
+      } else if (err === "network") {
+        // The browser's speech service is unreachable. Back off, and after a few tries give up
+        // (with a message) instead of an invisible zero-backoff restart loop.
+        hadNetError = true;
+        netErr += 1;
+        if (netErr >= 3) {
+          micDeadRef.current = true;
+          stopVoice();
+          setMessages((m) => [
+            ...m,
+            { role: "bot", text: "Voice isn't reachable right now, so I've switched off the mic. You can type your question, or try voice again in a moment." },
+          ]);
+        }
       }
+      // no-speech / aborted are benign: onend restarts normally
     };
     rec.onend = () => {
-      if (voiceLiveRef.current && !micDeadRef.current) {
+      if (!voiceLiveRef.current || micDeadRef.current) return;
+      const delay = hadNetError ? 1500 : 0; // browsers stop after a pause; keep the mic alive
+      hadNetError = false;
+      window.setTimeout(() => {
+        if (!voiceLiveRef.current || micDeadRef.current) return;
         try {
-          rec.start(); // browsers stop after a pause; keep the mic alive until Stop
+          rec.start();
         } catch {
           /* already started */
         }
-      }
+      }, delay);
     };
     recogRef.current = rec;
     try {

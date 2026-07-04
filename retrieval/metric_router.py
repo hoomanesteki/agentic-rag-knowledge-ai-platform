@@ -22,7 +22,7 @@ _STOP = {"by", "of", "the", "per", "a", "an"}
 # wastes a slot-fill call. "how many"/"how much" still trip the gate via "many"/"much".
 _NUMERIC_CUES = {"many", "much", "rate", "count", "average", "avg", "total",
                  "number", "percent", "percentage",
-                 # price superlatives, so "cheapest hoodie" reaches the price metric
+                 # price superlatives, so "cheapest <category>" reaches the price metric
                  "cheapest", "cheap", "priciest", "expensive", "price", "budget", "affordable"}
 _SLOT_SYSTEM = (
     "You map a user question to at most one governed metric. Reply with ONLY a JSON object: "

@@ -33,3 +33,32 @@ metrics:
       from sales s
       where ($product_id is null or s.product_id = $product_id)
       group by s.product_id
+
+  # Per-size stock so "is the Flow Legging in stock in medium" is answered from the gold table,
+  # not guessed. Common size words (medium, small, large) map to the S/M/L/XL codes.
+  - name: stock_by_size
+    grain: product size
+    source: products
+    dimensions: [name, size]
+    params:
+      product: string
+      size: string
+    sql_template: |
+      select
+        p.name as product,
+        p.size as size,
+        sum(p.stock) as units_in_stock
+      from products p
+      where ($product is null or lower(p.name) like '%' || lower($product) || '%')
+        and (
+          $size is null
+          or upper(p.size) = upper($size)
+          or (lower($size) in ('medium', 'med') and p.size = 'M')
+          or (lower($size) in ('small', 'sm') and p.size = 'S')
+          or (lower($size) in ('large', 'lg') and p.size = 'L')
+          or (lower($size) in ('extra large', 'x-large', 'xl', 'x large') and p.size = 'XL')
+          or (lower($size) in ('extra small', 'x-small', 'xs') and p.size = 'XS')
+          or (lower($size) in ('one size', 'os', 'onesize') and p.size = 'OS')
+        )
+      group by p.name, p.size
+      order by p.name, p.size

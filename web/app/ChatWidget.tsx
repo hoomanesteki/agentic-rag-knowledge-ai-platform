@@ -318,6 +318,7 @@ export default function ChatWidget({
         })
         .then((d) => {
           if (d?.access_token) localStorage.setItem("skein_token", d.access_token); // cache first
+          if (d?.name) localStorage.setItem("skein_name", d.name); // greet the shopper back by name
           const now = localStorage.getItem("skein_token");
           if (!alive) return;
           if (now) setToken(now);
@@ -370,6 +371,8 @@ export default function ChatWidget({
     localStorage.removeItem("skein_token");
     setToken(null);
   }
+  // Note: the remembered name (skein_name) is kept across an expiry-triggered signOut so the
+  // reconnected session still greets the returning shopper; a fresh demo-login refreshes it.
 
   if (!mounted) return null;
 
@@ -457,7 +460,9 @@ function Conversation({
     "greeting",
   );
   const [heard, setHeard] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(
+    () => (typeof localStorage !== "undefined" && localStorage.getItem("skein_name")) || "",
+  );
   const [agentMode, setAgentMode] = useState<boolean>(() => {
     // restore agent mode with the history, so a refresh mid-handoff does not silently turn the
     // "human" specialist back into the assistant
@@ -1254,7 +1259,7 @@ function Conversation({
           <div className="greet">
             {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}
             <div className="big">
-              {name ? `Hi ${name}, ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
+              {name ? `Welcome back, ${name}! ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
             </div>
             {context?.kind === "product"
               ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears. Happy to help!`

@@ -364,7 +364,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         if not user:
             raise HTTPException(status_code=404, detail="no demo user")
         token = create_access_token(user["username"], user["role"], settings.jwt_secret)
-        return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+        # The shopper's first name (from the configured demo identity), so the storefront can greet
+        # them back by name. Empty when no demo identity is configured.
+        first_name = (settings.demo_customer_name or "").split(" ")[0]
+        return {"access_token": token, "token_type": "bearer", "role": user["role"],
+                "name": first_name}
 
     @app.post("/api/gate-login")
     def gate_login(body: LoginRequest, request: Request):

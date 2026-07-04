@@ -146,7 +146,10 @@ class Neo4jGraphStore:
             "WHERE ($etype IS NULL OR type(r) = $etype) "
             "AND ($tolabel IS NULL OR $tolabel IN labels(b)) "
             "RETURN type(r) AS etype, (startNode(r) = a) AS outgoing, "
-            "labels(b) AS blabels, properties(b) AS bprops LIMIT $limit"
+            "labels(b) AS blabels, properties(b) AS bprops "
+            # deterministic order so which neighbors survive LIMIT is stable across runs, and
+            # authoritative edges (SUPPLIES/SOLD_AT) are not randomly evicted by review/doc edges
+            "ORDER BY etype, elementId(b) LIMIT $limit"
         ).format(L=label, K=key, arrow=arrow)
         data = self._run(stmt, {"value": str(value), "etype": edge_type,
                                 "tolabel": to_label, "limit": limit})

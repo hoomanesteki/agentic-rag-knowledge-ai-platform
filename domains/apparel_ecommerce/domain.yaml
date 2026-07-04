@@ -211,10 +211,14 @@ sources:
 # entity_types and ontology.cypher. `source` is a gold role; keys/properties are its columns.
 graph:
   nodes:
+    # Product nodes carry product-level facts. size/stock/color are deliberately NOT node
+    # properties: they vary per size variant, so putting one variant's value on the node would
+    # assert a single size's stock/color as the whole product's. The full palette (colors) and
+    # price are product-level, and per-size stock lives in the governed metric layer instead.
     - label: Product
       source: products
       key: product_id
-      properties: [name, category, gender, size, price, color, weather, stock]
+      properties: [name, category, gender, price, colors, weather]
     - label: Supplier
       source: suppliers
       key: supplier_id

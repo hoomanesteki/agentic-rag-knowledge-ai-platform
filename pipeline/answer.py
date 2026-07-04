@@ -447,7 +447,7 @@ def _format_history(history: list[dict] | None) -> str:
 def _followup_query(query: str, history: list[dict] | None) -> str:
     """For a short follow-up ('which is cheaper', a name given after an email) prepend the last few
     shopper turns, so retrieval still finds the subject and multi-turn account intent ('where is my
-    order' ... 'info@x.com' ... 'Aaron Esteki') carries through instead of abstaining."""
+    order' ... 'info@x.com' ... 'Jordan Avery') carries through instead of abstaining."""
     if history and len(query.split()) <= 6:
         prior = [t["content"].strip() for t in history
                  if t.get("role") == "user" and (t.get("content") or "").strip()]
@@ -528,8 +528,8 @@ def _account_intent(query: str) -> bool:
 
 def _owner_names_from_order(doc_text: str, email: str) -> set[str]:
     """The account holder's name as it appears in the order document, taken from the capitalized
-    run immediately before the email ("... for Aaron Esteki (info@esteki.ca)", "account on file:
-    Aaron Esteki, email info@esteki.ca"). Derived from the doc, never hardcoded, so the check stays
+    run immediately before the email ("... for Jordan Avery (info@esteki.ca)", "account on file:
+    Jordan Avery, email info@esteki.ca"). Derived from the doc, never hardcoded, so the check stays
     domain agnostic. Returns lowercased name tokens (given/family)."""
     if not email:
         return set()

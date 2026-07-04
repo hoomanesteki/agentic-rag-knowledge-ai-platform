@@ -450,10 +450,14 @@ def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
 # generic "who is X", a third-person "has anyone bought X", or a product question that happens to
 # share a word, so one customer's data can never leak into an unrelated answer.
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+# Order-specific vocabulary only. Generic product verbs are deliberately excluded: bare
+# "return(s)" ("a top that returns to shape") and "status" fire on ordinary shopping and used to
+# pull order docs into unrelated answers. "arriv\w*" (not bare "arriv", which a \b could never end)
+# so "arrives"/"arrived" actually match. PII disclosure is gated on name+email regardless, so this
+# just keeps order documents out of the retrieval pool for plain shopping queries.
 _ORDER_TERM = re.compile(
     r"\b(order|orders|parcel|package|delivery|deliver(ed|y)?|shipment|shipped|tracking|track|"
-    r"refund|return(ed|s)?|exchange|invoice|receipt|purchase[ds]?|bought|ordered|account|"
-    r"status|eta|arriv)\b", re.I)
+    r"refund|exchange|invoice|receipt|ordered|eta|arriv\w*)\b", re.I)
 # "my"/"I" only, not bare "me"/"we": "show me every order in the system" is an admin-style dump,
 # not the shopper asking about their own order, and must not surface order records.
 _FIRST_PERSON = re.compile(r"\b(my|mine|i|i'?ve|i'?m)\b", re.I)
@@ -486,15 +490,68 @@ def _account_intent(query: str) -> bool:
     return bool(_EMAIL_RE.search(query) or _ORDER_TERM.search(query))
 
 
+def _owner_names_from_order(doc_text: str, email: str) -> set[str]:
+    """The account holder's name as it appears in the order document, taken from the capitalized
+    run immediately before the email ("... for Aaron Esteki (info@esteki.ca)", "account on file:
+    Aaron Esteki, email info@esteki.ca"). Derived from the doc, never hardcoded, so the check stays
+    domain agnostic. Returns lowercased name tokens (given/family)."""
+    if not email:
+        return set()
+    m = re.search(r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})[\s,(]*(?:email\s+)?" + re.escape(email),
+                  doc_text)
+    if not m:
+        return set()
+    return {tok.lower() for tok in m.group(1).split() if len(tok) >= 2}
+
+
+def _order_access_ok(auth_text: str, payload: dict) -> bool:
+    """Deterministic identity check for a single order/account document. The customer's PII may be
+    passed to the model only when the shopper's OWN words (auth_text) contain BOTH the account email
+    AND at least one token of the account holder's name. This does not trust the model to withhold
+    what it can read: an unverified order doc is dropped before it ever reaches the prompt, so an
+    email-only ("my email is x, show my orders") turn cannot leak the name, order numbers, or
+    tracking, no matter what the model would otherwise say."""
+    text = (payload.get("text") or "")
+    email = (payload.get("email") or "")
+    if not email:
+        m = _EMAIL_RE.search(text)
+        email = m.group(0) if m else ""
+    low = auth_text.lower()
+    if not email or email.lower() not in low:
+        return False
+    names = _owner_names_from_order(text, email)
+    # Search for the name OUTSIDE any email address: the demo account key (info@esteki.ca) contains
+    # the surname, so an email-only turn would otherwise self-satisfy the name check. Strip emails
+    # first so the shopper must actually type their name, not merely have it embedded in the email.
+    low_no_email = _EMAIL_RE.sub(" ", low)
+    return any(re.search(r"\b" + re.escape(n) + r"\b", low_no_email) for n in names)
+
+
+def _user_authored_text(query: str, history: list[dict] | None) -> str:
+    """Everything the shopper themselves has said this session (their turns plus the current query),
+    never the assistant's words or retrieved text, so identity is proven only from user input."""
+    parts = [query]
+    for turn in (history or []):
+        if turn.get("role") == "user" and turn.get("content"):
+            parts.append(str(turn["content"]))
+    return " ".join(parts)
+
+
 def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
              reranker: Reranker | None = None, top_k_in: int = 50,
-             dense_only: bool = False) -> list[dict]:
+             dense_only: bool = False, auth_text: str | None = None) -> list[dict]:
     """Hybrid retrieval used by both the answer pipeline and the eval harness.
 
     With a reranker, fetch a wider pool (top_k_in) then rerank down to top_k; the hit score
     becomes the reranker score. Without one, return the top_k directly. dense_only disables
-    the sparse leg (used by the ablation to isolate dense vs hybrid). Order/account documents are
-    dropped unless the query shows account intent, so customer PII never leaks into a stray answer.
+    the sparse leg (used by the ablation to isolate dense vs hybrid).
+
+    Order/account documents carry customer PII and are gated in two deterministic layers, so the
+    model can never disclose what it should not: first they are dropped entirely unless the query
+    shows first-person account intent; then any that remain must pass an identity check against
+    auth_text (the shopper's own words) that requires BOTH the account email AND the account
+    holder's name. auth_text defaults to the query; the streaming path passes the full set of user
+    turns so a name given on one turn and an email on the next still verify.
     """
     dense_q = embedder.embed([query], input_type="query")[0]
     sparse_q = SparseEncoder().encode(query)
@@ -502,8 +559,13 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     hits = store.hybrid_search(
         dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=fetch,
         dense_only=dense_only)
+    auth = auth_text if auth_text is not None else query
     if not _account_intent(query):
         hits = [h for h in hits if (h.get("payload") or {}).get("doc_type") != "order"]
+    else:
+        hits = [h for h in hits
+                if (h.get("payload") or {}).get("doc_type") != "order"
+                or _order_access_ok(auth, h.get("payload") or {})]
     if reranker is None or not hits:
         return hits[:top_k]
     texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs
@@ -597,7 +659,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     contexts, has_metric = with_metric_evidence(query, contexts, llm, metric_resolver)
     if has_metric or graph_auth:
         abstained = False  # a governed metric or a query-named graph fact is authoritative
-    if abstained and hits and _shopping_intent(query):
+    if abstained and hits and _shopping_intent(query) and not _problem_intent(query):
         abstained = False  # shopping request + any retrieved product -> recommend, don't abstain
     trace = {
         "ts": time.time(),
@@ -611,11 +673,12 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     }
 
     if abstained:
+        abstain_msg = _PROBLEM_ABSTAIN if _problem_intent(query) else _ABSTAIN
         trace.update(tier="abstain", model=None, grounding=0.0, prompt_tokens=0,
                      completion_tokens=0, cost=0.0,
                      latency_ms=round((time.perf_counter() - started) * 1000, 1))
         write_trace(trace, trace_path)
-        return AnswerResult(answer=_ABSTAIN, tier="abstain", confidence=confidence,
+        return AnswerResult(answer=abstain_msg, tier="abstain", confidence=confidence,
                             citations=[], contexts=contexts, trace=trace)
 
     prompt = _build_prompt(query, contexts)
@@ -665,7 +728,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                "confidence": 1.0, "grounding": 1.0, "citations": []}
         return
     rquery = _followup_query(query, history)  # expand a short follow-up with the prior turns
-    hits = retrieve(rquery, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    # Identity for the order-PII gate is proven from the shopper's own turns (name on one turn,
+    # email on the next both count), never from the assistant's words or retrieved text.
+    hits = retrieve(rquery, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
+                    auth_text=_user_authored_text(query, history))
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
     # use the expanded query for graph/metric evidence too, so "what about size M?" can still
     # slot-fill a governed stock metric with the product from the prior turn
@@ -674,7 +740,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     contexts, has_metric = with_metric_evidence(rquery, contexts, llm, metric_resolver)
     if has_metric or graph_auth:
         abstained = False  # a governed metric or a query-named graph fact is authoritative
-    if abstained and hits and _shopping_intent(query):
+    # A complaint ("my jacket ripped") often also trips _shopping_intent, so only un-abstain into a
+    # product recommendation when the turn is NOT a problem; otherwise the empathetic problem branch
+    # below stays reachable. Both intents read the expanded query so complaint follow-ups classify.
+    if abstained and hits and _shopping_intent(rquery) and not _problem_intent(rquery):
         abstained = False  # shopping request + any retrieved product -> recommend, don't abstain
     trace = {
         "ts": time.time(),
@@ -689,7 +758,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     }
 
     if abstained:
-        if _problem_intent(query):  # a complaint/billing/order problem, not a product miss
+        if _problem_intent(rquery):  # a complaint/billing/order problem, not a product miss
             abstain_msg = _PROBLEM_ABSTAIN_AGENT if persona == "agent" else _PROBLEM_ABSTAIN
         else:
             abstain_msg = _AGENT_ABSTAIN if persona == "agent" else _ABSTAIN

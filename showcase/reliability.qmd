@@ -11,12 +11,13 @@ A system is only as trustworthy as its behavior when a dependency is slow, down,
 
 ## Failure modes and fallbacks
 
-| If this fails… | What the user sees | The fallback |
+| If this fails… | What the user sees | The fallback (the second option) |
 |---|---|---|
-| **LLM (Groq) slow or erroring** | A brief wait, then a graceful message | Retry with backoff; on a terminal error the request degrades to a safe, non-guessed reply rather than a stack trace |
-| **Voice (ElevenLabs TTS) down** | The reply still appears, just not spoken | The text answer always renders first; audio is additive, so a TTS failure never blocks the answer |
-| **Vector store (Qdrant) unreachable** | Assistant says it can't look that up right now | Retrieval errors are caught at the seam; the API stays up and other endpoints keep serving |
-| **Graph (Neo4j) unavailable** | Slightly less precise relationship answers | The graph is additive evidence; its absence degrades quality, it doesn't break the answer, and a default run works without it |
+| **LLM (Groq) slow or erroring** | A brief wait, then an answer | Retry with backoff, then fall back to the smaller, faster model; only a total failure degrades to a safe, non-guessed reply |
+| **Embeddings (Cohere) over quota or down** | A slightly less precise answer | Retrieve on the local sparse (BM25) leg, which needs no API; degraded relevance, but the turn still answers |
+| **Reranker (Cohere) down** | A coarser ranking | Keep the hybrid order instead of failing; the reranker sharpens precision, it is not load-bearing |
+| **Voice (ElevenLabs TTS) down** | The reply still appears, spoken by the browser voice | The text answer always renders first; the premium voice falls back to the browser voice, and a stall times out rather than hanging |
+| **Graph (Neo4j) unavailable** | Slightly less precise relationship answers | The graph is additive evidence; a store error is caught so it never fails the turn, and a default run works without it |
 | **A shopper floods the chat** | Normal service for everyone else | Per-endpoint token-bucket rate limits keyed on the real client IP, plus a hard instance cap as a cost ceiling |
 | **A prompt-injection or PII probe** | A polite refusal | Deterministic intercepts (not the model's judgment) refuse before retrieval; see below |
 

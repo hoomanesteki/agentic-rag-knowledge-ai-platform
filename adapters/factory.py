@@ -33,6 +33,18 @@ def make_llm(provider: str | None = None) -> LLMClient:
     raise ValueError("unknown LLM_PROVIDER: {}".format(provider))
 
 
+def make_small_llm(provider: str | None = None):
+    """A cheaper, faster secondary LLM used as a fallback when the primary model fails or is over
+    quota. Returns None when there is no meaningful secondary (the offline fake has no fallback)."""
+    provider = provider or get_settings().llm_provider
+    if provider == "groq":
+        import os
+
+        from .groq import GroqClient
+        return GroqClient(model=os.getenv("GROQ_MODEL_SMALL", "llama-3.1-8b-instant"))
+    return None
+
+
 def make_transcriber(provider: str | None = None) -> Transcriber:
     """Speech to text. Offline uses a fixed-transcript fake, real uses Groq hosted Whisper."""
     provider = provider or get_settings().transcribe_provider

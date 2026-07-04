@@ -12,6 +12,7 @@ from adapters.factory import (
     make_graph,
     make_llm,
     make_reranker,
+    make_small_llm,
     make_store,
     make_transcriber,
 )
@@ -56,7 +57,7 @@ def get_components() -> dict:
         "embedder": CachingEmbedder(ResilientEmbedder(make_embedder())),
         "store": ResilientStore(
             make_store(collection=collection_name(settings.domain, settings.embed_model))),
-        "llm": ResilientLLM(make_llm()),
+        "llm": ResilientLLM(make_llm(), fallback=make_small_llm()),
         # cache rerank results, retry transient failures, fall back to pre-rerank order if needed
         "reranker": ResilientReranker(CachingReranker(reranker)) if reranker is not None else None,
         "metric_resolver": MetricResolver(settings.domain, lakehouse_db),

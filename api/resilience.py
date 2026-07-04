@@ -3,10 +3,12 @@ makes the embedder retry. The chat endpoint degrades (rather than 500s) when the
 exhausted. Full retry policy on the LLM stream is a mid-stream problem left to M6."""
 from __future__ import annotations
 
+import logging
 import re
 import time
 from collections.abc import Callable
 
+_log = logging.getLogger("skein.resilience")
 _HTTP_CODE = re.compile(r"HTTP (\d{3})")
 
 
@@ -170,16 +172,27 @@ class ResilientReranker:
 class ResilientLLM:
     """Wraps an LLM client so generate() retries transient failures (Groq 429s, connection
     resets), instead of the chat immediately degrading on the first hiccup. stream() and other
-    attributes pass through untouched (mid-stream retry is a separate problem)."""
+    attributes pass through untouched (mid-stream retry is a separate problem).
 
-    def __init__(self, inner, attempts: int = 3, base_delay: float = 0.5) -> None:
+    If a fallback client is given, a primary failure that survives the retries falls back to it (a
+    cheaper, faster secondary model), so a bad minute on the main model degrades quality rather than
+    losing the turn."""
+
+    def __init__(self, inner, attempts: int = 3, base_delay: float = 0.5, fallback=None) -> None:
         self.inner = inner
         self.attempts = attempts
         self.base_delay = base_delay
+        self.fallback = fallback
 
     def __getattr__(self, name):  # model, stream, and anything else defer to the wrapped client
         return getattr(self.inner, name)
 
     def generate(self, *args, **kwargs):
-        return with_retry(lambda: self.inner.generate(*args, **kwargs),
-                          attempts=self.attempts, base_delay=self.base_delay)
+        try:
+            return with_retry(lambda: self.inner.generate(*args, **kwargs),
+                              attempts=self.attempts, base_delay=self.base_delay)
+        except Exception:
+            if self.fallback is None:
+                raise
+            _log.warning("primary LLM failed after retries, falling back to the secondary model")
+            return self.fallback.generate(*args, **kwargs)

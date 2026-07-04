@@ -13,12 +13,24 @@ metrics:
     sql_template: |
       select
         p.size as size,
+        count(*) as n_sales,
         sum(case when s.returned then 1 else 0 end)::float
           / nullif(count(*), 0) as return_rate
       from sales s
       join products p on p.product_id = s.product_id
-      where ($size is null or p.size = $size)
+      where (
+        $size is null
+        or lower($size) in ('all', 'any', 'overall', 'each', 'every', 'by size')
+        or upper(p.size) = upper($size)
+        or (lower($size) in ('medium', 'med') and p.size = 'M')
+        or (lower($size) in ('small', 'sm') and p.size = 'S')
+        or (lower($size) in ('large', 'lg') and p.size = 'L')
+        or (lower($size) in ('extra large', 'x-large', 'xl', 'x large') and p.size = 'XL')
+        or (lower($size) in ('extra small', 'x-small', 'xs') and p.size = 'XS')
+        or (lower($size) in ('one size', 'os', 'onesize') and p.size = 'OS')
+      )
       group by p.size
+      order by p.size
 
   - name: units_sold
     grain: product

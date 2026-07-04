@@ -58,6 +58,9 @@ _SYSTEM = (
     "If a request is too vague to recommend well (no recipient, use, category, or budget), ask ONE "
     "short question first. Answer a yes/no or factual question (does it come in tall, is it in "
     "stock) directly before offering options. "
+    "When a governed metric gives a rate or percentage with a sample size (n_sales) and that "
+    "sample is small (roughly two dozen sales or fewer), say the figure is based on only that many "
+    "sales instead of stating it as a settled fact. "
     "Never refer to the context, catalog, product data, or knowledge graph as a system; just speak "
     "as someone who knows the store. When a shopper adds an item or buys, suggest one piece that "
     "pairs with it, and use details from earlier turns (their city, the season, the occasion, "
@@ -184,6 +187,16 @@ def _smalltalk(query: str, persona: str | None = None) -> str | None:
                          r"verbatim)\b", q)):
         return ("I can't share or change my own setup, but I'm glad to help you shop 😊. What are "
                 "you looking for today?")
+    # customer enumeration: never volunteer who shops here or who bought what, not even a reviewer's
+    # first name. Refuse before retrieval so no name (review author, order holder) can slip out.
+    if (re.search(r"\b(list|show|name|who are|give me|tell me)\b[^.?!]{0,30}"
+                  r"\b(customers?|shoppers?|buyers?|clients?|members?|people who)\b", q)
+            or re.search(r"\bwho\b[^.?!]{0,20}\b(bought|ordered|purchased|shops?|shopped)\b", q)
+            or re.search(r"\b(names?|list)\b[^.?!]{0,20}\b(of )?(your )?"
+                         r"(customers?|shoppers?|reviewers?|buyers?)\b", q)):
+        return ("I keep shoppers' information private, so I can't share who shops with us or what "
+                "anyone bought 🙏. I can help you find something for yourself though. What are you "
+                "after?")
     # a light joke / chit-chat, so it never cites sources for a joke
     if re.fullmatch(r"(tell me|got|know|say|any)( me)?( a| any)? ?(joke|jokes|something funny)"
                     r"( please)?|make me laugh|be funny", q):

@@ -14,17 +14,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pipeline.answer import (
-    _SYSTEM,
     DEFAULT_MIN_CONFIDENCE,
     _build_prompt,
     _metric_has_value,
+    _system,
     _used_citations,
     build_contexts,
     grounding_score,
     retrieve,
     should_abstain,
 )
-from retrieval.metric_router import metric_context, route_metric
+from retrieval.metric_router import _small_sample_note, metric_context, route_metric
 
 
 @dataclass
@@ -78,7 +78,8 @@ def retriever_finding(query: str, *, embedder, store, llm, reranker=None, top_k:
         # found context but did not answer (gated, or no model); leave it to the supervisor
         return Finding("retriever", "text", found=True, abstained=True, confidence=confidence,
                        contexts=contexts)
-    result = llm.generate(_build_prompt(query, contexts), system=_SYSTEM)
+    from adapters.config import get_settings
+    result = llm.generate(_build_prompt(query, contexts), system=_system(get_settings().domain))
     cited = _used_citations(result.text, contexts)
     grounding = grounding_score(result.text, contexts)
     return Finding("retriever", "text", found=True, answer=result.text, confidence=confidence,
@@ -94,9 +95,12 @@ def metrics_finding(query: str, *, llm, metric_resolver) -> Finding:
         return Finding("metrics", "metric", found=False)
     block = metric_context(result)
     block["n"] = 1
+    # Bake the small-sample caveat into the authoritative answer too, not just the context, so the
+    # supervisor's conflict-fallback path (which ships this answer verbatim, past the LLM) still
+    # carries "based on only N sales" for a tiny-sample rate.
     return Finding("metrics", "metric", found=True, authoritative=True,
-                   answer="Governed metric: " + result.summary(), confidence=1.0,
-                   contexts=[block], citations=_cite([block]))
+                   answer="Governed metric: " + result.summary() + _small_sample_note(result),
+                   confidence=1.0, contexts=[block], citations=_cite([block]))
 
 
 def graph_finding(query: str, *, graph_retriever, extra_texts: tuple = ()) -> Finding:

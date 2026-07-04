@@ -84,7 +84,7 @@ def _name_tokens(name: str) -> set[str]:
 
 
 def _common_tokens(candidates: list[dict]) -> set[str]:
-    """Tokens shared by many candidate names (a brand word like 'aster'). Excluding them keeps
+    """Tokens shared by many candidate names (a common brand word). Excluding them keeps
     the shortlist from matching every entity on a token they all have."""
     df = Counter()
     for cand in candidates:

@@ -20,7 +20,14 @@ export function Markdown({ text }: { text: string }) {
   // Strip inline citation markers ([1], [2, 3]) from the visible text: a shopper should read a
   // human answer, not footnotes. The sources still show as chips below the message (from the
   // citations array), and the raw text is kept elsewhere for product-matching and grounding.
-  const clean = text.replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, "");
+  // Strip whole runs of citation markers, including the commas/"and" between separate ones
+  // ("[2], [3], and [9]"), then tidy any punctuation the removal left dangling, so an order lookup
+  // that cites many sources doesn't render as ", , , and".
+  const clean = text
+    .replace(/\s*\[\d+(?:\s*,\s*\d+)*\](?:\s*(?:,\s*)?(?:and\s+|&\s+)?\[\d+(?:\s*,\s*\d+)*\])*/g, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
+    .replace(/\s{2,}/g, " ");
   const lines = clean.split(/\r?\n/);
   const blocks: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;

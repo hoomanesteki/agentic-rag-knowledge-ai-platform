@@ -95,7 +95,30 @@ def route_metric(query: str, llm, resolver: MetricResolver) -> MetricResult | No
     return None
 
 
+_SMALL_SAMPLE = 24  # a rate over fewer sales than this is not statistically reliable
+
+
+def _small_sample_note(result: MetricResult) -> str:
+    """A deterministic caveat baked into the evidence block when a rate is computed over a small
+    number of sales, so the warning does not depend on the model choosing to add it. Fires only when
+    the result carries both a rate and an n_sales column."""
+    cols = [str(c).lower() for c in getattr(result, "columns", []) or []]
+    if not any("rate" in c for c in cols) or "n_sales" not in cols:
+        return ""
+    n_idx = cols.index("n_sales")
+    try:
+        small = [row[n_idx] for row in (result.rows or [])
+                 if isinstance(row[n_idx], (int, float)) and row[n_idx] <= _SMALL_SAMPLE]
+    except (IndexError, TypeError):
+        return ""
+    if not small:
+        return ""
+    return (" (small sample: some sizes have only a handful of sales, so these rates are not "
+            "statistically reliable and should be described that way, not stated as settled fact)")
+
+
 def metric_context(result: MetricResult) -> dict:
     """The metric result as a context block (kept separate from vector hits, never fused)."""
-    return {"id": "metric:" + result.name, "text": "Metric " + result.summary(),
+    return {"id": "metric:" + result.name, "text": "Metric " + result.summary() +
+            _small_sample_note(result),
             "source": "metric", "doc_type": "metric", "score": 1.0}

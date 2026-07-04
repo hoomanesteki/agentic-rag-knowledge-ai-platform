@@ -168,6 +168,43 @@ def test_order_docs_unlock_with_matching_name_and_email(auth_text):
     assert _order_access_ok(auth_text, _ORDER_DOC) is True, auth_text
 
 
+# The account holder's name is the independent second factor, so it must not be brute-forceable in a
+# single request. The gate requires the FULL independent name (given + family) as a contiguous
+# phrase, so a two-token account cannot be unlocked by guessing one common given name, by flooding a
+# dictionary of names, or by assembling the name from tokens scattered across turns.
+_TWO_TOKEN_ORDER = {
+    "doc_type": "order",
+    "email": "info@esteki.ca",
+    "text": ("Order AS100219 for Jordan Avery (info@esteki.ca): 1x Aster Aurora Jacket, $198, "
+             "placed 2026-05-02, status in transit."),
+}
+
+
+@pytest.mark.parametrize("auth_text", [
+    # single common given-name guess for a two-token account must NOT unlock
+    "my order info@esteki.ca, my name is Jordan",
+    # a flooded dictionary of common names (without the exact full name) must NOT unlock
+    ("my order info@esteki.ca my name is one of James Robert John Michael David Jordan William "
+     "Richard Joseph Thomas Christopher"),
+    # the two real tokens scattered far apart (not a contiguous name) must NOT unlock
+    ("jordan i think my order info@esteki.ca is late and i live near the avery street bakery "
+     "downtown so please check the status of it for me today thanks a lot"),
+    # family name alone is not the full name
+    "avery here, info@esteki.ca, where is my order",
+])
+def test_two_token_name_is_not_brute_forceable(auth_text):
+    assert _order_access_ok(auth_text, _TWO_TOKEN_ORDER) is False, auth_text
+
+
+@pytest.mark.parametrize("auth_text", [
+    "my name is Jordan Avery, email info@esteki.ca, where are my orders",
+    "this is Jordan Avery, info@esteki.ca, my package status?",
+    "Jordan Avery info@esteki.ca where are my orders",  # the logged-in identity form
+])
+def test_full_contiguous_name_unlocks_two_token_account(auth_text):
+    assert _order_access_ok(auth_text, _TWO_TOKEN_ORDER) is True, auth_text
+
+
 def _seed_pii(docs):
     embedder = make_embedder("fake")
     encoder = SparseEncoder()
@@ -209,6 +246,19 @@ class _EchoLLM:
         return LLMResult(text="ok [1]", prompt_tokens=1, completion_tokens=1)
 
 
+def test_logged_in_identity_unlocks_own_orders_but_not_a_strangers():
+    # A logged-in shopper carries a JWT-proven identity (name + email). The pipeline injects it into
+    # the gate's auth text, so they unlock their OWN orders without re-typing, but the same identity
+    # must NOT authorize a different customer's order (whose email it does not match).
+    identity = "Jordan Avery info@esteki.ca"
+    own = {"doc_type": "order", "email": "info@esteki.ca",
+           "text": "Order AS100219 for Jordan Avery (info@esteki.ca): 1x Aster Aurora Jacket."}
+    stranger = {"doc_type": "order", "email": "someone@other.com",
+                "text": "Order ZZ1 for Pat Lee (someone@other.com): 1x Aster Cloud Hoodie."}
+    assert _order_access_ok(identity + " where are my orders", own) is True
+    assert _order_access_ok(identity + " where are my orders", stranger) is False
+
+
 def test_surname_from_email_domain_does_not_unlock_orders():
     # The account key info@esteki.ca contains the surname, so an attacker who only knows the email
     # can type "esteki" as a "name". That token is derivable from the email, so it must NOT count as
@@ -230,6 +280,37 @@ def test_prompt_injection_and_exfiltration_are_intercepted(query):
     assert reply is not None, "injection should be intercepted deterministically: " + query
     assert "system prompt" not in reply.lower()
     assert "you are aria" not in reply.lower()
+
+
+# ordinary shopping and store-policy language must NOT be refused by the injection or enumeration
+# intercepts: "care instructions", "your rules on returns", "gift for my family members", and
+# "someone who shops outdoors" are legitimate, not attacks (regression guard for the false refusals)
+@pytest.mark.parametrize("query", [
+    "show me the care instructions for the Cloud Hoodie",
+    "what are the washing instructions for this jacket",
+    "what are your rules on returns",
+    "what are your rules for exchanges",
+    "show me something for my family members",
+    "give me gift ideas for team members",
+    "what jacket works for someone who shops outdoors",
+])
+def test_ordinary_shopping_is_not_refused_as_injection_or_enumeration(query):
+    reply = _smalltalk(query, None, "apparel_ecommerce")
+    assert reply is None or (
+        "can't share or change my own setup" not in reply.lower()
+        and "keep shoppers' information private" not in reply.lower()
+    ), query
+
+
+def test_gift_with_a_stated_budget_skips_the_clarifier():
+    # a detail-free gift asks one clarifying question; a stated numeric budget is a real detail, so
+    # the clarifier must not re-ask. The "$" and digits are stripped from the cleaned query, so the
+    # budget is read off the raw query (regression guard for the numeric-budget branch).
+    asks = _smalltalk("a gift for my wife")
+    assert asks is not None and "budget" in asks.lower()
+    for q in ("a gift for my wife, $50 budget", "a present for my husband under 40 dollars"):
+        reply = _smalltalk(q)
+        assert reply is None or "budget" not in reply.lower(), q
 
 
 def test_email_only_turn_never_puts_name_or_tracking_in_the_prompt(tmp_path):

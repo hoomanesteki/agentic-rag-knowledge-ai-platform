@@ -31,12 +31,6 @@ def test_lineage_view_shows_medallion_and_metric_use():
     assert "return_rate_by_size" in roles["sales"]["metrics"]
 
 
-def test_lineage_view_flags_pii_columns():
-    view = lineage_view("saas_support")
-    tickets = next(r for r in view["medallion"] if r["role"] == "tickets")
-    assert "customer_email" in tickets["pii_columns"]
-
-
 def test_partial_manifest_does_not_crash(tmp_path):
     # a graph node/edge missing required keys is skipped, not a 500
     pack = tmp_path / "domains" / "broken"

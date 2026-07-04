@@ -1,0 +1,54 @@
+{
+  "monitors": {
+    "retrieval_score": {
+      "psi": 0.4901,
+      "drift": true
+    },
+    "confidence": {
+      "psi": 2.2913,
+      "drift": true
+    },
+    "query_embedding": {
+      "distance": 0.1091,
+      "drift": true
+    },
+    "feedback_rate": {
+      "reference": 0.171,
+      "current": null,
+      "drift": false
+    }
+  },
+  "by_language": {
+    "en": {
+      "retrieval_score": {
+        "psi": null,
+        "drift": false
+      },
+      "confidence": {
+        "psi": null,
+        "drift": false
+      }
+    },
+    "fr": {
+      "retrieval_score": {
+        "psi": null,
+        "drift": false
+      },
+      "confidence": {
+        "psi": null,
+        "drift": false
+      }
+    },
+    "unknown": {
+      "retrieval_score": {
+        "psi": 0.4901,
+        "drift": true
+      },
+      "confidence": {
+        "psi": 0.1617,
+        "drift": false
+      }
+    }
+  },
+  "drifted": true
+}

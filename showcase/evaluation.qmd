@@ -1,13 +1,13 @@
 ---
 title: "Evaluation"
-pagetitle: "Skein Lite — Evaluation"
+pagetitle: "Skein Lite: Evaluation"
 ---
 
 ::: {.eyebrow}
 Four layers, each catching a different failure
 :::
 
-An LLM feature without evaluation is a demo, not a product. The hard part is that "answer quality" is many different things — is it grounded, is it relevant, did it retrieve the right fact, did it correctly refuse — and no single number captures all of them. So there are four layers, and each one is designed to catch a specific class of failure before it reaches a shopper.
+An LLM feature without evaluation is a demo, not a product. The hard part is that "answer quality" is many different things, is it grounded, is it relevant, did it retrieve the right fact, did it correctly refuse, and no single number captures all of them. So there are four layers, and each one is designed to catch a specific class of failure before it reaches a shopper.
 
 ## The four layers
 
@@ -18,15 +18,15 @@ An LLM feature without evaluation is a demo, not a product. The hard part is tha
 | **Drift monitors** | Distribution shift in traffic, grounding, and refusal rate | Scheduled, live traffic | The world moving out from under a frozen model |
 | **Promotion gate** | Is a new config actually better than the champion? | Before promoting to prod | Shipping a regression to Production |
 
-## Layer 1 — the offline CI gate
+## Layer 1, the offline CI gate
 
-Five fixtures over a small, neutral corpus (no domain vocabulary, so it runs on deterministic fakes with no API keys). Four are in-domain questions that must retrieve the right fact; one is out-of-domain and must abstain. A cheap lexical judge — did a retrieved context contain the expected keyword, or did it correctly abstain — needs no LLM, so it runs in CI on every push.
+Five fixtures over a small, neutral corpus (no domain vocabulary, so it runs on deterministic fakes with no API keys). Four are in-domain questions that must retrieve the right fact; one is out-of-domain and must abstain. A cheap lexical judge, did a retrieved context contain the expected keyword, or did it correctly abstain, needs no LLM, so it runs in CI on every push.
 
 [score 1.0]{.chip .good} &nbsp; min 1.0 &nbsp; blocks the merge below 1.0
 
-The gate is deliberately strict: any single failed fixture drops the score below the threshold and blocks the merge. The evaluation notebook demonstrates it *working* by breaking the corpus on purpose and watching the score fall — a gate you've never seen fail is a gate you don't trust.
+The gate is deliberately strict: any single failed fixture drops the score below the threshold and blocks the merge. The evaluation notebook demonstrates it *working* by breaking the corpus on purpose and watching the score fall, a gate you've never seen fail is a gate you don't trust.
 
-## Layer 2 — RAGAS on the golden set
+## Layer 2, RAGAS on the golden set
 
 The four canonical RAGAS metrics, implemented from scratch rather than pulled from a package, so the judged text is sanitized against prompt injection and the scores break down per language:
 
@@ -49,19 +49,19 @@ Of the facts needed, how many were retrieved at all? Measures recall.
 :::
 :::
 
-The judge runs at temperature 0, and can be pointed at an independent, stronger model (`JUDGE_MODEL`) so the system isn't grading its own homework. RAGAS needs the real providers and an ingested store, so it isn't a CI gate — instead it feeds the promotion decision below.
+The judge runs at temperature 0, and can be pointed at an independent, stronger model (`JUDGE_MODEL`) so the system isn't grading its own homework. RAGAS needs the real providers and an ingested store, so it isn't a CI gate, instead it feeds the promotion decision below.
 
-## Layer 3 — drift monitors
+## Layer 3, drift monitors
 
-Four PSI (population stability index) monitors watch live traffic by language: query-length distribution, retrieval scores, grounding, and refusal rate. A monitor that trips exits non-zero so a scheduled job can alert. The point isn't to page someone at 3am — it's to notice when the questions people ask start drifting away from what the corpus can answer, which is the early signal that the content needs to grow.
+Four monitors watch live traffic: query-embedding distance (cosine between the reference and current query centroids), retrieval-score PSI (population stability index of the top vector-hit score), confidence PSI (of the lexical-overlap gate), and feedback rate (the change in thumbs-down). The retrieval-score and confidence monitors are stratified by language. A monitor that trips exits non-zero so a scheduled job can alert. The point isn't to page someone at 3am, it's to notice when the questions people ask start drifting away from what the corpus can answer, which is the early signal that the content needs to grow.
 
-## Layer 4 — the promotion gate
+## Layer 4, the promotion gate
 
 A "model" here is a serving configuration: the LLM, the embedder, the reranker, the prompt. Promotion from dev → staging → prod is **not** automatic and **not** decided by the offline smoke test. It works in two stages:
 
-1. **Precondition** — the offline CI gate must pass, proving the pipeline is wired.
-2. **Quality gate** — promotion is decided by the *measured* RAGAS score from the real providers, persisted and logged to MLflow. A candidate reaches Staging at 0.65 and Production at 0.78, and a Production candidate must also **beat the current champion** or it's capped at Staging.
+1. **Precondition**, the offline CI gate must pass, proving the pipeline is wired.
+2. **Quality gate**, promotion is decided by the *measured* RAGAS score from the real providers, persisted and logged to MLflow. A candidate reaches Staging at 0.65 and Production at 0.78, and a Production candidate must also **beat the current champion** or it's capped at Staging.
 
 ::: {.callout-note appearance="simple"}
-This layer started life broken — it scored a fake-provider pipeline that always returned 1.0, so every run "promoted to Production" regardless of the real model. An [adversarial review](reliability.qmd#what-the-review-found) caught it. It now refuses to promote at all if no real quality score was ever measured: you cannot promote on a quality you never measured.
+This layer started life broken, it scored a fake-provider pipeline that always returned 1.0, so every run "promoted to Production" regardless of the real model. An [adversarial review](reliability.qmd#what-the-review-found) caught it. It now refuses to promote at all if no real quality score was ever measured: you cannot promote on a quality you never measured.
 :::

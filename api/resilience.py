@@ -3,10 +3,12 @@ makes the embedder retry. The chat endpoint degrades (rather than 500s) when the
 exhausted. Full retry policy on the LLM stream is a mid-stream problem left to M6."""
 from __future__ import annotations
 
+import logging
 import re
 import time
 from collections.abc import Callable
 
+_log = logging.getLogger("skein.resilience")
 _HTTP_CODE = re.compile(r"HTTP (\d{3})")
 
 
@@ -51,6 +53,33 @@ class ResilientEmbedder:
     def embed(self, texts: list[str], input_type: str = "document") -> list[list[float]]:
         return with_retry(lambda: self.inner.embed(texts, input_type=input_type),
                           attempts=self.attempts)
+
+
+class ResilientStore:
+    """Wraps a hybrid vector store so the read path (hybrid_search) retries transient failures.
+    Retrieval has no fallback, so a single 429/503 from the store would otherwise lose the whole
+    turn; a couple of retries ride out a blip. Writes (ensure_collection/upsert) are retried too, so
+    ingestion survives a hiccup."""
+
+    def __init__(self, inner, attempts: int = 3) -> None:
+        self.inner = inner
+        self.attempts = attempts
+
+    def hybrid_search(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.hybrid_search(*args, **kwargs), attempts=self.attempts)
+
+    def search(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.search(*args, **kwargs), attempts=self.attempts)
+
+    def ensure_collection(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.ensure_collection(*args, **kwargs),
+                          attempts=self.attempts)
+
+    def upsert(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.upsert(*args, **kwargs), attempts=self.attempts)
+
+    def __getattr__(self, name):  # delegate any other attribute/method to the wrapped store
+        return getattr(self.inner, name)
 
 
 class CachingEmbedder:
@@ -143,16 +172,27 @@ class ResilientReranker:
 class ResilientLLM:
     """Wraps an LLM client so generate() retries transient failures (Groq 429s, connection
     resets), instead of the chat immediately degrading on the first hiccup. stream() and other
-    attributes pass through untouched (mid-stream retry is a separate problem)."""
+    attributes pass through untouched (mid-stream retry is a separate problem).
 
-    def __init__(self, inner, attempts: int = 3, base_delay: float = 0.5) -> None:
+    If a fallback client is given, a primary failure that survives the retries falls back to it (a
+    cheaper, faster secondary model), so a bad minute on the main model degrades quality rather than
+    losing the turn."""
+
+    def __init__(self, inner, attempts: int = 3, base_delay: float = 0.5, fallback=None) -> None:
         self.inner = inner
         self.attempts = attempts
         self.base_delay = base_delay
+        self.fallback = fallback
 
     def __getattr__(self, name):  # model, stream, and anything else defer to the wrapped client
         return getattr(self.inner, name)
 
     def generate(self, *args, **kwargs):
-        return with_retry(lambda: self.inner.generate(*args, **kwargs),
-                          attempts=self.attempts, base_delay=self.base_delay)
+        try:
+            return with_retry(lambda: self.inner.generate(*args, **kwargs),
+                              attempts=self.attempts, base_delay=self.base_delay)
+        except Exception:
+            if self.fallback is None:
+                raise
+            _log.warning("primary LLM failed after retries, falling back to the secondary model")
+            return self.fallback.generate(*args, **kwargs)

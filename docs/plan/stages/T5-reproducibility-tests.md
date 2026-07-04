@@ -10,7 +10,7 @@ a deterministic build or for the semantic layer being well-formed across every d
 
 ## How I did it
 
-- **dbt runs in CI.** A new `dbt` job installs the dbt extra, builds the medallion for both domains
+- **dbt runs in CI.** A new `dbt` job installs the dbt extra, builds the medallion for the domain
   (so the schema, relationships, and PII-masking governance tests run on every change), and runs the
   parity test that asserts the dbt gold equals the in-app builder's gold. The dbt tests are no longer
   a local-only thing.
@@ -27,9 +27,9 @@ a deterministic build or for the semantic layer being well-formed across every d
 
 ## What I tested
 
-- The six new tests pass (two domains times semantic-layer and reproducibility checks), and they run
-  offline as part of `make check`, so they are in the default CI job too. No keys, no dbt required.
-- `make check` stays green. The CI dbt job builds and tests both domains and asserts parity.
+- The new semantic-layer and reproducibility tests pass, and they run offline as part of
+  `make check`, so they are in the default CI job too. No keys, no dbt required.
+- `make check` stays green. The CI dbt job builds and tests the domain and asserts parity.
 
 ## Where this leaves the guarantees
 

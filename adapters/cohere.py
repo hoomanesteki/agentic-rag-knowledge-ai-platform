@@ -1,12 +1,47 @@
 """Cohere embeddings and reranker behind the Embedder/Reranker interfaces. One account and key
-cover both. Uses the v2 API. Kept dependency-free via the shared HTTP helper."""
+cover both. Uses the v2 API. Kept dependency-free via the shared HTTP helper.
+
+Two-key layering: COHERE_API_KEY is tried first (a free Trial key is fine as the first layer), and
+on a 429 (the trial monthly cap or a per-minute rate limit) the request retries once on
+COHERE_API_KEY_FALLBACK if set (a paid Production key). If both fail, the retrieval layer degrades
+to local sparse search, so the answer still lands."""
 from __future__ import annotations
+
+import logging
 
 from ._http import request_json
 from .config import get_settings
 
+_log = logging.getLogger("skein.cohere")
 _EMBED_API = "https://api.cohere.com/v2/embed"
 _RERANK_API = "https://api.cohere.com/v2/rerank"
+
+
+# Primary keys rejected as invalid (401/403) this process, so we skip straight to the fallback
+# instead of wasting a doomed call every request. A 429 (quota) is NOT remembered: it can reset, so
+# the free key is retried each time and only spills over when it is actually capped.
+_dead_keys: set[str] = set()
+
+
+def _post(url: str, body: dict, api_key: str, fallback_key: str) -> dict:
+    """POST to Cohere on the primary key; roll over to the fallback key when the primary is over
+    quota (429) or its key is rejected (401/403). A capped trial key or a bad primary key both roll
+    over to the paid key; a bad request (400) does not (the fallback would fail too)."""
+    have_fallback = bool(fallback_key) and fallback_key != api_key
+    if have_fallback and api_key in _dead_keys:  # primary already known bad: don't waste the call
+        return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
+    try:
+        return request_json("POST", url, body, {"Authorization": "Bearer " + api_key})
+    except RuntimeError as exc:
+        msg = str(exc)
+        auth_bad = "HTTP 401" in msg or "HTTP 403" in msg
+        if have_fallback and (auth_bad or "HTTP 429" in msg):
+            if auth_bad:
+                _dead_keys.add(api_key)  # invalid key stays invalid; stop retrying it
+            _log.warning("Cohere primary key failed (%s), using the fallback key",
+                         "auth" if auth_bad else "quota")
+            return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
+        raise
 
 # embed-v4.0 lets you pick the output size; the v3 models are fixed. Default v4 to 1536.
 _MODEL_DIMS = {
@@ -28,6 +63,7 @@ class CohereEmbedder:
         settings = get_settings()
         self.model = model or settings.embed_model
         self.api_key = api_key or settings.cohere_api_key
+        self.fallback_key = settings.cohere_api_key_fallback
         if self.model in _MODEL_DIMS:
             self._dim = _MODEL_DIMS[self.model]
         elif "v4" in self.model:
@@ -56,8 +92,7 @@ class CohereEmbedder:
                     "embedding_types": ["float"]}
             if "v4" in self.model:  # only v4 accepts a chosen output size
                 body["output_dimension"] = self._dim
-            resp = request_json("POST", _EMBED_API, body,
-                                {"Authorization": "Bearer " + self.api_key})
+            resp = _post(_EMBED_API, body, self.api_key, self.fallback_key)
             out.extend(resp["embeddings"]["float"])  # v2 returns vectors in input order
         return out
 
@@ -67,6 +102,7 @@ class CohereReranker:
         settings = get_settings()
         self.model = model or settings.rerank_model
         self.api_key = api_key or settings.cohere_api_key
+        self.fallback_key = settings.cohere_api_key_fallback
 
     def rerank(self, query: str, documents: list[str],
                top_n: int = 8) -> list[tuple[int, float]]:
@@ -76,8 +112,7 @@ class CohereReranker:
             return []
         documents = list(documents)[:_RERANK_MAX_DOCS]
         body = {"model": self.model, "query": query, "documents": documents, "top_n": top_n}
-        resp = request_json("POST", _RERANK_API, body,
-                            {"Authorization": "Bearer " + self.api_key})
+        resp = _post(_RERANK_API, body, self.api_key, self.fallback_key)
         # Sort by score rather than trusting array order, mirroring the other adapters.
         rows = sorted(resp["results"], key=lambda r: r["relevance_score"], reverse=True)
         return [(row["index"], row["relevance_score"]) for row in rows]

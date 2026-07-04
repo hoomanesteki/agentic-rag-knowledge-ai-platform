@@ -5,6 +5,11 @@ evidence, the gate, and generation, orchestrated as a graph. This is the skeleto
 and specialist agents grow into at M6.2 and M6.3.
 
     understand -> retrieve -> evidence -> (gate) -> generate | abstain -> end
+
+Stack: the graph is defined with LangGraph and compiles to a langchain-core `Runnable`
+(`CompiledStateGraph`), so it is driven through the standard `.invoke()` interface; Langfuse wraps
+each run in one root span (see run_chat). LangChain-core is the runtime substrate, LangGraph is the
+orchestration, and Langfuse is the observability: one turn maps to one trace.
 """
 from __future__ import annotations
 
@@ -12,17 +17,18 @@ import hashlib
 import time
 import uuid
 
+from langchain_core.runnables import Runnable
 from langgraph.graph import END, START, StateGraph
 
 from adapters.observability import request_span, update_span
 from pipeline.answer import (
     _ABSTAIN,
-    _SYSTEM,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_TRACE_PATH,
     AnswerResult,
     _build_prompt,
     _estimate_cost,
+    _system,
     _used_citations,
     build_contexts,
     grounding_score,
@@ -37,9 +43,11 @@ from rag.understand import heuristic_route, rewrite_followup
 
 
 def build_chat_graph(components: dict, *, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
-                     top_k: int = 8, top_k_in: int = 50, trace_path: str = DEFAULT_TRACE_PATH):
+                     top_k: int = 8, top_k_in: int = 50,
+                     trace_path: str = DEFAULT_TRACE_PATH) -> Runnable:
     """Compile the chat graph over a set of components (embedder, store, llm, and optionally
-    reranker, metric_resolver, graph_retriever). Build once, invoke per turn."""
+    reranker, metric_resolver, graph_retriever). Build once, invoke per turn. Returns a
+    langchain-core Runnable (LangGraph's CompiledStateGraph), driven via .invoke()."""
     embedder = components["embedder"]
     store = components["store"]
     llm = components["llm"]
@@ -100,7 +108,8 @@ def build_chat_graph(components: dict, *, min_confidence: float = DEFAULT_MIN_CO
     def generate_node(state: ChatState) -> dict:
         contexts = state["contexts"]
         prompt = _build_prompt(state["rewritten_query"], contexts)
-        result = llm.generate(prompt, system=_SYSTEM)
+        from adapters.config import get_settings
+        result = llm.generate(prompt, system=_system(get_settings().domain))
         grounding = grounding_score(result.text, contexts)
         citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
                      for c in _used_citations(result.text, contexts)]

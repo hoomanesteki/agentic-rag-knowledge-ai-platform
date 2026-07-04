@@ -90,7 +90,7 @@ Build the vector index and graph against the hosted stores (same targets as loca
 cloud URLs):
 
 ```bash
-make ingest && make graph-load     # DOMAIN=apparel_ecommerce (or saas_support)
+make ingest && make graph-load     # DOMAIN=apparel_ecommerce
 ```
 
 To also serve governed **metric** answers, the DuckDB gold tables must be inside the image, because

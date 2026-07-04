@@ -44,6 +44,18 @@ function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// Is a JWT still valid (not within 30s of expiry)? A cached-but-expired token would otherwise be
+// trusted on load, boot the chat, then 401 on the first message and dead-end at "Connecting...".
+// An unparseable token is trusted (the server will 401 it, which triggers a clean reconnect).
+function tokenAlive(t: string): boolean {
+  try {
+    const payload = JSON.parse(atob((t.split(".")[1] || "").replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp !== "number" || payload.exp * 1000 > Date.now() + 30_000;
+  } catch {
+    return true;
+  }
+}
+
 // Turn an internal citation id (CK33, graph:Product:P007, metric:...) into a human-readable source.
 function citeLabel(c: Citation): string {
   const id = c.id || "";
@@ -53,7 +65,8 @@ function citeLabel(c: Citation): string {
   if (/^(CATR|CAT)/i.test(id)) return "Catalog";
   if (/^OC/i.test(id)) return "Buying guide";
   if (/^(PD|PC)/i.test(id)) return "Product info";
-  if (/^R\d/i.test(id)) return "Customer review";
+  if (/^OD/i.test(id) || c.doc_type === "order") return "Order record";
+  if (/^(R\d|RV|RG)/i.test(id)) return "Customer review";
   if (c.doc_type === "review") return "Customer review";
   if (c.doc_type === "product") return "Product info";
   if (c.doc_type === "guide") return "Store info";
@@ -192,7 +205,9 @@ type Recognizer = {
 // voice trying to pronounce an emoji).
 function plainSpeak(text: string): string {
   return text
-    .replace(/\[\d+(?:,\s*\d+)*\]/g, "")
+    .replace(/\s*\[\d+(?:\s*,\s*\d+)*\](?:\s*(?:,\s*)?(?:and\s+|&\s+)?\[\d+(?:\s*,\s*\d+)*\])*/g, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^\s*[*-]\s+/gm, "")
     .replace(/^\s*\d+[.)]\s+/gm, "")
@@ -228,8 +243,18 @@ function speakAsync(text: string): Promise<void> {
     }
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.onend = () => resolve();
-    u.onerror = () => resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(guard);
+      resolve();
+    };
+    // Chrome's speechSynthesis can stall without firing onend (long or remote-voice utterances), which
+    // would leave voiceState stuck at "Speaking..." forever. Resolve on a duration-based guard too.
+    const guard = setTimeout(finish, Math.min(30_000, 2_000 + 65 * text.length));
+    u.onend = finish;
+    u.onerror = finish;
     synth.speak(u);
   });
 }
@@ -250,45 +275,82 @@ export default function ChatWidget({
   const [brand, setBrand] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
 
+  // One-time setup: mark mounted and load the storefront (brand + products).
   useEffect(() => {
     setMounted(true);
-    let alive = true;
-    // frictionless demo: the chat never asks for a password. Silently mint a demo token (the
-    // landing gate already authorized this visitor). Keep retrying with backoff if the API is cold,
-    // so it self-heals rather than dead-ending at "Connecting..." until a manual refresh.
-    const connect = (tries = 0) => {
-      const cached = localStorage.getItem("skein_token");
-      if (cached) {
-        setToken(cached); // another mount (React StrictMode double-fires this) already got one
-        return;
-      }
-      fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (!alive) return;
-          if (d?.access_token) {
-            localStorage.setItem("skein_token", d.access_token);
-            setToken(d.access_token);
-          } else {
-            const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3)); // 0.7s -> 5s, capped
-            setTimeout(() => alive && connect(tries + 1), delay);
-          }
-        })
-        .catch(() => {
-          if (!alive) return;
-          const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3));
-          setTimeout(() => alive && connect(tries + 1), delay);
-        });
-    };
-    connect();
     fetchStore().then((s) => {
       setBrand(s.brand);
       setProducts(s.products);
     });
+  }, []);
+
+  // Connect / reconnect whenever there is no valid token. Keyed on `token`, so a 401 that calls
+  // signOut() (token -> null) automatically restarts login instead of dead-ending at "Connecting".
+  // Frictionless demo: silently mint a demo token. This converges on the first load even when the
+  // API is still warming up (uvicorn --reload, or a scaled-to-zero deploy) and under React
+  // StrictMode's double-mounted effect: the token is cached the instant it arrives (so a discarded
+  // mount can't waste it), the UI converges to whatever is cached, and retries are short and bounded
+  // (~0.6s, then 2s) rather than an exponential backoff that reads as a hang. The orphaned StrictMode
+  // request is aborted so only one call is ever in flight.
+  useEffect(() => {
+    if (token) return;
+    let alive = true;
+    const controller = new AbortController();
+    const connect = (tries = 0) => {
+      if (!alive) return;
+      const cached = localStorage.getItem("skein_token");
+      if (cached && tokenAlive(cached)) {
+        setToken(cached);
+        return;
+      }
+      if (cached) localStorage.removeItem("skein_token"); // expired: drop it and mint a fresh one
+      fetch(`${API_BASE}/api/demo-login`, { method: "POST", signal: controller.signal })
+        .then((r) => {
+          if (r.status === 404) {
+            // Production: demo-login is disabled, so the gate token expired. Send the visitor back
+            // to the landing gate to sign in again instead of polling a 404 forever.
+            localStorage.removeItem("aster_gate");
+            localStorage.removeItem("skein_token");
+            window.location.assign("/");
+            return null;
+          }
+          return r.ok ? r.json() : null;
+        })
+        .then((d) => {
+          if (d?.access_token) localStorage.setItem("skein_token", d.access_token); // cache first
+          if (d?.name) localStorage.setItem("skein_name", d.name); // greet the shopper back by name
+          const now = localStorage.getItem("skein_token");
+          if (!alive) return;
+          if (now) setToken(now);
+          else setTimeout(() => connect(tries + 1), tries < 8 ? 500 + Math.random() * 300 : 2000);
+        })
+        .catch((e) => {
+          if (e?.name === "AbortError" || !alive) return;
+          setTimeout(() => connect(tries + 1), tries < 8 ? 500 + Math.random() * 300 : 2000);
+        });
+    };
+    connect();
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [token]);
+
+  // If the storefront failed to load on a cold first paint (fetchStore swallows errors and returns
+  // empty), refetch once the token confirms the API is up, so the greeting names the brand and the
+  // product rec cards render instead of staying blank for the whole session.
+  useEffect(() => {
+    if (!token || products.length) return;
+    let alive = true;
+    fetchStore().then((s) => {
+      if (!alive) return;
+      if (s.brand) setBrand(s.brand);
+      if (s.products.length) setProducts(s.products);
+    });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [token, products.length]);
 
   const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
 
@@ -309,6 +371,8 @@ export default function ChatWidget({
     localStorage.removeItem("skein_token");
     setToken(null);
   }
+  // Note: the remembered name (skein_name) is kept across an expiry-triggered signOut so the
+  // reconnected session still greets the returning shopper; a fresh demo-login refreshes it.
 
   if (!mounted) return null;
 
@@ -396,7 +460,9 @@ function Conversation({
     "greeting",
   );
   const [heard, setHeard] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(
+    () => (typeof localStorage !== "undefined" && localStorage.getItem("skein_name")) || "",
+  );
   const [agentMode, setAgentMode] = useState<boolean>(() => {
     // restore agent mode with the history, so a refresh mid-handoff does not silently turn the
     // "human" specialist back into the assistant
@@ -513,21 +579,33 @@ function Conversation({
     // a question about the assistant's nature ("are you human?", "is this a bot?") is answered
     // honestly by the backend, not treated as a request to be transferred to a person
     const asksNature = /^(are|is|am)\s+(you|this|it|i|u)\b/i.test(qt);
-    // an explicit refusal must not escalate ("I don't want to talk to an agent, just answer here")
-    const refusesHuman =
-      /\b(don'?t|do not|no|not|never|without)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
-        q,
-      );
     const shortHuman =
       qt.split(/\s+/).length <= 4 &&
       /\b(human|agent|representative|real person|advisor|operator|manager)\b/i.test(q);
-    // A verb+person phrase, but NOT "get" (too generic: "get someone a gift", "get the most
-    // support") and NOT the vague nouns "someone/somebody/support" that ordinary shopping uses.
-    // The gap is tight so "connect me with a plan that has good support" cannot match.
+    // A verb+person phrase in EITHER order, so "talk to a human" and "a human I can talk to" both
+    // escalate. NOT "get" (too generic: "get someone a gift", "get the most support") and NOT the
+    // vague nouns "someone/somebody/support" that ordinary shopping uses. The gap is tight so
+    // "connect me with a plan that has good support" cannot match.
     const verbHuman =
       /\b(talk|speak|chat|connect|transfer|reach|escalate)\b.{0,20}\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b/i.test(
         q,
+      ) ||
+      /\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b.{0,20}\b(talk|speak|chat|connect|transfer|reach|escalate)\b/i.test(
+        q,
       );
+    // An explicit refusal must not escalate. Two shapes: (1) a negated desire/handoff
+    // ("I don't want to talk to an agent", "no need for a human", "rather not speak to a person");
+    // (2) a bare negation directly on the human noun with no affirmative request ("no human", "not
+    // a human please"). A leading discourse "No, I want to talk to a human" is NOT a refusal: it
+    // carries an affirmative verbHuman, so it still escalates.
+    const refusesHuman =
+      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+        q,
+      ) ||
+      (/\b(no|not)\b[^.?!]{0,12}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+        q,
+      ) &&
+        !verbHuman);
     if (!agentMode && !asksNature && !refusesHuman && (shortHuman || verbHuman)) {
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
@@ -582,10 +660,20 @@ function Conversation({
       .filter((mm) => mm.text && mm.text.trim())
       .slice(-6)
       .map((mm) => ({ role: mm.role === "me" ? "user" : "assistant", content: mm.text }));
+    // Watchdog so a cold or wedged API that accepts the socket but never sends bytes can't leave the
+    // typing dots (and voice "Thinking...") spinning forever: abort if no first byte in 30s, and if
+    // the stream then goes idle for 60s. An abort lands in the catch below ("Could not reach...").
+    const ctrl = new AbortController();
+    let watchdog = setTimeout(() => ctrl.abort(), 30_000);
+    const armIdle = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => ctrl.abort(), 60_000);
+    };
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
+        signal: ctrl.signal,
         body: JSON.stringify({
           query: qSend,
           ...(agentMode ? { persona: "agent" } : {}),
@@ -594,8 +682,12 @@ function Conversation({
         }),
       });
       if (res.status === 401) {
+        // The token expired. Clearing it triggers an automatic reconnect (the connect effect is
+        // keyed on the token), so tell the shopper rather than dropping their message silently.
+        const m = "Your session expired, reconnecting. Please resend that.";
+        patchBot((b) => ({ ...b, text: m }));
         onSignOut();
-        return "";
+        return m;
       }
       if (res.status === 429) {
         const m = "You are asking too fast. Please wait a moment.";
@@ -616,6 +708,7 @@ function Conversation({
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          armIdle(); // reset the idle timeout on each chunk received
           buffer += decoder.decode(value, { stream: true });
           const chunks = buffer.split(/\r?\n\r?\n/);
           buffer = chunks.pop() ?? "";
@@ -663,6 +756,7 @@ function Conversation({
       result = "Could not reach the assistant. Is the API running?";
       patchBot((b) => ({ ...b, text: result }));
     } finally {
+      clearTimeout(watchdog);
       setLoading(false);
     }
     return result;
@@ -704,19 +798,32 @@ function Conversation({
     const clean = plainSpeak(text);
     if (!clean) return;
     const seq = ++speakSeqRef.current; // this call owns `seq`; stopSpeaking() bumps it to cancel
+    // Timeout so a cold/hung /api/tts can't freeze the greeting at "Say hello..." or lock voice in
+    // "Speaking...": abort after 8s and fall through to the browser voice (the catch handles it).
+    const ttsCtrl = new AbortController();
+    const ttsTimer = setTimeout(() => ttsCtrl.abort(), 8_000);
     try {
       const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: authHeaders,
+        signal: ttsCtrl.signal,
         body: JSON.stringify({ text: clean.slice(0, 1200), persona: persona || null }),
       });
-      if (speakSeqRef.current !== seq) return; // barged in during the fetch: do not play stale audio
+      if (speakSeqRef.current !== seq) {
+        clearTimeout(ttsTimer);
+        return; // barged in during the fetch: do not play stale audio
+      }
       if (res.ok && res.status !== 204) {
-        const played = await playWithLipSync(await res.blob(), seq);
+        const blob = await res.blob(); // keep the timer armed across the body read (shares the signal)
+        clearTimeout(ttsTimer);
+        const played = await playWithLipSync(blob, seq);
         if (played || speakSeqRef.current !== seq) return; // spoke it, or superseded: no double voice
+      } else {
+        clearTimeout(ttsTimer);
       }
     } catch {
-      /* network/blocked: fall through to the browser voice */
+      clearTimeout(ttsTimer);
+      /* network/blocked/timeout: fall through to the browser voice */
     }
     if (speakSeqRef.current !== seq) return;
     // browser fallback (204 / error / premium playback failed): the browser voice gives no
@@ -906,6 +1013,10 @@ function Conversation({
     rec.interimResults = true;
     rec.continuous = true;
     rec.maxAlternatives = 1;
+    // Track consecutive 'network' errors (Chrome's speech service offline) so onend does not spin
+    // restarting the recognizer with zero backoff, stuck at "Listening..." while nothing is heard.
+    let netErr = 0;
+    let hadNetError = false;
     rec.onresult = (e) => {
       let finalText = "";
       let interim = "";
@@ -914,6 +1025,7 @@ function Conversation({
         interim += t;
         if (e.results[i].isFinal) finalText += t;
       }
+      if (interim.trim()) netErr = 0; // the service is working again; clear the error streak
       // barge-in the instant the shopper starts speaking: if the assistant is talking and this is
       // not just the mic hearing its own voice, stop speaking so they can talk
       if (speakingRef.current && micOnRef.current && interim.trim()) {
@@ -937,16 +1049,34 @@ function Conversation({
           ...m,
           { role: "bot", text: "I couldn't reach the microphone. Please allow mic access, or type your question." },
         ]);
+      } else if (err === "network") {
+        // The browser's speech service is unreachable. Back off, and after a few tries give up
+        // (with a message) instead of an invisible zero-backoff restart loop.
+        hadNetError = true;
+        netErr += 1;
+        if (netErr >= 3) {
+          micDeadRef.current = true;
+          stopVoice();
+          setMessages((m) => [
+            ...m,
+            { role: "bot", text: "Voice isn't reachable right now, so I've switched off the mic. You can type your question, or try voice again in a moment." },
+          ]);
+        }
       }
+      // no-speech / aborted are benign: onend restarts normally
     };
     rec.onend = () => {
-      if (voiceLiveRef.current && !micDeadRef.current) {
+      if (!voiceLiveRef.current || micDeadRef.current) return;
+      const delay = hadNetError ? 1500 : 0; // browsers stop after a pause; keep the mic alive
+      hadNetError = false;
+      window.setTimeout(() => {
+        if (!voiceLiveRef.current || micDeadRef.current) return;
         try {
-          rec.start(); // browsers stop after a pause; keep the mic alive until Stop
+          rec.start();
         } catch {
           /* already started */
         }
-      }
+      }, delay);
     };
     recogRef.current = rec;
     try {
@@ -1141,7 +1271,7 @@ function Conversation({
           <div className="greet">
             {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}
             <div className="big">
-              {name ? `Hi ${name}, ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
+              {name ? `Welcome back, ${name}! ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
             </div>
             {context?.kind === "product"
               ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears. Happy to help!`

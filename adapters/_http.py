@@ -29,7 +29,12 @@ def request_json(method: str, url: str, payload: dict | None = None,
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:2000]
         raise RuntimeError("{} {} -> HTTP {}: {}".format(method, url, exc.code, detail)) from exc
-    except urllib.error.URLError as exc:
+    except (urllib.error.URLError, TimeoutError) as exc:
+        # A read/connect timeout raises socket.timeout (TimeoutError), not URLError, so catch both
+        # and normalize to the shared "failed:" RuntimeError. Otherwise a timeout escaped as a bare
+        # TimeoutError, which is_transient() did not classify as transient, so the retry wrapper and
+        # the reranker fallback were both bypassed and a single slow response lost the turn.
+        reason = getattr(exc, "reason", exc)
         raise RuntimeError(
-            "{} {} failed: {} (is the service running?)".format(method, url, exc.reason)) from exc
+            "{} {} failed: {} (is the service running?)".format(method, url, reason)) from exc
     return json.loads(body) if body else {}

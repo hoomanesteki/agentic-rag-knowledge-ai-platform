@@ -87,20 +87,20 @@ export default function QualityPage() {
       </p>
       <div className="stats">
         <Stat label="Turns" value={String(o.total)}
-          hint="Total assistant answers in the recent traffic window." />
+          hint="Business: how many answers the quality read is based on, so the rates below carry weight. Technical: total assistant answers in the recent traffic window." />
         <Stat label="Grounding" value={o.avg_grounding === null ? "-" : o.avg_grounding.toFixed(2)}
           pct={(o.avg_grounding || 0) * 100} tone="good"
-          hint="How much of each answer is backed by the retrieved sources (0 to 1). Higher means less risk of the model making things up." />
+          hint="Business: the anti-hallucination score; higher means shoppers can trust what they are told. Technical: mean share of each answer backed by retrieved sources (0 to 1)." />
         <Stat label="Abstained" value={`${(o.abstain_rate * 100).toFixed(0)}%`}
           pct={o.abstain_rate * 100} tone="warn"
-          hint="Share of turns where the assistant declined to answer rather than guess, because retrieval was not confident. A safety feature; a spike means a knowledge gap." />
+          hint="Business: how often the assistant says 'I am not sure' instead of guessing; a feature, not a bug, but a spike flags a content gap. Technical: share of turns declined because retrieval confidence was below threshold." />
         <Stat label="Escalated" value={`${(o.escalation_rate * 100).toFixed(0)}%`}
           pct={o.escalation_rate * 100} tone="warn"
-          hint="Share of turns handed to a human specialist. These land in the review queue." />
+          hint="Business: how often a human specialist is looped in; the safety net for hard or sensitive asks. Technical: share of turns handed to the review queue by the supervisor." />
         <Stat label="Helpful" value={`${o.thumbs_up} / ${o.thumbs_down}`}
           pct={o.thumbs_up + o.thumbs_down ? (o.thumbs_up / (o.thumbs_up + o.thumbs_down)) * 100 : 0}
           tone="good"
-          hint="Thumbs up versus thumbs down that shoppers left on answers." />
+          hint="Business: shoppers' own verdict on the answers, the ground-truth satisfaction signal. Technical: thumbs up versus thumbs down left on assistant turns." />
       </div>
       <table>
         <thead>

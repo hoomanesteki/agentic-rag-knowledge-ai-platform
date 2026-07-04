@@ -10,6 +10,7 @@ dependencies = [
     "duckdb>=1.5.4",
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
+    "langchain-core>=1.4.0",
     "langfuse>=4.13.0",
     "langgraph>=1.2.7",
     "mlflow-skinny>=3.14.0",

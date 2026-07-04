@@ -66,13 +66,6 @@ def test_two_named_entities_both_resolve(tmp_path):
     assert "Cloud Hoodie" in block["text"] and "Flow Legging" in block["text"]
 
 
-def test_graph_evidence_is_domain_agnostic(tmp_path):
-    retriever = _retriever_for("saas_support", tmp_path)
-    block, _ = retriever.evidence("How many seats does the Team plan include?")
-    assert block is not None
-    assert "seats=10" in block["text"]  # the Team plan node's own property
-
-
 def test_empty_graph_yields_no_evidence(tmp_path):
     build_lakehouse("apparel_ecommerce", str(tmp_path / "lh.duckdb"))
     retriever = make_graph_retriever("apparel_ecommerce", make_graph("memory"))  # nothing loaded

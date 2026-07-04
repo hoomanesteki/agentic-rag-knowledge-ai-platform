@@ -1,6 +1,6 @@
 ---
 name: domain-pack
-description: Scaffold and validate a Skein Lite domain pack (domains/<name>/) so the same engine works on a new topic with no engine code change. Use when adding or editing a domain (for example apparel_ecommerce or saas_support), when a new topic needs seed data, ontology, metrics, a source manifest, or a golden eval set, or when checking that a pack meets the reproducibility contract before seeding.
+description: Scaffold and validate a Skein Lite domain pack (domains/<name>/) so the same engine works on a new topic with no engine code change. Use when adding or editing a domain (for example apparel_ecommerce), when a new topic needs seed data, ontology, metrics, a source manifest, or a golden eval set, or when checking that a pack meets the reproducibility contract before seeding.
 ---
 
 # Domain pack skill

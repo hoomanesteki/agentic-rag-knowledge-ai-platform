@@ -27,6 +27,7 @@ class Settings:
     groq_api_key: str
     voyage_api_key: str
     cohere_api_key: str
+    cohere_api_key_fallback: str
     qdrant_url: str
     qdrant_api_key: str
     neo4j_url: str
@@ -38,6 +39,8 @@ class Settings:
     auth_db_path: str
     demo_username: str
     demo_password: str
+    demo_customer_name: str
+    demo_customer_email: str
     admin_username: str
     admin_password: str
     gate_username: str
@@ -76,17 +79,25 @@ def get_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY", ""),
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
         cohere_api_key=os.getenv("COHERE_API_KEY", ""),
+        # Optional second Cohere key (e.g. a paid Production key) used only when the primary key
+        # returns 429. Lets a free Trial key be the first layer and a paid key the backstop.
+        cohere_api_key_fallback=os.getenv("COHERE_API_KEY_FALLBACK", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),  # required by Qdrant Cloud, empty locally
         neo4j_url=os.getenv("NEO4J_URL", "http://localhost:7474"),
         neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
         neo4j_password=os.getenv("NEO4J_PASSWORD", "skein_password"),
-        rate_limit=os.getenv("RATE_LIMIT", "30/minute"),
+        rate_limit=os.getenv("RATE_LIMIT", "300/minute"),
         jwt_secret=os.getenv("JWT_SECRET", "dev-insecure-change-me"),
         turnstile_secret=os.getenv("TURNSTILE_SECRET_KEY", ""),
         auth_db_path=os.getenv("AUTH_DB_PATH", ".auth.db"),
         demo_username=os.getenv("DEMO_USERNAME", "demo"),
         demo_password=os.getenv("DEMO_PASSWORD", "Canada54321"),
+        # The demo shopper's account identity (deployment config, blank by default so no name is
+        # baked into engine code). When set, a logged-in shopper is greeted by name and unlocks
+        # their OWN orders without re-typing name+email; the login already proved who they are.
+        demo_customer_name=os.getenv("DEMO_CUSTOMER_NAME", ""),
+        demo_customer_email=os.getenv("DEMO_CUSTOMER_EMAIL", ""),
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "skein-admin-2026"),
         # The public landing page gates the demo behind this one shared credential (emailed to a
@@ -110,8 +121,8 @@ def get_settings() -> Settings:
         elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
         elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
         # Premade voices (usable on the free tier; Voice-Library voices need a paid plan): "Sarah",
-        # a warm, natural young-adult woman for the assistant (Aria), and "Jessica", a friendly,
-        # conversational woman for the human specialist (Sara). Both overridable with any voice id.
+        # a warm, natural young-adult woman for the shopping assistant, and "Jessica", a friendly,
+        # conversational woman for the human specialist. Both overridable with any voice id.
         elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
         elevenlabs_agent_voice_id=os.getenv("ELEVENLABS_AGENT_VOICE_ID", "cgSgspJ2msm6clMCkdW9"),
     )

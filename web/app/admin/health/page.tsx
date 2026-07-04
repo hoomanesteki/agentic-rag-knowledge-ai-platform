@@ -70,12 +70,12 @@ export default function HealthPage() {
         <thead>
           <tr>
             <th>segment</th>
-            <th>requests<Hint text="Answered turns in the recent window for this segment." /></th>
-            <th>p95 ms<Hint text="95th-percentile end-to-end latency: 95 percent of answers were faster than this." /></th>
-            <th>req/min<Hint text="Requests per minute over the most recent 15-minute window, so it reflects current load." /></th>
-            <th>errors<Hint text="Share of turns that failed or fell back to a degraded response, usually an upstream model hiccup." /></th>
-            <th>avg cost<Hint text="Average model spend per costed turn in USD. Streaming turns omit token cost." /></th>
-            <th>grounding<Hint text="Average source-backing of answered turns (0 to 1). Watch for it drifting down over time." /></th>
+            <th>requests<Hint text="Business: how much real traffic this segment carried, so the other numbers have weight. Technical: count of answered turns in the recent window for this language segment." /></th>
+            <th>p95 ms<Hint text="Business: the slow-case experience most shoppers never exceed; the number that decides if the assistant feels instant. Technical: 95th-percentile end-to-end latency, so 95 percent of answers were faster than this." /></th>
+            <th>req/min<Hint text="Business: current load, which tells you whether to worry about a spike or a stall. Technical: requests per minute over the most recent 15-minute window." /></th>
+            <th>errors<Hint text="Business: how often a shopper hit a degraded answer; the reliability promise. Technical: share of turns that failed or fell back, usually an upstream model hiccup absorbed by the fallback chain." /></th>
+            <th>avg cost<Hint text="Business: what each answer costs to serve, the unit economics behind gross margin. Technical: average model spend per costed turn in USD; streaming turns omit token cost." /></th>
+            <th>grounding<Hint text="Business: how much of each answer is backed by real sources, the trust and hallucination guardrail. Technical: mean source-backing of answered turns (0 to 1); watch for it drifting down over time." /></th>
           </tr>
         </thead>
         <tbody>

@@ -91,9 +91,9 @@ class InMemoryHybridStore:
         for p in points:
             self._points[p["id"]] = p
 
-    def hybrid_search(self, dense_query: list[float], sparse_query: dict,
+    def hybrid_search(self, dense_query: list[float] | None, sparse_query: dict,
                       top_k: int = 8, where: dict | None = None,
-                      dense_only: bool = False) -> list[dict]:
+                      dense_only: bool = False, sparse_only: bool = False) -> list[dict]:
         candidates = [p for p in self._points.values() if _matches(p["payload"], where)]
 
         def out(pid, score):
@@ -102,6 +102,10 @@ class InMemoryHybridStore:
                     "payload": {**p["payload"], "text": p["text"], "chunk_id": pid}}
 
         by_id = {p["id"]: p for p in candidates}
+        if sparse_only:  # dense embedder unavailable: rank by the local sparse leg only
+            scored = sorted(((p["id"], _sparse_dot(sparse_query, p["sparse"])) for p in candidates),
+                            key=lambda kv: kv[1], reverse=True)[:top_k]
+            return [out(pid, score) for pid, score in scored]
         if dense_only:
             scored = sorted(((p["id"], _cosine(dense_query, p["dense"])) for p in candidates),
                             key=lambda kv: kv[1], reverse=True)[:top_k]
@@ -221,9 +225,11 @@ class InMemoryGraphStore:
             if node is None:
                 continue  # edge points at a node that was not loaded; skip it
             out.append(GraphNeighbor(edge_type=etype, direction=seen_dir, node=node))
-            if len(out) >= limit:
-                break
-        return out
+        # Sort deterministically (edge type, then node id) BEFORE applying the limit, so which
+        # neighbors survive truncation is stable and matches the Neo4j store's ORDER BY, not just
+        # insertion order (which made fake-backed tests disagree with the real store under a cap).
+        out.sort(key=lambda nb: (nb.edge_type, str(nb.node.id)))
+        return out[:limit]
 
 
 class EchoLLM:

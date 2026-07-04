@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Hint } from "../Hint";
 import { AdminNav } from "../nav";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -52,6 +53,7 @@ export default function InsightsPage() {
       {(domain.mlflow_url || domain.langfuse_url) && (
         <div className="row">
           <span className="meta">Observability:</span>
+          <Hint text="Business: proof the system is watched, not a black box; every answer and model run is traceable. Technical: Langfuse captures per-turn spans (retrieve, rerank, generate); MLflow logs eval runs and model versions." />
           {domain.langfuse_url && (
             <a className="ext" href={domain.langfuse_url} target="_blank" rel="noreferrer">
               Langfuse traces
@@ -65,7 +67,9 @@ export default function InsightsPage() {
         </div>
       )}
 
-      <h2>Knowledge gaps</h2>
+      <h2>Knowledge gaps
+        <Hint text="Business: real shopper demand the assistant cannot yet meet, ranked by frequency; the highest-leverage content to add next. Technical: questions that triggered an abstain or low-grounding turn, deduped and counted from live traces." />
+      </h2>
       <p className="ax-intro">
         Real questions shoppers asked that the assistant could not answer well, most frequent first.
         This is the worklist for what to teach it next: add a policy or product doc, and the gap
@@ -85,7 +89,9 @@ export default function InsightsPage() {
         </ul>
       )}
 
-      <h2>Ontology</h2>
+      <h2>Ontology
+        <Hint text="Business: the vocabulary of this domain, products, orders, policies and how they relate; swapping it re-skins the whole platform for a new industry. Technical: the entity types and typed edges declared in domain.yaml that shape the knowledge graph and retrieval." />
+      </h2>
       <p className="meta">Entities: {domain.ontology.entity_types.join(", ")}</p>
       <ul>
         {domain.ontology.edges.map((e) => (
@@ -95,7 +101,9 @@ export default function InsightsPage() {
         ))}
       </ul>
 
-      <h2>Governed metrics</h2>
+      <h2>Governed metrics
+        <Hint text="Business: the numbers everyone agrees on, defined once so a metric means the same thing in the assistant, the dashboard, and a board deck. Technical: the semantic layer, each metric with its grain, dimensions, and params, computed from the gold medallion tables." />
+      </h2>
       <ul>
         {domain.metrics.map((m) => (
           <li key={m.name}>
@@ -104,7 +112,9 @@ export default function InsightsPage() {
         ))}
       </ul>
 
-      <h2>Lineage</h2>
+      <h2>Lineage
+        <Hint text="Business: where every number comes from and how PII is protected on the way, the audit trail a regulator or buyer asks for. Technical: the medallion path (bronze to silver to gold), which columns are masked, and which governed metrics each layer serves." />
+      </h2>
       <ul>
         {domain.lineage.medallion.map((r) => (
           <li key={r.role}>

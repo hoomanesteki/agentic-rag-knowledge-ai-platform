@@ -69,14 +69,31 @@ def _centroid(vectors: list) -> list:
     return [sum(v[i] for v in vectors) / n for i in range(len(vectors[0]))]
 
 
+_EMBED_DRIFT_CAP = 200  # embed at most this many queries per window
+
+
+def _stride_sample(items: list, cap: int) -> list:
+    """A deterministic, evenly-spread subsample so a large window doesn't embed thousands of queries
+    (slow, metered, and near statistically inert as both centroids approach the global mean)."""
+    if len(items) <= cap:
+        return items
+    step = len(items) / cap
+    return [items[int(i * step)] for i in range(cap)]
+
+
 def embedding_drift(ref_queries: list, cur_queries: list, embedder) -> float | None:
-    """Cosine distance between the reference and current query-embedding centroids (0 identical)."""
-    ref_queries = [q for q in ref_queries if q]
-    cur_queries = [q for q in cur_queries if q]
+    """Cosine distance between the reference and current query-embedding centroids (0 identical).
+    Returns None if there is nothing to compare, or if the embedder is unavailable (429/outage),
+    so a monitoring caller sees 'unavailable' rather than a crash that looks like detected drift."""
+    ref_queries = _stride_sample([q for q in ref_queries if q], _EMBED_DRIFT_CAP)
+    cur_queries = _stride_sample([q for q in cur_queries if q], _EMBED_DRIFT_CAP)
     if not ref_queries or not cur_queries:
         return None
-    ref = _l2(_centroid(embedder.embed(ref_queries, input_type="query")))
-    cur = _l2(_centroid(embedder.embed(cur_queries, input_type="query")))
+    try:
+        ref = _l2(_centroid(embedder.embed(ref_queries, input_type="query")))
+        cur = _l2(_centroid(embedder.embed(cur_queries, input_type="query")))
+    except Exception:  # embedder rate-limited or down: this monitor degrades, it does not crash
+        return None
     return round(1 - sum(a * b for a, b in zip(ref, cur)), 4)
 
 

@@ -26,7 +26,8 @@ def _store_with(text):
 
 def test_queue_enqueue_list_and_resolve(tmp_path):
     queue = ReviewQueue(str(tmp_path / "rq.db"))
-    item_id = queue.enqueue("what is the SLA?", domain="saas_support", route="factual", now=1.0)
+    item_id = queue.enqueue("what is the SLA?", domain="apparel_ecommerce", route="factual",
+                            now=1.0)
     assert [i["id"] for i in queue.list_open()] == [item_id]
 
     assert queue.resolve(item_id, "The SLA is 99.9 percent.", "operator", now=2.0) is True
@@ -45,7 +46,7 @@ def test_retry_with_same_message_id_does_not_duplicate(tmp_path):
 
 def test_closed_items_are_re_exportable_from_the_db(tmp_path):
     queue = ReviewQueue(str(tmp_path / "rq.db"))
-    item_id = queue.enqueue("how do I export data?", domain="saas_support", now=1.0)
+    item_id = queue.enqueue("how do I export data?", domain="apparel_ecommerce", now=1.0)
     queue.resolve(item_id, "Settings, Data, Export.", "operator", now=2.0)
     closed = queue.closed_since(0.0)
     assert len(closed) == 1 and closed[0]["answer"] == "Settings, Data, Export."
@@ -53,7 +54,7 @@ def test_closed_items_are_re_exportable_from_the_db(tmp_path):
 
 def test_lang_flows_through_the_queue_to_closed_items(tmp_path):
     queue = ReviewQueue(str(tmp_path / "rq.db"))
-    item_id = queue.enqueue("quelle est la limite", domain="saas_support", lang="fr", now=1.0)
+    item_id = queue.enqueue("quelle est la limite", domain="apparel_ecommerce", lang="fr", now=1.0)
     queue.resolve(item_id, "100 par minute", "operator", now=2.0)
     assert queue.closed_since(0.0)[0]["lang"] == "fr"  # lang is available for the flywheel
 
@@ -73,7 +74,7 @@ def test_closed_since_filters_by_domain_and_tracks_a_watermark(tmp_path):
 def test_resolve_writes_verified_knowledge(tmp_path):
     verified = tmp_path / "verified.jsonl"
     queue = ReviewQueue(str(tmp_path / "rq.db"), verified_path=str(verified))
-    item_id = queue.enqueue("how do I export data?", domain="saas_support")
+    item_id = queue.enqueue("how do I export data?", domain="apparel_ecommerce")
     queue.resolve(item_id, "Go to Settings, Data, Export.", "operator")
     rows = [json.loads(x) for x in verified.read_text().splitlines() if x.strip()]
     assert len(rows) == 1

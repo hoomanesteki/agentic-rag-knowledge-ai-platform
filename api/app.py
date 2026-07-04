@@ -239,14 +239,16 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                 status_code=411)
         return await call_next(request)
 
-    login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
+    login_limiter = RateLimiter("50/minute")  # deters brute force without surprising a demo visitor
     # demo-login takes no password (it just mints a demo token), so the strict credential bucket is
-    # wrong for it: a page load + StrictMode double-fire + a retry can exhaust 5/min and 429 the
-    # visitor into a stuck "connecting" state. Give it a roomy bucket of its own.
-    demo_limiter = RateLimiter("60/minute")
+    # wrong for it: a page load + StrictMode double-fire + a retry can exhaust a tight bucket and
+    # 429 the visitor into a stuck "connecting" state. These buckets are sized so a hiring manager
+    # exploring the demo never hits a limit mid-session; they are a DoS/cost backstop, not a
+    # throttle on real use. A public deploy under abuse can lower them via env if needed.
+    demo_limiter = RateLimiter("600/minute")
     # a separate, roomier bucket for voice: each spoken turn is one /api/chat plus one /api/tts, so
     # sharing the chat bucket would halve the real conversation rate and cut the voice mid-demo
-    tts_limiter = RateLimiter("60/minute")
+    tts_limiter = RateLimiter("600/minute")
     store = UserStore(auth_db_path or settings.auth_db_path)
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")
@@ -362,7 +364,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         if not user:
             raise HTTPException(status_code=404, detail="no demo user")
         token = create_access_token(user["username"], user["role"], settings.jwt_secret)
-        return {"access_token": token, "token_type": "bearer", "role": user["role"]}
+        # The shopper's first name (from the configured demo identity), so the storefront can greet
+        # them back by name. Empty when no demo identity is configured.
+        first_name = (settings.demo_customer_name or "").split(" ")[0]
+        return {"access_token": token, "token_type": "bearer", "role": user["role"],
+                "name": first_name}
 
     @app.post("/api/gate-login")
     def gate_login(body: LoginRequest, request: Request):
@@ -394,6 +400,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         if not req.query.strip():
             raise HTTPException(status_code=400, detail="query is required")
 
+        # A logged-in shopper's account identity (from the verified JWT, mapped via deployment
+        # config), so they unlock their own orders without re-typing name+email. None when the demo
+        # account identity is not configured, in which case the typed name+email gate applies.
+        auth_identity = None
+        if user.get("username") == settings.demo_username and settings.demo_customer_email:
+            auth_identity = (settings.demo_customer_name, settings.demo_customer_email)
+
         message_id = uuid.uuid4().hex
         started = time.perf_counter()
 
@@ -414,6 +427,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                     # buffered response. The whole turn runs synchronously here before the first
                     # yield, so the Langfuse span opens and closes within one execution (no cross-
                     # yield context hop) and every LLM generation nests under it. No-op when off.
+                    # NOTE: voice brevity (concise) and logged-in personalization (auth_identity:
+                    # own-order auto-unlock plus the taste profile) are LINEAR-BRAIN features, not
+                    # applied on this non-default agent path. It fails closed: the deterministic
+                    # name+email PII gate still applies, so a logged-in shopper simply re-types
+                    # name+email to see their own orders here.
                     with request_span("chat.agent", input=req.query,
                                       metadata={"message_id": message_id, "lang": req.lang}):
                         result = answer_with_agent(
@@ -438,7 +456,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                            metric_resolver=comp.get("metric_resolver"),
                                            graph_retriever=comp.get("graph_retriever"),
                                            lang=req.lang, persona=req.persona,
-                                           history=req.history, concise=req.concise):
+                                           history=req.history, concise=req.concise,
+                                           auth_identity=auth_identity):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,

@@ -41,7 +41,7 @@ const FEATURES = [
   { t: "Grounded & cited", d: "Every answer is built from retrieved context with inline citations, and it abstains instead of guessing." },
   { t: "Knowledge graph + metrics", d: "Beyond text: a product graph and governed metric tables answer relationship and number questions." },
   { t: "Talk to it", d: "A hands-free voice mode you can interrupt mid-answer, like a real conversation." },
-  { t: "Domain-swappable", d: "One manifest drives the whole engine. Swap the pack to go from apparel to SaaS support." },
+  { t: "Domain-swappable", d: "One manifest drives the whole engine. Swap the pack and the same engine serves any domain a pack describes." },
 ];
 
 export default function Landing({ onEnter }: { onEnter: () => void }) {
@@ -116,8 +116,8 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           </h1>
           <p>
             A domain-swappable agentic RAG platform. Shown here as an apparel store, like Lululemon,
-            but the same engine runs SaaS support or any domain. Grounded, cited, and honest when it
-            does not know.
+            but the same engine serves any domain a pack describes. Grounded, cited, and honest when
+            it does not know.
           </p>
           <div className="lp-hero-cta">
             <a className="btn btn-primary" href="#gate">

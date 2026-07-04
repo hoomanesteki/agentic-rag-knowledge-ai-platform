@@ -32,7 +32,7 @@ traces and the MLflow runs.
 ## What I tested
 
 - `make check` green (a new API test covers `/api/suggestions`: auth required, returns the active
-  domain's capped, well-formed prompts; both domains serve six prompts across five capabilities).
+  domain's capped, well-formed prompts; the domain serves six prompts across five capabilities).
 - Web `tsc --noEmit` and `next lint` clean. The chat `send()` refactor lets a chip submit its text
   directly (React state is async, so the value is passed, not read back).
 - Suggestion text is rendered through React escaping (no injection), and the endpoint sanitizes and

@@ -80,7 +80,9 @@ _SYSTEM = (
     "defaulting, or offer a solid pick in both. Some pieces are women's only (for example a "
     "support bra): do not put one in a list for a shopper whose gender you do not know. For an "
     "unspecified shopper, lead with unisex-friendly pieces (a top, shorts, a jacket, a pullover) "
-    "and ask before adding a gender-specific item. "
+    "and ask before adding a gender-specific item. When the shopper states a gender, recommend "
+    "only pieces for that gender or unisex ones; if a guide or outfit idea lists an item and the "
+    "context shows it is made for the other gender, leave it out. "
     "For casual chit-chat, a joke, or 'how are you', reply briefly and warmly, with no citations "
     "and no forced product mentions. "
     "ORDER AND ACCOUNT PRIVACY (strict): before revealing ANY order information at all (order "
@@ -530,6 +532,36 @@ def _order_access_ok(auth_text: str, payload: dict) -> bool:
     return any(re.search(r"\b" + re.escape(n) + r"\b", low_no_email) for n in names)
 
 
+# Explicit gender cues only (not inferred): a stated gender is a hard constraint on which SKUs can
+# be recommended, so a man asking for "men's gear" is never shown a women's-only piece that an
+# occasion guide happened to list. Inference/ask-when-unsure still lives in the prompt.
+_MALE_CUE = re.compile(r"\b(men'?s|mens|male|for him|for my (boyfriend|husband|dad|father|son|"
+                       r"brother|guy)|guy'?s)\b", re.I)
+_FEMALE_CUE = re.compile(r"\b(women'?s|womens|female|for her|for my (girlfriend|wife|mom|mother|"
+                         r"daughter|sister|gf)|lad(y|ies)'?s?)\b", re.I)
+
+
+def _explicit_gender(query: str) -> str | None:
+    male, female = bool(_MALE_CUE.search(query)), bool(_FEMALE_CUE.search(query))
+    if male and not female:
+        return "men"
+    if female and not male:
+        return "women"
+    return None  # unstated or mixed -> no hard filter; the prompt infers or asks
+
+
+def _gender_filter(hits: list[dict], gender: str | None) -> list[dict]:
+    """Drop product hits of the opposite gender when the shopper stated one, so the model composes
+    recommendations only from SKUs they can actually buy. Unisex/ungendered docs and all non-product
+    docs (guides, reviews) are kept."""
+    if not gender:
+        return hits
+    opposite = "women" if gender == "men" else "men"
+    return [h for h in hits
+            if (h.get("payload") or {}).get("doc_type") != "product"
+            or (h.get("payload") or {}).get("gender") != opposite]
+
+
 def _user_authored_text(query: str, history: list[dict] | None) -> str:
     """Everything the shopper themselves has said this session (their turns plus the current query),
     never the assistant's words or retrieved text, so identity is proven only from user input."""
@@ -569,6 +601,8 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
         hits = [h for h in hits
                 if (h.get("payload") or {}).get("doc_type") != "order"
                 or _order_access_ok(auth, h.get("payload") or {})]
+    # A stated gender is a hard facet: never surface an opposite-gender SKU to recommend from.
+    hits = _gender_filter(hits, _explicit_gender(query))
     if reranker is None or not hits:
         return hits[:top_k]
     texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs

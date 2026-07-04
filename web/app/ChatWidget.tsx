@@ -53,7 +53,8 @@ function citeLabel(c: Citation): string {
   if (/^(CATR|CAT)/i.test(id)) return "Catalog";
   if (/^OC/i.test(id)) return "Buying guide";
   if (/^(PD|PC)/i.test(id)) return "Product info";
-  if (/^R\d/i.test(id)) return "Customer review";
+  if (/^OD/i.test(id) || c.doc_type === "order") return "Order record";
+  if (/^(R\d|RV|RG)/i.test(id)) return "Customer review";
   if (c.doc_type === "review") return "Customer review";
   if (c.doc_type === "product") return "Product info";
   if (c.doc_type === "guide") return "Store info";
@@ -192,7 +193,9 @@ type Recognizer = {
 // voice trying to pronounce an emoji).
 function plainSpeak(text: string): string {
   return text
-    .replace(/\[\d+(?:,\s*\d+)*\]/g, "")
+    .replace(/\s*\[\d+(?:\s*,\s*\d+)*\](?:\s*(?:,\s*)?(?:and\s+|&\s+)?\[\d+(?:\s*,\s*\d+)*\])*/g, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^\s*[*-]\s+/gm, "")
     .replace(/^\s*\d+[.)]\s+/gm, "")

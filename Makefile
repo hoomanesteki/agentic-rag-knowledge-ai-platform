@@ -86,6 +86,9 @@ ragas: ## RAGAS-style answer-quality eval on the golden set (needs keys, make up
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 
+promote: ## Gate the current config through MLflow stages (dev -> staging -> prod) by eval score
+	PYTHONPATH=. uv run python scripts/promote_model.py
+
 drift: ## Report drift across the four monitors from recent traffic
 	PYTHONPATH=. uv run python scripts/run_drift.py
 
@@ -96,4 +99,4 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate drift serve keepalive
+.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate promote drift serve keepalive

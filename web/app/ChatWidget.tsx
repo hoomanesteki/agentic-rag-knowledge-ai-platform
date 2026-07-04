@@ -44,6 +44,18 @@ function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+// Is a JWT still valid (not within 30s of expiry)? A cached-but-expired token would otherwise be
+// trusted on load, boot the chat, then 401 on the first message and dead-end at "Connecting...".
+// An unparseable token is trusted (the server will 401 it, which triggers a clean reconnect).
+function tokenAlive(t: string): boolean {
+  try {
+    const payload = JSON.parse(atob((t.split(".")[1] || "").replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp !== "number" || payload.exp * 1000 > Date.now() + 30_000;
+  } catch {
+    return true;
+  }
+}
+
 // Turn an internal citation id (CK33, graph:Product:P007, metric:...) into a human-readable source.
 function citeLabel(c: Citation): string {
   const id = c.id || "";
@@ -231,8 +243,18 @@ function speakAsync(text: string): Promise<void> {
     }
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.onend = () => resolve();
-    u.onerror = () => resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(guard);
+      resolve();
+    };
+    // Chrome's speechSynthesis can stall without firing onend (long or remote-voice utterances), which
+    // would leave voiceState stuck at "Speaking..." forever. Resolve on a duration-based guard too.
+    const guard = setTimeout(finish, Math.min(30_000, 2_000 + 65 * text.length));
+    u.onend = finish;
+    u.onerror = finish;
     synth.speak(u);
   });
 }
@@ -253,30 +275,47 @@ export default function ChatWidget({
   const [brand, setBrand] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
 
+  // One-time setup: mark mounted and load the storefront (brand + products).
   useEffect(() => {
     setMounted(true);
+    fetchStore().then((s) => {
+      setBrand(s.brand);
+      setProducts(s.products);
+    });
+  }, []);
+
+  // Connect / reconnect whenever there is no valid token. Keyed on `token`, so a 401 that calls
+  // signOut() (token -> null) automatically restarts login instead of dead-ending at "Connecting".
+  // Frictionless demo: silently mint a demo token. This converges on the first load even when the
+  // API is still warming up (uvicorn --reload, or a scaled-to-zero deploy) and under React
+  // StrictMode's double-mounted effect: the token is cached the instant it arrives (so a discarded
+  // mount can't waste it), the UI converges to whatever is cached, and retries are short and bounded
+  // (~0.6s, then 2s) rather than an exponential backoff that reads as a hang. The orphaned StrictMode
+  // request is aborted so only one call is ever in flight.
+  useEffect(() => {
+    if (token) return;
     let alive = true;
     const controller = new AbortController();
-    // Frictionless demo: the chat never asks for a password; it silently mints a demo token. This
-    // MUST converge on the very first load, even when the API is still warming up (uvicorn --reload,
-    // or a scaled-to-zero deploy) and even under React StrictMode's double-mounted effect. The old
-    // version could dead-end at "Connecting..." until a manual refresh, because StrictMode's first
-    // mount resolved after its own cleanup and DISCARDED the token without caching it, and the
-    // exponential backoff (up to 5s) meant a slow first hit felt like a hang. Fixes:
-    //  - cache the token the instant it arrives, before the alive check, so a mount React has
-    //    already discarded never wastes it;
-    //  - converge to whatever is cached on every path, so any live closure updates the UI;
-    //  - retry on a short, near-constant interval (~0.6s, then 2s) instead of a runaway backoff;
-    //  - abort the orphaned StrictMode request so only one call is ever in flight.
     const connect = (tries = 0) => {
       if (!alive) return;
       const cached = localStorage.getItem("skein_token");
-      if (cached) {
+      if (cached && tokenAlive(cached)) {
         setToken(cached);
         return;
       }
+      if (cached) localStorage.removeItem("skein_token"); // expired: drop it and mint a fresh one
       fetch(`${API_BASE}/api/demo-login`, { method: "POST", signal: controller.signal })
-        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => {
+          if (r.status === 404) {
+            // Production: demo-login is disabled, so the gate token expired. Send the visitor back
+            // to the landing gate to sign in again instead of polling a 404 forever.
+            localStorage.removeItem("aster_gate");
+            localStorage.removeItem("skein_token");
+            window.location.assign("/");
+            return null;
+          }
+          return r.ok ? r.json() : null;
+        })
         .then((d) => {
           if (d?.access_token) localStorage.setItem("skein_token", d.access_token); // cache first
           const now = localStorage.getItem("skein_token");
@@ -290,15 +329,11 @@ export default function ChatWidget({
         });
     };
     connect();
-    fetchStore().then((s) => {
-      setBrand(s.brand);
-      setProducts(s.products);
-    });
     return () => {
       alive = false;
       controller.abort();
     };
-  }, []);
+  }, [token]);
 
   const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
 
@@ -592,10 +627,20 @@ function Conversation({
       .filter((mm) => mm.text && mm.text.trim())
       .slice(-6)
       .map((mm) => ({ role: mm.role === "me" ? "user" : "assistant", content: mm.text }));
+    // Watchdog so a cold or wedged API that accepts the socket but never sends bytes can't leave the
+    // typing dots (and voice "Thinking...") spinning forever: abort if no first byte in 30s, and if
+    // the stream then goes idle for 60s. An abort lands in the catch below ("Could not reach...").
+    const ctrl = new AbortController();
+    let watchdog = setTimeout(() => ctrl.abort(), 30_000);
+    const armIdle = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => ctrl.abort(), 60_000);
+    };
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
+        signal: ctrl.signal,
         body: JSON.stringify({
           query: qSend,
           ...(agentMode ? { persona: "agent" } : {}),
@@ -604,8 +649,12 @@ function Conversation({
         }),
       });
       if (res.status === 401) {
+        // The token expired. Clearing it triggers an automatic reconnect (the connect effect is
+        // keyed on the token), so tell the shopper rather than dropping their message silently.
+        const m = "Your session expired, reconnecting. Please resend that.";
+        patchBot((b) => ({ ...b, text: m }));
         onSignOut();
-        return "";
+        return m;
       }
       if (res.status === 429) {
         const m = "You are asking too fast. Please wait a moment.";
@@ -626,6 +675,7 @@ function Conversation({
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
+          armIdle(); // reset the idle timeout on each chunk received
           buffer += decoder.decode(value, { stream: true });
           const chunks = buffer.split(/\r?\n\r?\n/);
           buffer = chunks.pop() ?? "";
@@ -673,6 +723,7 @@ function Conversation({
       result = "Could not reach the assistant. Is the API running?";
       patchBot((b) => ({ ...b, text: result }));
     } finally {
+      clearTimeout(watchdog);
       setLoading(false);
     }
     return result;
@@ -714,19 +765,26 @@ function Conversation({
     const clean = plainSpeak(text);
     if (!clean) return;
     const seq = ++speakSeqRef.current; // this call owns `seq`; stopSpeaking() bumps it to cancel
+    // Timeout so a cold/hung /api/tts can't freeze the greeting at "Say hello..." or lock voice in
+    // "Speaking...": abort after 8s and fall through to the browser voice (the catch handles it).
+    const ttsCtrl = new AbortController();
+    const ttsTimer = setTimeout(() => ttsCtrl.abort(), 8_000);
     try {
       const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: authHeaders,
+        signal: ttsCtrl.signal,
         body: JSON.stringify({ text: clean.slice(0, 1200), persona: persona || null }),
       });
+      clearTimeout(ttsTimer);
       if (speakSeqRef.current !== seq) return; // barged in during the fetch: do not play stale audio
       if (res.ok && res.status !== 204) {
         const played = await playWithLipSync(await res.blob(), seq);
         if (played || speakSeqRef.current !== seq) return; // spoke it, or superseded: no double voice
       }
     } catch {
-      /* network/blocked: fall through to the browser voice */
+      clearTimeout(ttsTimer);
+      /* network/blocked/timeout: fall through to the browser voice */
     }
     if (speakSeqRef.current !== seq) return;
     // browser fallback (204 / error / premium playback failed): the browser voice gives no

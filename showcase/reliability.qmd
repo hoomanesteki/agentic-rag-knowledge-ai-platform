@@ -55,7 +55,7 @@ When a shopper states a gender, opposite-gender products are redacted from the r
 
 ## What the review found {#what-the-review-found}
 
-The guards are held to an adversarial standard: rounds of multi-agent review whose only job is to break them, then a second pass that tries to refute every finding before it counts, so only real, reproducible defects survive. The first round found two criticals a first pass had missed. A later, deeper round surfaced fifteen more across security, retrieval, MLOps, and the frontend, each fixed with a regression test and then re-verified.
+The guards are held to an adversarial standard: rounds of multi-agent review whose only job is to break them, then a second pass that tries to refute every finding before it counts, so only real, reproducible defects survive. The first round found two criticals a first pass had missed. A later, deeper round surfaced fifteen more across security, retrieval, MLOps, and the frontend. Each was fixed and then re-verified, and the Python-side fixes carry pytest regressions that lock the behavior in.
 
 | Finding | Severity | Status |
 |---|---|---|
@@ -66,4 +66,4 @@ The guards are held to an adversarial standard: rounds of multi-agent review who
 | The engine hardcoded the brand and persona, breaking the domain-swap claim | <span class="chip warn">high</span> | Fixed, persona and brand now live in the pack manifest; the leak linter guards the short brand too |
 | The quality gate could pass with a core metric never measured | <span class="chip info">medium</span> | Fixed, a required-metric floor fails the run if faithfulness is missing |
 
-Every fix ships with a test, and the re-verification pass re-derives the attack against the patched code before the finding is marked closed. That is the standard the whole project holds itself to: findings are documented and defeated, not papered over.
+Most fixes ship with a pytest regression, and the re-verification pass re-derives the attack against the patched code before the finding is marked closed. The two frontend guards (the human-handoff trigger and the gender-cue redaction in the widget) are checked by hand against a list of phrasings, since the storefront has no test runner yet. That is the standard the whole project holds itself to: findings are documented and defeated, not papered over.

@@ -14,7 +14,7 @@ lose a little quality, never the whole turn.
 | **LLM** | Groq Llama 3.3 70B | Groq Llama 3.1 8B | Static abstain or handoff message | A shorter answer, or a graceful "let me get a human" |
 | **Voice out (TTS)** | ElevenLabs premium voice | Browser `speechSynthesis` | Text only | A more robotic voice, then plain text |
 | **Voice in (STT)** | Groq Whisper | Browser `SpeechRecognition` | Type instead | Falls back to the keyboard |
-| **Vector store** | Qdrant (retry on 429/503) | Same call retried with backoff | Sparse-only path | A brief pause, then the answer |
+| **Vector store** | Qdrant (retry on 429/503) | Same call retried with backoff | Graceful degraded reply | A brief pause; if the store stays down, an honest "trouble reaching results" note, not an error |
 | **Knowledge graph** | Neo4j facts enrich the answer | Skip graph, answer from vectors | | Nothing; graph is additive |
 | **Governed metrics** | DuckDB semantic layer | Skip metric, answer from vectors | | Nothing; metric is additive |
 

@@ -91,7 +91,7 @@ Synthetic single-store scale, MLOps runs on demand rather than a hosted schedule
 :::
 ::: {.card}
 ### Opportunities
-Logged-in personalization from order and chat history, more domains on the same engine, and a scheduled drift-and-retrain loop feeding the human-in-the-loop flywheel.
+More domains on the same engine, deeper personalization from chat history, and a scheduled drift-and-retrain loop feeding the human-in-the-loop flywheel.
 :::
 ::: {.card}
 ### Threats
@@ -99,6 +99,6 @@ Provider quota and cost, model or vendor drift, and adversarial users. Each has 
 :::
 :::
 
-## What is next
+## What shipped, and what is next
 
-Logged-in personalization (greet the returning shopper, recommend from their history), a scheduled drift-and-eval cron, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.
+Logged-in personalization already shipped: a signed-in shopper is greeted by first name, and a taste profile built from their own order history biases the recommendations. Still ahead: a scheduled drift-and-eval cron in place of the on-demand runs, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.

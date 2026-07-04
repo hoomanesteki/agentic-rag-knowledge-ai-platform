@@ -6,8 +6,8 @@ loads the specific vocabulary from every domain pack (brand, product names, metr
 glossary terms) and greps the engine folders for it. If an engine file names a domain thing,
 that is a leak: it should live in domains/<name>/ instead.
 
-Runs clean today because the engine folders do not exist yet. It starts catching leaks as
-soon as they do. Add to `make check` so every commit is guarded.
+Scans every engine folder that exists (107 files today) against the pack vocabulary. Wired
+into `make check`, so every commit is guarded against a domain term leaking into the engine.
 """
 import csv
 import os

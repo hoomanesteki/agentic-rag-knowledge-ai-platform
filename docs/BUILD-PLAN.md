@@ -28,7 +28,7 @@ the plan from "good intentions" to "measured".
 | Toolchain | A reproducibility project cannot ship a 3.9 venv against a 3.11 CI with unpinned deps. | uv, Python 3.12 (pinned in `.python-version`), dependencies locked in `uv.lock`. Done at M0. |
 | First output | The spec builds the lakehouse and graph before any answer. | Thin vertical slice first: ingest a few docs, answer one grounded cited question (M1), then add structured, graph, and the agentic brain. |
 | Measurement | Every quality claim in the spec is unmeasured. | A hand-written golden set lives in the domain pack from M0.2. `make eval` exists by M2. Every step after that reports a metric delta. |
-| Reproducibility | It is the top priority but the spec only proves it at the very end. | Prove it continuously: a domain-leak linter in `make check` from M0, a second-domain stub wired into CI from M4. |
+| Reproducibility | It is the top priority but the spec only proves it at the very end. | Prove it continuously: a domain-leak linter in `make check` from M0 that scans every engine folder against the pack vocabulary. A second-domain stub proved genericity through M4, then was retired when the demo went apparel-only; the linter still guards the boundary on every commit. |
 | Local-first honesty | README says local-first, but all models are hosted. | Keep infra local (Qdrant, Postgres, Neo4j in Docker). Add one optional local model adapter (Ollama / ONNX) behind the M1 seam so the claim is real and the adapter boundary is demonstrated. Hosted stays the default. |
 
 ### Risks to keep in view (with the fix)

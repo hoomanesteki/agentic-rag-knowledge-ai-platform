@@ -98,10 +98,11 @@ The demo lives or dies here. A reviewer types real shopper questions and reads t
 - A **decision log** (`docs/`) capturing why each tool was chosen and what was traded off.
 - Human-authored voice throughout; no AI-assistant attribution.
 
-## Stage 8, Fable end-to-end verification
+## Stage 8, independent end-to-end verification
 
-- Adversarial review of the whole thing, word by word: correctness, UX, safety, edge cases,
-  categorized test coverage, and best-practice gaps versus the apparel-ecommerce industry.
+- Adversarial review of the whole thing, word by word, by an independent model: correctness, UX,
+  safety, edge cases, categorized test coverage, and best-practice gaps versus the apparel-ecommerce
+  industry.
 
 ---
 
@@ -120,10 +121,15 @@ complete.
 - **Stage 2** done, governed `stock_by_size` metric closes the per-size stock gap; the rest of the
   medallion stack (bronze/silver/gold, schema tests, PII masking, exposures, semantic layer) was
   already in place.
-- **Stage 3** in progress, model-selection rationale corrected (Voyage → Cohere) and evidenced
-  against the live Health view / RAGAS gate / ablation; MLflow staging→prod promotion still to add.
-- **Stage 6** in progress, AI-safety test harness (injection, harm decline, PII gate; caught a
-  real first-person-gate leak) and a `pr-review` skill (AI suggests on the PR, human approves)
-  landed; CI edge-case matrix still to add.
-- **Stages 4, 5, 7, 8** pending, back-office BI insights, agentic-loop doc + fallback chain,
-  README/notebooks/decision-log, and the Fable end-to-end pass.
+- **Stage 3** done, model-selection rationale corrected (Voyage → Cohere) and evidenced against the
+  live Health view / RAGAS gate / ablation; the MLflow staging→prod promotion gate landed
+  (`scripts/promote_model.py`, `make promote`, evidence in `docs/mlops/experiments.md`).
+- **Stage 4** done, back-office BI insights with per-metric business and technical hints.
+- **Stage 5** done, agentic-loop write-up and the layered provider fallback chains
+  (`docs/fallbacks.md`).
+- **Stage 6** done, AI-safety test harness (injection, harm decline, PII gate; caught a real
+  first-person-gate leak) and a `pr-review` skill (reviewer suggests on the PR, human approves); the
+  offline CI eval gate blocks regressions on every push.
+- **Stage 7** done, README, notebooks, and decision log rewritten to render real outputs.
+- **Stage 8** done, independent end-to-end review across rounds with adversarial verification;
+  confirmed findings fixed and the docs reconciled with the code.

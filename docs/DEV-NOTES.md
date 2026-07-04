@@ -12,19 +12,19 @@ evaluating the project.
 - One gate: `make check` runs ruff lint, pytest, domain-pack validation, and the domain-leak
   linter. CI runs the same target. The `/preflight` skill runs it and reports go or no-go.
 
-## Working on Claude Pro without burning tokens
+## Working within a metered assistant budget
 
-Claude Pro has usage limits, so keep each building session small and let the repo hold the
+A coding assistant has usage limits, so keep each building session small and let the repo hold the
 state instead of the chat.
 
 - One milestone step per session. Start by reading BUILD-PLAN.md plus only the files that
-  step touches. Do not ask Claude to re-read the whole repo.
+  step touches. Do not re-read the whole repo each time.
 - Keep state in the repo, not in chat. After each step, run `make check` and commit. When the
   conversation gets long, reset it safely: the plan and code hold the state.
 - Use the `/domain-pack` skill to generate and check packs instead of reasoning them out each
   time. Deterministic scaffolding is cheaper than fresh generation.
-- Let the app make its own model calls (Groq, Voyage). That work does not touch your Claude
-  quota. Claude is for building, not for serving answers.
+- Let the app make its own model calls (Groq, Cohere). That work is separate from the build budget:
+  the assistant is for building, not for serving answers.
 - Write each "Done when" as a command you can run. A runnable check ends the debate about
   whether a step is finished.
 - Prefer small diffs. If a step feels like an L, split it into two S sessions.

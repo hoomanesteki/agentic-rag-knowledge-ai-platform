@@ -163,6 +163,23 @@ def _smalltalk(query: str, persona: str | None = None) -> str | None:
                     r"( please)?|make me laugh|be funny", q):
         return ("Here's one: why did the leggings go to therapy? Too much emotional stretch 😄. "
                 "What can I help you find today?")
+    # a genuinely vague request with no anchor (recipient, category, use, color, budget): ask ONE
+    # clarifying question like a good associate, instead of guessing three random products
+    if re.fullmatch(
+        r"((i|we)\s+(need|want|would like|am looking for|'?m looking for|wanna( buy| get| find)?)"
+        r"|help me( find| out| shop)?|show me|find me|get me|looking for|recommend me)?\s*"
+        r"(something( nice| good| cool| new| to (buy|wear))?|any ?thing( good| nice| really)?|"
+        r"a (gift|present)|some ?thing|stuff|new stuff|to buy something)( please| for me)?"
+        r"|surprise me|what do you (have|sell|recommend|got|carry)"
+        r"|i'?m not sure what i (want|need)|i don'?t know what i (want|need|am looking for)"
+        r"|no idea what to (get|buy|wear)|help me (choose|decide|pick)", q):
+        if agent:
+            return ("Happy to help you find the perfect thing! Quick question so I get it right: "
+                    "who is it for, and what kind of piece, something for workouts, something "
+                    "cozy, a bag, or an accessory? Any color or budget in mind?")
+        return ("Love to help you find the perfect thing 😊! Quick question so I nail it: who's it "
+                "for, and what kind of piece, something for workouts, something cozy, a bag, or an "
+                "accessory? Any color or budget in mind?")
     # "list all products": never dump the catalog, guide them to narrow down
     _all = r"\b(list|show|see|display|give me)\b.*\b(all|every|entire|whole)\b.*\bproduct"
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",

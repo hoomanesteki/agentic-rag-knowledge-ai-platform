@@ -135,6 +135,22 @@ sources:
       text_field: text
       lang_field: lang
       meta_fields: [category]
+    # Cheapest/priciest and the price range per category (tools compute from the catalog), so
+    # "what's your cheapest hoodie" grounds on a fact instead of guessing from partial recall.
+    - file: seed/unstructured/price_facts.jsonl
+      doc_type: guide
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [category]
+    # Which products come in each color (tools compute from the catalog), so "a red hoodie" names
+    # the pieces that actually come in Ember Red instead of confusing a style name with a color.
+    - file: seed/unstructured/color_facts.jsonl
+      doc_type: guide
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [category]
     # Demo order history for one customer, so the assistant can look up orders and reason about a
     # delivery delay when the shopper gives their email (info@esteki.ca), verified with their name.
     - file: seed/unstructured/orders.jsonl

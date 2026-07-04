@@ -54,9 +54,9 @@ RATE_LIMIT: 30/minute
 ALLOWED_ORIGINS: https://<your-vercel-app>.vercel.app
 LLM_PROVIDER: groq
 GROQ_API_KEY: <...>
-EMBED_PROVIDER: voyage
-RERANK_PROVIDER: voyage
-VOYAGE_API_KEY: <...>
+EMBED_PROVIDER: cohere
+RERANK_PROVIDER: cohere
+COHERE_API_KEY: <...>
 VECTOR_PROVIDER: qdrant
 QDRANT_URL: <qdrant cloud url>
 QDRANT_API_KEY: <...>

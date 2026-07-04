@@ -37,8 +37,8 @@ type Message = {
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Sara from the Aster team. 👋 You've got a real person now. If it's about an order, " +
-  "share the email on it and I'll pull it up right away. What's going on?";
+  "Hi, I'm Sara from the Aster care team. 👋 I've got you from here. If it's about an order, " +
+  "share the name and email on it and I'll pull it up right away. What's going on?";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;

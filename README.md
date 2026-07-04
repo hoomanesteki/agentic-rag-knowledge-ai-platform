@@ -151,7 +151,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
 make setup                 # venv + locked dependencies
-cp .env.example .env       # fill in GROQ_API_KEY and VOYAGE_API_KEY for real runs
+cp .env.example .env       # fill in GROQ_API_KEY and COHERE_API_KEY for real runs
 make check                 # lint, tests, dbt-ready checks, eval gate (fully offline)
 make doctor                # if a step hangs or fails, this says why (Docker, .env, keys)
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker (preflighted)

@@ -89,8 +89,8 @@ def check_keys() -> bool:
     needs = []
     if "groq" in (env.get("LLM_PROVIDER", "fake"), env.get("TRANSCRIBE_PROVIDER", "fake")):
         needs.append(("GROQ_API_KEY", "gsk_"))
-    if "voyage" in (env.get("EMBED_PROVIDER", "fake"), env.get("RERANK_PROVIDER", "none")):
-        needs.append(("VOYAGE_API_KEY", "pa-"))
+    if "cohere" in (env.get("EMBED_PROVIDER", "fake"), env.get("RERANK_PROVIDER", "none")):
+        needs.append(("COHERE_API_KEY", ""))
     if not needs:
         _line("ok", "providers are offline fakes; no keys needed")
         return True

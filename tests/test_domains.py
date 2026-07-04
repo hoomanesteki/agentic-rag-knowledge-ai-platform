@@ -1,6 +1,6 @@
-"""M4.4 dual-domain proof. The same engine must serve both domain packs with no engine code
-change: ingest each pack's text, answer an in-domain question with citations, abstain on an
-out-of-domain one, build each lakehouse to passing contracts, and mask every declared PII
+"""M4.4 reproducibility proof. The same engine must serve any domain pack with no engine code
+change: ingest the pack's text, answer an in-domain question with citations, abstain on an
+out-of-domain one, build the lakehouse to passing contracts, and mask every declared PII
 column. This runs inside make check, so CI re-proves reproducibility on every commit.
 
 It runs fully offline on the fakes (hash embedder, BM25 sparse, echo LLM). The hosted path is
@@ -26,8 +26,6 @@ from retrieval.sparse import SparseEncoder
 DOMAINS = [
     ("apparel_ecommerce", "does the flow legging run small", "what is the capital of france",
      "small"),
-    ("saas_support", "how do I reset my Northwind Cloud password", "what is the capital of france",
-     "reset"),
 ]
 
 

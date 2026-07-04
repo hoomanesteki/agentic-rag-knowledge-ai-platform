@@ -218,8 +218,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # optional trailing persona name in a greeting (e.g. "hey there <assistant>"), sourced from the
     # pack so no persona name is hardcoded in the matcher
     _pname = "|".join(re.escape(n.lower()) for n in (assistant, specialist) if n) or "x"
-    # the leading space must apply to every alternative, so wrap the names ( (?:aria|sara))? not
-    # ( aria|sara)? which would only space-prefix the first name.
+    # the leading space must apply to every alternative, so wrap the names ( (?:n1|n2))? not
+    # ( n1|n2)? which would only space-prefix the first name.
     _greet_name = r"( there)?( (?:" + _pname + r"))?"
     # clear harm intent: decline briefly and warmly, not with the "missing detail" fallback. Scoped
     # so ordinary shopping words are safe: "explore" / "photo shoot" / "kill it at the gym" / an
@@ -779,8 +779,8 @@ _FEMALE_PRON = re.compile(r"\bfor her\b", re.I)
 
 def _explicit_gender(query: str) -> str | None:
     # Resolve strongest-cue-first. An explicit product cue ("men's") is never overridden by an
-    # incidental opposite relative ("my wife recommended them"); a relative noun beats a bare pronoun
-    # ("for her husband" -> men). Mixed cues within a tier are ambiguous -> no hard filter.
+    # incidental opposite relative ("my wife recommended them"); a relative noun beats a bare
+    # pronoun ("for her husband" -> men). Mixed cues within a tier are ambiguous -> no hard filter.
     for male_re, female_re in ((_MALE_PRODUCT, _FEMALE_PRODUCT), (_MALE_REL, _FEMALE_REL),
                                (_MALE_PRON, _FEMALE_PRON)):
         male, female = bool(male_re.search(query)), bool(female_re.search(query))

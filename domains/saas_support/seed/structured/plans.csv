@@ -1,5 +1,0 @@
-plan_id,name,tier,monthly_price,seats
-PL01,Starter,starter,0.0,3
-PL02,Team,team,29.0,10
-PL03,Business,business,99.0,50
-PL04,Enterprise,enterprise,499.0,250

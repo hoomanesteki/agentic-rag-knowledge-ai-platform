@@ -282,6 +282,37 @@ def test_prompt_injection_and_exfiltration_are_intercepted(query):
     assert "you are aria" not in reply.lower()
 
 
+# ordinary shopping and store-policy language must NOT be refused by the injection or enumeration
+# intercepts: "care instructions", "your rules on returns", "gift for my family members", and
+# "someone who shops outdoors" are legitimate, not attacks (regression guard for the false refusals)
+@pytest.mark.parametrize("query", [
+    "show me the care instructions for the Cloud Hoodie",
+    "what are the washing instructions for this jacket",
+    "what are your rules on returns",
+    "what are your rules for exchanges",
+    "show me something for my family members",
+    "give me gift ideas for team members",
+    "what jacket works for someone who shops outdoors",
+])
+def test_ordinary_shopping_is_not_refused_as_injection_or_enumeration(query):
+    reply = _smalltalk(query, None, "apparel_ecommerce")
+    assert reply is None or (
+        "can't share or change my own setup" not in reply.lower()
+        and "keep shoppers' information private" not in reply.lower()
+    ), query
+
+
+def test_gift_with_a_stated_budget_skips_the_clarifier():
+    # a detail-free gift asks one clarifying question; a stated numeric budget is a real detail, so
+    # the clarifier must not re-ask. The "$" and digits are stripped from the cleaned query, so the
+    # budget is read off the raw query (regression guard for the numeric-budget branch).
+    asks = _smalltalk("a gift for my wife")
+    assert asks is not None and "budget" in asks.lower()
+    for q in ("a gift for my wife, $50 budget", "a present for my husband under 40 dollars"):
+        reply = _smalltalk(q)
+        assert reply is None or "budget" not in reply.lower(), q
+
+
 def test_email_only_turn_never_puts_name_or_tracking_in_the_prompt(tmp_path):
     docs = [{"id": "ord", "text": _ORDER_DOC["text"], "payload": _ORDER_DOC}]
     embedder, store = _seed_pii(docs)

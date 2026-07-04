@@ -579,23 +579,33 @@ function Conversation({
     // a question about the assistant's nature ("are you human?", "is this a bot?") is answered
     // honestly by the backend, not treated as a request to be transferred to a person
     const asksNature = /^(are|is|am)\s+(you|this|it|i|u)\b/i.test(qt);
-    // an explicit refusal must not escalate ("I don't want to talk to an agent, just answer here").
-    // Match a negation that attaches to the desire/handoff, NOT a bare leading discourse "no"/"not",
-    // so "No, I want to talk to a human" (an affirmative request) still escalates.
-    const refusesHuman =
-      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
-        q,
-      );
     const shortHuman =
       qt.split(/\s+/).length <= 4 &&
       /\b(human|agent|representative|real person|advisor|operator|manager)\b/i.test(q);
-    // A verb+person phrase, but NOT "get" (too generic: "get someone a gift", "get the most
-    // support") and NOT the vague nouns "someone/somebody/support" that ordinary shopping uses.
-    // The gap is tight so "connect me with a plan that has good support" cannot match.
+    // A verb+person phrase in EITHER order, so "talk to a human" and "a human I can talk to" both
+    // escalate. NOT "get" (too generic: "get someone a gift", "get the most support") and NOT the
+    // vague nouns "someone/somebody/support" that ordinary shopping uses. The gap is tight so
+    // "connect me with a plan that has good support" cannot match.
     const verbHuman =
       /\b(talk|speak|chat|connect|transfer|reach|escalate)\b.{0,20}\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b/i.test(
         q,
+      ) ||
+      /\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b.{0,20}\b(talk|speak|chat|connect|transfer|reach|escalate)\b/i.test(
+        q,
       );
+    // An explicit refusal must not escalate. Two shapes: (1) a negated desire/handoff
+    // ("I don't want to talk to an agent", "no need for a human", "rather not speak to a person");
+    // (2) a bare negation directly on the human noun with no affirmative request ("no human", "not
+    // a human please"). A leading discourse "No, I want to talk to a human" is NOT a refusal: it
+    // carries an affirmative verbHuman, so it still escalates.
+    const refusesHuman =
+      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+        q,
+      ) ||
+      (/\b(no|not)\b[^.?!]{0,12}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+        q,
+      ) &&
+        !verbHuman);
     if (!agentMode && !asksNature && !refusesHuman && (shortHuman || verbHuman)) {
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);

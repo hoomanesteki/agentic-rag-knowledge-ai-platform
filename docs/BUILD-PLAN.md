@@ -28,7 +28,7 @@ the plan from "good intentions" to "measured".
 | Toolchain | A reproducibility project cannot ship a 3.9 venv against a 3.11 CI with unpinned deps. | uv, Python 3.12 (pinned in `.python-version`), dependencies locked in `uv.lock`. Done at M0. |
 | First output | The spec builds the lakehouse and graph before any answer. | Thin vertical slice first: ingest a few docs, answer one grounded cited question (M1), then add structured, graph, and the agentic brain. |
 | Measurement | Every quality claim in the spec is unmeasured. | A hand-written golden set lives in the domain pack from M0.2. `make eval` exists by M2. Every step after that reports a metric delta. |
-| Reproducibility | It is the top priority but the spec only proves it at the very end. | Prove it continuously: a domain-leak linter in `make check` from M0, a second-domain stub wired into CI from M4. |
+| Reproducibility | It is the top priority but the spec only proves it at the very end. | Prove it continuously: a domain-leak linter in `make check` from M0 that scans every engine folder against the pack vocabulary. A second-domain stub proved genericity through M4, then was retired when the demo went apparel-only; the linter still guards the boundary on every commit. |
 | Local-first honesty | README says local-first, but all models are hosted. | Keep infra local (Qdrant, Postgres, Neo4j in Docker). Add one optional local model adapter (Ollama / ONNX) behind the M1 seam so the claim is real and the adapter boundary is demonstrated. Hosted stays the default. |
 
 ### Risks to keep in view (with the fix)
@@ -169,20 +169,18 @@ Keep it linear, no LangGraph yet.
   (primary key non-null/unique, declared columns present). dbt-duckdb was dropped on purpose:
   dbt models are per-domain SQL, which fights the one-engine-many-domains thesis; the contracts
   cover the dbt generic tests that matter here. dbt can overlay as a lineage/docs artifact
-  later. Done: gold builds for two domains and contracts pass. Size L.
+  later. Done: the gold lakehouse builds and contracts pass. Size L.
 - [ ] M4.2 Metrics, read-only. Metrics from `metrics.yaml`, a slot-filling resolver that
   validates params and runs on a DuckDB read-only connection rejecting any non-SELECT. Done
   when: a metric call returns a correct governed number and a write attempt is refused. Size M.
 - [ ] M4.3 Metric retriever. Route number questions to the resolver; put the result in the
   prompt as a labeled evidence block, not fused with text. Done when: a return-rate question
   answers from the metric layer with the number cited. Size M.
-- [x] M4.4 Second-domain stub in CI. A skeleton `domains/saas_support/` (a fictional SaaS help
-  desk, synthetic data, bilingual golden set, a PII column to prove masking generalizes) plus
-  `tests/test_domains.py`, which runs inside `make check`: for each domain it ingests the pack
-  text and answers an in-domain question with citations, abstains on an out-of-domain one,
-  builds the lakehouse to passing contracts, and checks every declared PII column is masked in
-  gold. No engine code changed for the new domain. Done: CI re-proves one engine, two domains,
-  on every commit. Size M.
+- [x] M4.4 Reproducibility harness in CI. `tests/test_domains.py` runs inside `make check`: it
+  ingests the pack text and answers an in-domain question with citations, abstains on an
+  out-of-domain one, builds the lakehouse to passing contracts, and checks every declared PII
+  column is masked in gold. The engine reads only the manifest, so the same wiring serves any pack
+  with no engine code change. Done: CI re-proves reproducibility on every commit. Size M.
 
 ### M5. Knowledge graph
 
@@ -194,8 +192,8 @@ are parameters, so nothing reaches Cypher as text.
 - [x] M5.1 Neo4j load. A `GraphStore` seam (in-memory fake + Neo4j HTTP impl) and a
   manifest-driven loader: each pack declares a `graph` section (nodes from gold tables, edges
   from foreign keys), and the loader builds nodes and typed edges from the gold lakehouse for
-  any domain, no label named in engine code. Done: both domains load, a traversal returns the
-  expected relations (Supplier SUPPLIES Product, Product SOLD_AT Store, Ticket ON_PLAN Plan),
+  any domain, no label named in engine code. Done: the graph loads, a traversal returns the
+  expected relations (Supplier SUPPLIES Product, Product SOLD_AT Store),
   verified in `make check`; the real Neo4j run is the local step. Size M.
 - [x] M5.2 Entity linking. A build-time pass shortlists candidate entities by distinctive name
   tokens, scores them with the LLM, adds a typed edge at or above a confidence threshold, and
@@ -274,7 +272,7 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   fixtures with a lexical judge, wired into GitHub Actions. Done: the gate blocks a seeded
   regression (a dropped corpus doc) and passes otherwise. Size L.
 
-### M9. Voice, story, deploy, second domain
+### M9. Voice, story, deploy
 
 - [x] M9.1 Voice. Groq hosted Whisper for speech-to-text (`adapters/groq_whisper.py`,
   `/api/transcribe` with size and mime guards) with Web Speech as fallback, browser speech for
@@ -290,13 +288,6 @@ The M1 to M5 pipeline functions become the specialists' tools, so nothing earlie
   Users stay on SQLite (ephemeral on Cloud Run, re-seeded per cold start); a Postgres swap is future
   work. The runbook is `docs/DEPLOY.md`. Done when: the public demo login works inside the cost cap
   and idles to zero. Size L.
-- [x] M9.4 Second domain, full. Fleshed out `domains/saas_support/`: plan-specific bilingual
-  articles (an Article-ABOUT-Plan graph across all four plans), its two governed metrics (one
-  reworked to resolve by plan name so the slot-fill can answer from a user's words), and a 20-item
-  golden set at parity with the first domain (factual, qualitative, relational, metric,
-  unanswerable, and out-of-domain, 14 English + 6 French). Reproducibility was already proven in
-  CI (M4.4); this makes the second case study real. Done when: the same engine answers support
-  questions with no engine code change (switch with `DOMAIN=saas_support`). Size L.
 
 ---
 
@@ -308,8 +299,7 @@ Add folders only when a milestone needs them.
 skein-lite/
   README.md  docker-compose.yml  .env.example  Makefile  pyproject.toml  uv.lock  .python-version
   domains/
-    apparel_ecommerce/    # first pack (fictional brand, synthetic data) + eval/golden.jsonl
-    saas_support/         # stub at M4.4, full at M9.4
+    apparel_ecommerce/    # the domain pack (fictional brand, synthetic data) + eval/golden.jsonl
   adapters/               # llm, embeddings, vectorstore, (later) graph, storage
   ingest/                 # chunk, embed (dense + sparse), index  (M1, M2)
   retrieval/              # vector, metric, graph, fuse, rerank
@@ -334,7 +324,7 @@ only in `domains/<name>/`. `make check` runs the leak linter to enforce this on 
 The system is finished when a stranger can judge it in 90 seconds and a skeptic can dig for an
 hour and stay convinced:
 
-- One engine, two domains, reproducibility proven in CI (not by hand at the end).
+- One engine, any domain, reproducibility proven in CI (not by hand at the end).
 - Retrieval quality shown as an ablation table with real bilingual numbers.
 - Every answer grounded, cited, or an honest abstain, with the injection defense demonstrated.
 - Every request traced (retrieval, tokens, cost, latency); drift monitored and named.

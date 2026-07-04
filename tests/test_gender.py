@@ -33,6 +33,16 @@ DOMAIN = "apparel_ecommerce"
     # possessive forms
     ("men's training tops", "men"),
     ("women's yoga gear", "women"),
+    # an explicit PRODUCT cue outranks an incidental opposite relative noun in the same turn
+    ("men's leggings, my wife recommended them", "men"),
+    ("women's jacket, my husband said to get one", "women"),
+    ("shorts for men, my girlfriend loves the brand", "men"),
+    # the RECIPIENT decides the section, so an opposite-gender relative beats the shopper's own
+    # stated gender: a woman shopping for her husband must see the men's section, not the women's
+    ("I'm a woman, get something for my husband", "men"),
+    ("I am a man buying a gift for my wife", "women"),
+    # a bare recipient pronoun also outranks the shopper's own stated gender
+    ("I'm a woman, a gift for him", "men"),
 ])
 def test_explicit_gender(query, expected):
     assert _explicit_gender(query) == expected

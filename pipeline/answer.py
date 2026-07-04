@@ -218,7 +218,9 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # optional trailing persona name in a greeting (e.g. "hey there <assistant>"), sourced from the
     # pack so no persona name is hardcoded in the matcher
     _pname = "|".join(re.escape(n.lower()) for n in (assistant, specialist) if n) or "x"
-    _greet_name = r"( there)?( " + _pname + r")?"
+    # the leading space must apply to every alternative, so wrap the names ( (?:n1|n2))? not
+    # ( n1|n2)? which would only space-prefix the first name.
+    _greet_name = r"( there)?( (?:" + _pname + r"))?"
     # clear harm intent: decline briefly and warmly, not with the "missing detail" fallback. Scoped
     # so ordinary shopping words are safe: "explore" / "photo shoot" / "kill it at the gym" / an
     # "explosive sprint" must NOT trip it, only real weapon/violence phrasings.
@@ -231,20 +233,20 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # prompt-injection / instruction-exfiltration: refuse to reveal or override the system prompt,
     # even when wrapped around a real shopping request. Deterministic, so it does not depend on the
     # model resisting its own in-band conventions (e.g. an attacker echoing an override phrase).
-    if (re.search(r"\b(system prompt|your (system )?(prompt|instructions|rules|configuration)|"
+    if (re.search(r"\b(system prompt|your (system )?(prompt|instructions)|"
                   r"initial instructions|override for this reply)\b", q)
             or re.search(r"\b(ignore|disregard|forget|bypass|override)\b[^.?!]{0,30}"
                          r"\b(instruction|rule|prompt|previous|above|guardrail)s?\b", q)
             or re.search(r"\b(print|reveal|repeat|show|output|reproduce|display|dump|tell me)\b"
-                         r"[^.?!]{0,40}\b(system prompt|your (prompt|instructions)|instructions|"
+                         r"[^.?!]{0,40}\b(system prompt|your (prompt|instructions)|"
                          r"verbatim)\b", q)):
         return ("I can't share or change my own setup, but I'm glad to help you shop 😊. What are "
                 "you looking for today?")
     # customer enumeration: never volunteer who shops here or who bought what, not even a reviewer's
     # first name. Refuse before retrieval so no name (review author, order holder) can slip out.
     if (re.search(r"\b(list|show|name|who are|give me|tell me)\b[^.?!]{0,30}"
-                  r"\b(customers?|shoppers?|buyers?|clients?|members?|people who)\b", q)
-            or re.search(r"\bwho\b[^.?!]{0,20}\b(bought|ordered|purchased|shops?|shopped)\b", q)
+                  r"\b(customers?|shoppers?|buyers?|clients?|people who)\b", q)
+            or re.search(r"\bwho\b[^.?!]{0,20}\b(bought|ordered|purchased)\b", q)
             or re.search(r"\b(names?|list)\b[^.?!]{0,20}\b(of )?(your )?"
                          r"(customers?|shoppers?|reviewers?|buyers?)\b", q)):
         return ("I keep shoppers' information private, so I can't share who shops with us or what "
@@ -758,32 +760,41 @@ def _personal_profile_note(auth_identity, embedder, store) -> str | None:
 # occasion guide happened to list. Inference/ask-when-unsure still lives in the prompt.
 # A gendered RELATIVE NOUN names the RECIPIENT's gender and takes precedence over the possessor's
 # pronoun: "a jacket for her husband" is shopping for a man, so it must read as men, not women.
+# Four tiers of decreasing strength, resolved in order so a strong signal is never overridden by a
+# weaker incidental one:
+#   1. PRODUCT cue  -- names the section to shop ("men's", "for women", "for a man"). Strongest.
+#   2. RELATIVE noun -- names the recipient ("her husband", "my sister"). Beats a bare pronoun.
+#   3. PRONOUN      -- bare "for him"/"for her" naming the recipient.
+#   4. SELF gender  -- the shopper's own stated gender ("I am a man"). Weakest, since the RECIPIENT,
+#                      not the shopper, decides the section: "I'm a woman, get something for my
+#                      husband" must read as men. Only used when nothing else names a gender.
+_MALE_PRODUCT = re.compile(r"\b(men'?s|mens|for men|for a man|male|"
+                           r"guy'?s?|gentlem[ae]n)\b", re.I)
+_FEMALE_PRODUCT = re.compile(r"\b(women'?s|womens|for women|for a woman|"
+                             r"female|lad(y|ies)'?s?)\b", re.I)
 _MALE_REL = re.compile(r"\b(boyfriend|husband|dad|father|son|brother|grandpa|grandfather|uncle|"
-                       r"nephew|groom|guy)s?\b", re.I)
+                       r"nephew|groom)s?\b", re.I)
 _FEMALE_REL = re.compile(r"\b(girlfriend|wife|mom|mum|mother|daughter|sister|grandma|grandmother|"
                          r"aunt|niece|bride)s?\b", re.I)
-# Direct cues that state the shopper's/recipient's own gender (no relative noun involved).
-_MALE_CUE = re.compile(r"\b(men'?s|mens|for men|for a man|(i am|i'?m|as) a man|for him|male|"
-                       r"guy'?s?|gentlem[ae]n)\b", re.I)
-_FEMALE_CUE = re.compile(r"\b(women'?s|womens|for women|for a woman|(i am|i'?m|as) a woman|for her|"
-                         r"female|lad(y|ies)'?s?)\b", re.I)
+_MALE_PRON = re.compile(r"\bfor him\b", re.I)
+_FEMALE_PRON = re.compile(r"\bfor her\b", re.I)
+_MALE_SELF = re.compile(r"\b(i am|i'?m|as) a man\b", re.I)
+_FEMALE_SELF = re.compile(r"\b(i am|i'?m|as) a woman\b", re.I)
 
 
 def _explicit_gender(query: str) -> str | None:
-    # A gendered relative noun wins over a pronoun ("for her husband" -> men), so classify relatives
-    # first; only fall back to the direct cues (which include the bare "for her"/"for him") when no
-    # relative noun pins the recipient's gender.
-    male_rel, female_rel = bool(_MALE_REL.search(query)), bool(_FEMALE_REL.search(query))
-    if male_rel != female_rel:
-        return "men" if male_rel else "women"
-    if male_rel and female_rel:
-        return None  # mixed recipients ("my wife and her brother") -> no hard filter
-    male, female = bool(_MALE_CUE.search(query)), bool(_FEMALE_CUE.search(query))
-    if male and not female:
-        return "men"
-    if female and not male:
-        return "women"
-    return None  # unstated or mixed -> no hard filter; the prompt infers or asks
+    # Resolve strongest-cue-first. An explicit product cue ("men's") is never overridden by an
+    # incidental opposite relative ("my wife recommended them"); a relative noun or pronoun names
+    # the recipient and beats the shopper's own stated gender, so "I'm a woman, for my husband" ->
+    # men. Mixed cues within a tier are ambiguous -> no hard filter.
+    for male_re, female_re in ((_MALE_PRODUCT, _FEMALE_PRODUCT), (_MALE_REL, _FEMALE_REL),
+                               (_MALE_PRON, _FEMALE_PRON), (_MALE_SELF, _FEMALE_SELF)):
+        male, female = bool(male_re.search(query)), bool(female_re.search(query))
+        if male != female:
+            return "men" if male else "women"
+        if male and female:
+            return None  # both genders named at this tier -> ambiguous, let the prompt decide
+    return None  # unstated -> no hard filter; the prompt infers or asks
 
 
 def _redact_other_gender(text: str, gender: str | None, brand: str = "") -> str:

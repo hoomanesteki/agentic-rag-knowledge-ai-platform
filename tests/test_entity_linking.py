@@ -59,15 +59,6 @@ def test_low_confidence_goes_to_review_list_not_graph(tmp_path):
     assert not store.neighbors("Review", "id", "R001", edge_type="MENTIONS", direction="out")
 
 
-def test_entity_linking_is_domain_agnostic(tmp_path):
-    store = _graph_for("saas_support", tmp_path)
-    report = link_mentions("saas_support", store, FakeLinkLLM(0.9))
-    assert report.linked > 0
-    # A003 lists the plans by name, so an Article ABOUT a Plan edge must exist.
-    about = store.neighbors("Article", "id", "A003", edge_type="ABOUT", direction="out")
-    assert about and about[0].node.label == "Plan"
-
-
 def test_unparseable_llm_output_is_queued_not_dropped(tmp_path):
     store = _graph_for("apparel_ecommerce", tmp_path)
 

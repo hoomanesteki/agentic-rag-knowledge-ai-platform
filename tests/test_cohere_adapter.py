@@ -107,3 +107,65 @@ def test_unknown_input_type_raises():
     # validated before any HTTP call, so no mock is needed
     with pytest.raises(ValueError):
         CohereEmbedder(model="embed-v4.0", api_key="k").embed(["a"], input_type="passage")
+
+
+# --- The two-key fallback (_post): trial key -> paid key -> (caller) local sparse ----------------
+# This is the resilience feature layer 2 of the embeddings and reranker chains; without a test a
+# regression here would pass make check while the documented fallback silently dies.
+
+@pytest.fixture(autouse=True)
+def _clear_dead_keys():
+    cohere_mod._dead_keys.clear()
+    yield
+    cohere_mod._dead_keys.clear()
+
+
+def _router(behavior):
+    """Fake request_json that dispatches on the bearer key and records the keys it saw."""
+    calls = []
+
+    def fake(method, url, payload=None, headers=None, timeout=60):
+        key = headers["Authorization"].removeprefix("Bearer ")
+        calls.append(key)
+        outcome = behavior[key]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    fake.calls = calls
+    return fake
+
+
+def test_post_rolls_over_to_the_fallback_on_429(monkeypatch):
+    fake = _router({"trial": RuntimeError("HTTP 429 rate limited"), "paid": {"ok": True}})
+    monkeypatch.setattr(cohere_mod, "request_json", fake)
+    assert cohere_mod._post("u", {}, "trial", "paid") == {"ok": True}
+    assert fake.calls == ["trial", "paid"]  # capped trial key, then the paid key
+    assert "trial" not in cohere_mod._dead_keys  # a quota 429 can reset, so it is not memoized
+
+
+def test_post_rolls_over_on_401_and_remembers_the_dead_key(monkeypatch):
+    fake = _router({"trial": RuntimeError("HTTP 401 unauthorized"), "paid": {"ok": True}})
+    monkeypatch.setattr(cohere_mod, "request_json", fake)
+    assert cohere_mod._post("u", {}, "trial", "paid") == {"ok": True}
+    assert "trial" in cohere_mod._dead_keys  # a rejected key stays rejected
+    # a second call must SKIP the known-bad trial key and go straight to the paid key
+    assert cohere_mod._post("u", {}, "trial", "paid") == {"ok": True}
+    assert fake.calls == ["trial", "paid", "paid"]  # the trial key is tried once, never retried
+
+
+def test_post_does_not_roll_over_on_400(monkeypatch):
+    fake = _router({"trial": RuntimeError("HTTP 400 bad request")})
+    monkeypatch.setattr(cohere_mod, "request_json", fake)
+    with pytest.raises(RuntimeError):
+        cohere_mod._post("u", {}, "trial", "paid")  # a bad request would fail on the paid key too
+    assert fake.calls == ["trial"]
+    assert "trial" not in cohere_mod._dead_keys
+
+
+def test_post_without_a_fallback_key_raises(monkeypatch):
+    fake = _router({"trial": RuntimeError("HTTP 429 rate limited")})
+    monkeypatch.setattr(cohere_mod, "request_json", fake)
+    with pytest.raises(RuntimeError):
+        cohere_mod._post("u", {}, "trial", "")  # no fallback configured, nowhere to roll over
+    assert fake.calls == ["trial"]

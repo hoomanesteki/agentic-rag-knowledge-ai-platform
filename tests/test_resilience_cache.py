@@ -130,3 +130,40 @@ def test_reranker_reraises_non_transient():
     rr = ResilientReranker(inner, attempts=2, base_delay=0)
     with pytest.raises(RuntimeError):
         rr.rerank("q", ["a"], top_n=1)
+
+
+class _AlwaysFailsLLM:
+    """The primary model on a bad minute: every generate() fails, even after the retries."""
+
+    def __init__(self):
+        self.model = "primary-model"
+
+    def generate(self, prompt, **kwargs):
+        raise RuntimeError("groq -> HTTP 503: service unavailable")
+
+
+class _SentinelLLM:
+    """The cheaper secondary model; its reply proves the fallback path ran."""
+
+    def __init__(self):
+        self.calls = 0
+        self.model = "fallback-model"
+
+    def generate(self, prompt, **kwargs):
+        self.calls += 1
+        return "from-fallback"
+
+
+def test_llm_falls_back_to_secondary_when_primary_exhausts_retries():
+    # the documented "large -> small" hop: a primary outage degrades quality, it does not lose the
+    # turn (regression guard for the fallback branch that api/deps wires in production)
+    fallback = _SentinelLLM()
+    llm = ResilientLLM(_AlwaysFailsLLM(), attempts=2, base_delay=0, fallback=fallback)
+    assert llm.generate("hi") == "from-fallback"
+    assert fallback.calls == 1
+
+
+def test_llm_without_a_fallback_reraises_after_retries():
+    llm = ResilientLLM(_AlwaysFailsLLM(), attempts=2, base_delay=0)  # no secondary configured
+    with pytest.raises(RuntimeError):
+        llm.generate("hi")

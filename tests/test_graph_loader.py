@@ -37,20 +37,7 @@ def test_apparel_graph_nodes_edges_and_traversal(tmp_path):
     assert product.properties["name"] == "Aster Flow Legging"
 
 
-def test_saas_graph_nodes_edges_and_traversal(tmp_path):
-    store, counts = _loaded("saas_support", tmp_path)
-    assert counts["nodes"]["Ticket"] > 0 and counts["nodes"]["Plan"] > 0
-    assert counts["edges"]["ON_PLAN"] > 0
-
-    # T0001 is on plan PL02 (tickets.csv); the reverse hop lists a plan's tickets.
-    on_plan = store.neighbors("Ticket", "ticket_id", "T0001", edge_type="ON_PLAN", direction="out")
-    assert any(n.node.id == "PL02" and n.node.label == "Plan" for n in on_plan)
-
-    tickets = store.neighbors("Plan", "plan_id", "PL02", edge_type="ON_PLAN", direction="in")
-    assert any(n.node.id == "T0001" for n in tickets)
-
-
-@pytest.mark.parametrize("domain", ["apparel_ecommerce", "saas_support"])
+@pytest.mark.parametrize("domain", ["apparel_ecommerce"])
 def test_same_loader_builds_any_domain(domain, tmp_path):
     _store, counts = _loaded(domain, tmp_path)
     assert sum(counts["nodes"].values()) > 0

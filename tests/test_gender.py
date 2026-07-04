@@ -33,6 +33,10 @@ DOMAIN = "apparel_ecommerce"
     # possessive forms
     ("men's training tops", "men"),
     ("women's yoga gear", "women"),
+    # an explicit PRODUCT cue outranks an incidental opposite relative noun in the same turn
+    ("men's leggings, my wife recommended them", "men"),
+    ("women's jacket, my husband said to get one", "women"),
+    ("shorts for men, my girlfriend loves the brand", "men"),
 ])
 def test_explicit_gender(query, expected):
     assert _explicit_gender(query) == expected

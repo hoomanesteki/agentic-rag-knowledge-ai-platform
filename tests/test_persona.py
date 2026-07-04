@@ -41,6 +41,15 @@ def test_greetings_and_intros_speak_as_the_active_pack():
     assert "Nova" in saas_intro and "Aria" not in saas_intro
 
 
+def test_greeting_recognizes_either_persona_name():
+    # "hey <assistant>" and "hey <specialist>" must both be caught as greetings: the trailing-name
+    # group has to space-prefix every alternative, not just the first.
+    for q in ("hey aria", "hi sara", "hey there sara", "hello aria"):
+        assert _smalltalk(q, None, APPAREL) is not None, q
+    for q in ("hey nova", "hi remy"):
+        assert _smalltalk(q, None, SAAS) is not None, q
+
+
 def test_missing_persona_falls_back_to_neutral_voice():
     # a pack slug with no manifest must not crash; it yields neutral placeholders
     p = _persona("does_not_exist")

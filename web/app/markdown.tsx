@@ -17,7 +17,11 @@ function inline(text: string, key: string): ReactNode[] {
 }
 
 export function Markdown({ text }: { text: string }) {
-  const lines = text.split(/\r?\n/);
+  // Strip inline citation markers ([1], [2, 3]) from the visible text: a shopper should read a
+  // human answer, not footnotes. The sources still show as chips below the message (from the
+  // citations array), and the raw text is kept elsewhere for product-matching and grounding.
+  const clean = text.replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, "");
+  const lines = clean.split(/\r?\n/);
   const blocks: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
 

@@ -62,3 +62,32 @@ metrics:
         )
       group by p.name, p.size
       order by p.name, p.size
+
+  # Cheapest and priciest item (and the price range) in a category, so "what's your cheapest
+  # hoodie" is answered from the gold table instead of guessed from partial vector recall.
+  - name: price_range_by_category
+    grain: category
+    source: products
+    dimensions: [category]
+    params:
+      category: string
+    sql_template: |
+      with ranked as (
+        select
+          p.category,
+          p.name,
+          p.price,
+          row_number() over (partition by p.category order by p.price asc, p.name) as lo,
+          row_number() over (partition by p.category order by p.price desc, p.name) as hi
+        from (select distinct category, name, price from products) p
+        where ($category is null or lower(p.category) = lower($category))
+      )
+      select
+        category,
+        max(case when lo = 1 then name end) as cheapest,
+        max(case when lo = 1 then price end) as cheapest_price,
+        max(case when hi = 1 then name end) as priciest,
+        max(case when hi = 1 then price end) as priciest_price
+      from ranked
+      group by category
+      order by category

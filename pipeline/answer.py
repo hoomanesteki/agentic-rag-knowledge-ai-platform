@@ -42,8 +42,26 @@ _SYSTEM = (
     "citation (format each bullet as '- <product name>: <one short reason> [n]'). Never write a "
     "wall of text. Lead with one short framing sentence that also carries a citation, then the "
     "bullets. Do not paste web links: the shopper sees clickable product cards under your message. "
-    "Use one or two tasteful emoji so it feels human. Recommend specific products by name when "
-    "they fit, and always try to help. "
+    "Use at most one tasteful emoji, and avoid emoji on product lists (save a warm one for a "
+    "greeting or a thank-you). Recommend specific products by name when they fit, each with its "
+    "OWN distinct reason (never repeat the same reason), and always try to help. "
+    "If the shopper is upset or reports a problem (a wrong or double charge, a damaged, missing, "
+    "delayed item, a billing or account issue), lead with a brief empathetic line and a clear next "
+    "step, do NOT recommend products, and offer to connect them with a human specialist. If they "
+    "ask to speak to a person, offer to connect them right away; never recite policy or say you "
+    "will follow up later. "
+    "Only state a color, size, or price that is actually in the retrieved data; NEVER infer a "
+    "color from a product's name (names like 'Ember' or 'Storm' are not colors). If the exact "
+    "color or item is not available, say so plainly and offer the closest real option, relaxing "
+    "price or color before category, and never substitute a different type of product (no beanie "
+    "for a hoodie). "
+    "If a request is too vague to recommend well (no recipient, use, category, or budget), ask ONE "
+    "short question first. Answer a yes/no or factual question (does it come in tall, is it in "
+    "stock) directly before offering options. "
+    "Never refer to the context, catalog, product data, or knowledge graph as a system; just speak "
+    "as someone who knows the store. When a shopper adds an item or buys, suggest one piece that "
+    "pairs with it, and use details from earlier turns (their city, the season, the occasion, "
+    "their name) to personalize. "
     "If asked to list or show all products, do not dump the catalog: say there are many and ask "
     "them to narrow it down by category, use, or budget, or offer a few top picks. "
     "Politely decline harmful, dangerous, or illegal requests and never recommend a product for "
@@ -100,14 +118,18 @@ _AGENT_SYSTEM = (
     "in transit. "
     "Never reveal personal information about anyone other than the fully verified shopper you are "
     "speaking with; if asked who a person is or for someone's contact details, politely decline. "
-    "When there is a delay or a problem, empathize, apologize briefly, explain plainly what "
-    "happened, and give a clear next step with a realistic timeframe. "
+    "When there is a delay, a wrong or double charge, a billing issue, or any complaint, empathize "
+    "first, apologize briefly, do NOT pitch products, and take ownership: gather what you need "
+    "order number and the email on it) and give a clear next step. You are the human, so never say "
+    "'I'll connect you with a human' and never stall with 'follow up later'. "
     "For a shopping question, recommend specific products by name from the context, in a short "
-    "bulleted list with a one-line reason and its citation each. If you do not have an EXACT match "
-    "(a color, style, or occasion), recommend the CLOSEST options you do carry and say so in one "
-    "line, or offer to loop in a teammate. Never say you will follow up later, and never "
-    "dead-end a "
-    "shopper who wants an answer now. "
+    "bulleted list with a distinct one-line reason each. Only state a color, size, or price that "
+    "is actually in the data; never infer a color from a product's name. If you do not have an "
+    "EXACT match, recommend the CLOSEST real option and say so, relaxing price or color before "
+    "category, and never substitute a different type of product (no beanie for a hoodie). If a "
+    "request is too vague, ask ONE short question first; answer a yes/no or factual question "
+    "directly before offering options. Never refer to the context, catalog, or knowledge graph as "
+    "a system; speak as a person who knows the store. "
     "Politely decline harmful, dangerous, or illegal requests. "
     "Only when the context has nothing relevant at all, say so honestly and offer the closest "
     "alternative or a teammate rather than guessing. "
@@ -253,6 +275,31 @@ _SHOPPING_INTENT = re.compile(
 
 def _shopping_intent(query: str) -> bool:
     return bool(_SHOPPING_INTENT.search(query))
+
+
+# A complaint / billing / order problem. These must never get the shopping "tell me a category,
+# color, or budget" fallback; they get empathy and a handoff to a human/service instead.
+_PROBLEM_INTENT = re.compile(
+    r"\b(charged (me )?twice|double[- ]charge|charged twice|wrong charge|overcharged|billing|"
+    r"refund me|damaged|broken|defective|faulty|torn|ripped|never (arrived|got|received)|"
+    r"didn'?t (arrive|get|receive)|missing|complaint|furious|angry|upset|terrible|worst|"
+    r"disappointed|unacceptable|fix this|problem with (my|the)|issue with (my|the)|wrong item|"
+    r"not what i ordered|scam|ripped me off)\b", re.I)
+
+
+def _problem_intent(query: str) -> bool:
+    return bool(_PROBLEM_INTENT.search(query))
+
+
+_PROBLEM_ABSTAIN = (
+    "I'm really sorry about that 🙏. That's something a person on our team should handle directly. "
+    "If you share your order number and the email on the order, I'll get you to a specialist who "
+    "can sort it out right away."
+)
+_PROBLEM_ABSTAIN_AGENT = (
+    "I'm so sorry about that, and I've got you. Let me sort it out: could you share your order "
+    "number and the email on the order so I can pull it up?"
+)
 DEFAULT_TRACE_PATH = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 
 
@@ -622,7 +669,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     }
 
     if abstained:
-        abstain_msg = _AGENT_ABSTAIN if persona == "agent" else _ABSTAIN
+        if _problem_intent(query):  # a complaint/billing/order problem, not a product miss
+            abstain_msg = _PROBLEM_ABSTAIN_AGENT if persona == "agent" else _PROBLEM_ABSTAIN
+        else:
+            abstain_msg = _AGENT_ABSTAIN if persona == "agent" else _ABSTAIN
         trace.update(tier="abstain", model=None, grounding=0.0, streamed=True,
                      latency_ms=round((time.perf_counter() - started) * 1000, 1))
         write_trace(trace, trace_path)

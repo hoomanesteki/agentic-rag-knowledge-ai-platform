@@ -21,7 +21,9 @@ _STOP = {"by", "of", "the", "per", "a", "an"}
 # Bare "how" is deliberately excluded: it fires on every "how do I..." support question and
 # wastes a slot-fill call. "how many"/"how much" still trip the gate via "many"/"much".
 _NUMERIC_CUES = {"many", "much", "rate", "count", "average", "avg", "total",
-                 "number", "percent", "percentage"}
+                 "number", "percent", "percentage",
+                 # price superlatives, so "cheapest hoodie" reaches the price metric
+                 "cheapest", "cheap", "priciest", "expensive", "price", "budget", "affordable"}
 _SLOT_SYSTEM = (
     "You map a user question to at most one governed metric. Reply with ONLY a JSON object: "
     '{"metric": <name or null>, "params": {<name>: <value>}}. Pick a metric only if the '

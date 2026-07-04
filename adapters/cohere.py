@@ -18,12 +18,17 @@ _RERANK_API = "https://api.cohere.com/v2/rerank"
 
 
 def _post(url: str, body: dict, api_key: str, fallback_key: str) -> dict:
-    """POST to Cohere on the primary key; on a 429, retry once on the fallback key if configured."""
+    """POST to Cohere on the primary key; retry once on the fallback key when the primary is over
+    quota (429) or its key is rejected (401/403). A capped trial key or a bad primary key both roll
+    over to the paid key; a genuine bad request (400) does not, since the fallback would fail too."""
     try:
         return request_json("POST", url, body, {"Authorization": "Bearer " + api_key})
     except RuntimeError as exc:
-        if fallback_key and fallback_key != api_key and "HTTP 429" in str(exc):
-            _log.warning("Cohere primary key hit 429, retrying on the fallback key")
+        msg = str(exc)
+        rollover = any(code in msg for code in ("HTTP 429", "HTTP 401", "HTTP 403"))
+        if fallback_key and fallback_key != api_key and rollover:
+            _log.warning("Cohere primary key failed (%s), retrying on the fallback key",
+                         "quota" if "429" in msg else "auth")
             return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
         raise
 

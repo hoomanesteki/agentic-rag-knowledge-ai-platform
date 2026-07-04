@@ -17,18 +17,29 @@ _EMBED_API = "https://api.cohere.com/v2/embed"
 _RERANK_API = "https://api.cohere.com/v2/rerank"
 
 
+# Primary keys rejected as invalid (401/403) this process, so we skip straight to the fallback
+# instead of wasting a doomed call every request. A 429 (quota) is NOT remembered: it can reset, so
+# the free key is retried each time and only spills over when it is actually capped.
+_dead_keys: set[str] = set()
+
+
 def _post(url: str, body: dict, api_key: str, fallback_key: str) -> dict:
-    """POST to Cohere on the primary key; retry once on the fallback key when the primary is over
+    """POST to Cohere on the primary key; roll over to the fallback key when the primary is over
     quota (429) or its key is rejected (401/403). A capped trial key or a bad primary key both roll
-    over to the paid key; a genuine bad request (400) does not, since the fallback would fail too."""
+    over to the paid key; a bad request (400) does not (the fallback would fail too)."""
+    have_fallback = bool(fallback_key) and fallback_key != api_key
+    if have_fallback and api_key in _dead_keys:  # primary already known bad: don't waste the call
+        return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
     try:
         return request_json("POST", url, body, {"Authorization": "Bearer " + api_key})
     except RuntimeError as exc:
         msg = str(exc)
-        rollover = any(code in msg for code in ("HTTP 429", "HTTP 401", "HTTP 403"))
-        if fallback_key and fallback_key != api_key and rollover:
-            _log.warning("Cohere primary key failed (%s), retrying on the fallback key",
-                         "quota" if "429" in msg else "auth")
+        auth_bad = "HTTP 401" in msg or "HTTP 403" in msg
+        if have_fallback and (auth_bad or "HTTP 429" in msg):
+            if auth_bad:
+                _dead_keys.add(api_key)  # invalid key stays invalid; stop retrying it
+            _log.warning("Cohere primary key failed (%s), using the fallback key",
+                         "auth" if auth_bad else "quota")
             return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
         raise
 

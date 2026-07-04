@@ -281,6 +281,72 @@ DOCS = [
     ("EX64", "gift", "Gift ideas for a sister: the Aster Cloud Hoodie ($118) in a neutral tone, "
      "the Aster Everywhere Jogger ($108), or the Aster Kodiak Sling ($98) crossbody bag. For "
      "someone sporty, the Aster Marin Sports Bra ($48) with the Aster Momentum Short ($68)."),
+
+    # ---- Medical / skin / sensory needs ----
+    ("EX65", "materials", "Best pieces for eczema, psoriasis, or very sensitive or reactive skin: "
+     "avoid rough seams and scratchy synthetics against the skin. The Aster Base Merino Long "
+     "Sleeve ($88) is fine, non-itch merino that many eczema-prone shoppers tolerate well, and the "
+     "cotton-blend Aster Torrent Tee ($58) is soft and breathable. Our leggings and bras are "
+     "seam-flat and tag-light. Wash cold and skip fabric softener, which leaves a residue that can "
+     "irritate skin."),
+    ("EX66", "materials", "Sensory-friendly and tag-free clothing: for anyone sensitive to tags, "
+     "seams, or tight bands, choose the tag-light Aster Cloud Hoodie ($118) with its soft brushed "
+     "interior, the relaxed Aster Everywhere Jogger ($108), and the smooth Aster Flow Legging "
+     "($98). Longline bras like the Aster Solstice Longline Bra ($72) avoid underwire pressure."),
+    ("EX67", "materials", "Chafe-free pieces for long runs, big miles, or sensitive skin: flat-seam "
+     "construction matters most. The Aster Momentum Short ($68) and Aster Rally Bike Short ($74) "
+     "have bonded, chafe-resistant seams, the Aster Vent Tech Tee ($78) wicks to keep skin dry, "
+     "and the Aster Marin Sports Bra ($48) is soft-edged. Merino like the Aster Base Merino Long "
+     "Sleeve ($88) resists odor on long efforts."),
+
+    # ---- Trends 2026, colors, celebrity/influencer ----
+    ("EX68", "trend", "Winter 2026 trends: moody, tonal dressing in deep neutrals (espresso, "
+     "charcoal, storm blue), oversized cozy layering, and technical shells worn as everyday "
+     "outerwear. Our on-trend winter hero pieces are the Aster Storm Shell Jacket ($178), the "
+     "Aster Cadence Parka ($232), the oversized Aster Base Hoodie ($132), and the Aster Base "
+     "Merino Long Sleeve ($88) as a base layer."),
+    ("EX69", "trend", "Summer 2026 trends: breezy tonal sets in soft earth tones (sand, sage, "
+     "oatmeal), cropped tanks with high-rise bike shorts, and lightweight everything. Try the "
+     "Aster Storm Tank ($48) with the Aster Rally Bike Short ($74), or the Aster Flow Tank ($64) "
+     "for men, in a sand or oatmeal tonal look."),
+    ("EX70", "trend", "The most-wanted colors for 2026: warm neutrals (oatmeal, sand, espresso) "
+     "lead, with storm blue and deep olive as the accent tones, and classic black always safe. "
+     "For a current look, keep a set tonal in one of these, like the Aster Cadence Pullover ($132) "
+     "over the Aster Cadence Tight ($124) in charcoal."),
+    ("EX71", "trend", "What influencers and celebrities are wearing to the gym and off-duty: the "
+     "'quiet luxury' athleisure uniform is a high-rise legging, a longline bra under an oversized "
+     "hoodie or half-zip, a neutral cap, and a crossbody bag. Recreate the look with the Aster "
+     "Flow Legging ($98), Aster Solstice Longline Bra ($72), Aster Base Hoodie ($132), Aster "
+     "Coastal Cap ($30), and Aster Daytrip Belt Bag ($38). Neutral tones read the most expensive."),
+
+    # ---- Occasions / promos ----
+    ("EX72", "occasion", "Anniversary outfit or gift for her: elevate it with the Aster Cadence "
+     "Pullover ($132) and Aster Cadence Tight ($124) as a polished tonal set, or gift the Aster "
+     "Aspen Parka ($218). Add the Aster Storm Scarf ($34) to finish."),
+    ("EX73", "occasion", "Black Friday and holiday shopping: our biggest sale is Black Friday at "
+     "the end of November, with the deepest discounts of the year. Join the newsletter or Aster "
+     "Circle to be notified first. Popular gifts that sell out: the Aster Cloud Hoodie ($118), the "
+     "Aster Flow Legging ($98) and Aster Studio Sports Bra ($58) set, and the Aster Peak Beanie "
+     "($38). Gift cards never sell out."),
+    ("EX74", "occasion", "Back-to-school and campus wear: comfortable, layerable, and durable for "
+     "long days. The Aster Everywhere Jogger ($108), the Aster Base Hoodie ($132), the Aster Ember "
+     "Backpack ($54), and the Aster Halo Socks ($32). Students get 15 percent off year round."),
+
+    # ---- Gift bundles / gift cards / how to gift ----
+    ("EX75", "gift", "Ready-made gift bundles (build your own set): the 'Everyday set' is the Aster "
+     "Flow Legging ($98) plus Aster Studio Sports Bra ($58); the 'Cozy set' is the Aster Cloud "
+     "Hoodie ($118) plus Aster Everywhere Jogger ($108); the 'Commuter set' is the Aster Base "
+     "Shell ($224) plus Aster Commute Tote ($128). Add a free gift note at checkout."),
+    ("EX76", "gift", "Aster gift cards: available from $25 to $250 in any amount, delivered by "
+     "email, and never expire. The safe choice when you do not know their size, style, or color. "
+     "Pair a small item like the Aster Peak Beanie ($38) with a gift card for something to unwrap."),
+
+    # ---- Care ----
+    ("EX77", "materials", "How to care for your Aster pieces: machine wash cold with like colors "
+     "and hang dry or tumble dry low. Skip fabric softener on performance fabrics like the Aster "
+     "Flow Legging ($98), since it coats the fibers and cuts moisture wicking. Wash the Aster Base "
+     "Merino Long Sleeve ($88) cold on a wool cycle. Zip zippers and close hook-and-loop before "
+     "washing outerwear."),
 ]
 
 

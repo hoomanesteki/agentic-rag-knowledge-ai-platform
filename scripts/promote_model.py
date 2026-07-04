@@ -117,7 +117,24 @@ def main() -> int:
               "`make ingest`, then `make ragas`, and re-run `make promote`.")
         return 1
 
-    score = float(quality["aggregate"])
+    # The score must have been measured on the SAME serving config we are about to promote, or it is
+    # stale: promoting config B on config A's number would ship an unmeasured change. Fail closed.
+    measured = quality.get("config", {}) or {}
+    serving = {"llm_provider": settings.llm_provider, "embed_provider": settings.embed_provider,
+               "embed_model": settings.embed_model, "rerank_provider": settings.rerank_provider,
+               "chat_brain": settings.chat_brain}
+    drift = {k: (measured.get(k), v) for k, v in serving.items() if measured.get(k) != v}
+    if drift:
+        print("REJECTED: the RAGAS score was measured on a different config than the one being "
+              "promoted, so it is stale. Mismatches (measured -> current): {}. Re-run `make ragas` "
+              "on the current config first.".format(drift))
+        return 1
+
+    score = quality.get("aggregate")
+    if not isinstance(score, (int, float)):
+        print("REJECTED: the persisted RAGAS score is missing or malformed; re-run `make ragas`.")
+        return 1
+    score = float(score)
     stage = _stage_for(score)
 
     # A Production candidate must also beat the frozen champion, so quality never silently slips.

@@ -21,6 +21,7 @@ from api.resilience import (
     ResilientEmbedder,
     ResilientLLM,
     ResilientReranker,
+    ResilientStore,
 )
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
@@ -53,7 +54,8 @@ def get_components() -> dict:
     return {
         # cache query embeds (fewer metered Voyage calls), then retry transient failures
         "embedder": CachingEmbedder(ResilientEmbedder(make_embedder())),
-        "store": make_store(collection=collection_name(settings.domain, settings.embed_model)),
+        "store": ResilientStore(
+            make_store(collection=collection_name(settings.domain, settings.embed_model))),
         "llm": ResilientLLM(make_llm()),
         # cache rerank results, retry transient failures, fall back to pre-rerank order if needed
         "reranker": ResilientReranker(CachingReranker(reranker)) if reranker is not None else None,

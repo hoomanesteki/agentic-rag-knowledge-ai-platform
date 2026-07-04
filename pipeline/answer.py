@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -25,6 +26,8 @@ from pipeline.sanitize import sanitize_context
 from retrieval.graph import GraphRetriever
 from retrieval.metric_router import metric_context, route_metric
 from retrieval.sparse import SparseEncoder, tokenize
+
+_log = logging.getLogger("skein.answer")
 
 _STOPWORDS = {
     "the", "a", "an", "is", "are", "do", "does", "did", "of", "to", "in", "on", "for", "and",
@@ -251,15 +254,19 @@ def _smalltalk(query: str, persona: str | None = None) -> str | None:
         return ("I'm doing great, thanks for asking! 😊 I'm {n}, the Aster assistant, and I'm "
                 "ready to help you find something you'll love. Are you shopping for yourself or "
                 "for a gift?").format(n=_ASSISTANT_NAME)
-    if re.fullmatch(r"(who are you|what are you|what'?s your name|what is your name|whats your name"
-                    r"|your name|do you have a name|tell me about (yourself|you)|introduce yourself"
-                    r"|are you (a bot|human|real)"
-                    r"|(what can you|how can you|what do you) (do|help)"
-                    r"( (to |for )?(help )?me)?( today)?)", q):
+    if re.fullmatch(
+            r"(?:(?:sara|aria|hey|hi|be honest),?\s*)?"
+            r"(?:who are you|what are you|what'?s your name|what is your name|whats your name"
+            r"|your name|do you have a name|tell me about (?:yourself|you)|introduce yourself"
+            r"|are you (?:a |an )?(?:bot|human|real|ai|robot|a person|automated)"
+            r"(?: or (?:a |an )?(?:ai|human|bot|robot|person))?"
+            r"|is this (?:a bot|an ai|automated|a real person)"
+            r"|(?:what can you|how can you|what do you) (?:do|help)"
+            r"(?: (?:to |for )?(?:help )?me)?(?: today)?)", q):
         if agent:
-            return ("I'm Sara, a customer-care specialist on the Aster team, a real person here "
-                    "to help. 👋 I can look into orders, delays, returns, and anything the "
-                    "assistant couldn't. Share the email on your order and I'll pull it up.")
+            return ("I'm Sara, Aster's virtual customer-care specialist, not a human, but I can "
+                    "fully handle orders, delays, returns, and anything the assistant couldn't. 👋 "
+                    "Share the name and email on your order and I'll pull it up.")
         return ("I'm {n}, the Aster shopping assistant. 👋 I know the whole catalog, so I can "
                 "recommend products, check sizing, colors, and stock, and explain shipping, "
                 "returns, and our policies. If I can't help, I'll connect you with a human on our "
@@ -577,10 +584,10 @@ def _order_access_ok(auth_text: str, payload: dict) -> bool:
 # Explicit gender cues only (not inferred): a stated gender is a hard constraint on which SKUs can
 # be recommended, so a man asking for "men's gear" is never shown a women's-only piece that an
 # occasion guide happened to list. Inference/ask-when-unsure still lives in the prompt.
-_MALE_CUE = re.compile(r"\b(men'?s|mens|male|for him|for my (boyfriend|husband|dad|father|son|"
-                       r"brother|guy)|guy'?s)\b", re.I)
-_FEMALE_CUE = re.compile(r"\b(women'?s|womens|female|for her|for my (girlfriend|wife|mom|mother|"
-                         r"daughter|sister|gf)|lad(y|ies)'?s?)\b", re.I)
+_MALE_CUE = re.compile(r"\b(men'?s|mens|male|for him|(for |to )?my (boyfriend|husband|dad|father|"
+                       r"son|brother|guy)|guy'?s)\b", re.I)
+_FEMALE_CUE = re.compile(r"\b(women'?s|womens|female|for her|(for |to )?my (girlfriend|wife|mom|"
+                         r"mother|daughter|sister|gf)|lad(y|ies)'?s?)\b", re.I)
 
 
 def _explicit_gender(query: str) -> str | None:
@@ -824,7 +831,11 @@ def with_graph_evidence(query: str, contexts: list[dict],
     answer. Renders from allowlisted traversals, not free Cypher."""
     if graph_retriever is None:
         return contexts, False, False
-    block, from_query = graph_retriever.evidence(query, tuple(c["text"] for c in contexts[:3]))
+    try:
+        block, from_query = graph_retriever.evidence(query, tuple(c["text"] for c in contexts[:3]))
+    except Exception as exc:  # the graph is additive: a store blip must never fail the whole turn
+        _log.warning("graph evidence unavailable, answering from vectors: %s", exc)
+        return contexts, False, False
     if block is None:
         return contexts, False, False
     combined = [block] + contexts

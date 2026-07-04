@@ -53,6 +53,33 @@ class ResilientEmbedder:
                           attempts=self.attempts)
 
 
+class ResilientStore:
+    """Wraps a hybrid vector store so the read path (hybrid_search) retries transient failures.
+    Retrieval has no fallback, so a single 429/503 from the store would otherwise lose the whole
+    turn; a couple of retries ride out a blip. Writes (ensure_collection/upsert) are retried too, so
+    ingestion survives a hiccup."""
+
+    def __init__(self, inner, attempts: int = 3) -> None:
+        self.inner = inner
+        self.attempts = attempts
+
+    def hybrid_search(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.hybrid_search(*args, **kwargs), attempts=self.attempts)
+
+    def search(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.search(*args, **kwargs), attempts=self.attempts)
+
+    def ensure_collection(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.ensure_collection(*args, **kwargs),
+                          attempts=self.attempts)
+
+    def upsert(self, *args, **kwargs):
+        return with_retry(lambda: self.inner.upsert(*args, **kwargs), attempts=self.attempts)
+
+    def __getattr__(self, name):  # delegate any other attribute/method to the wrapped store
+        return getattr(self.inner, name)
+
+
 class CachingEmbedder:
     """Wraps an embedder with a small per-text LRU cache. At runtime the app only embeds queries,
     and demos reuse the same starter prompts, so caching turns repeated questions into zero API

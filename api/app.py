@@ -238,6 +238,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         return await call_next(request)
 
     login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
+    # demo-login takes no password (it just mints a demo token), so the strict credential bucket is
+    # wrong for it: a page load + StrictMode double-fire + a retry can exhaust 5/min and 429 the
+    # visitor into a stuck "connecting" state. Give it a roomy bucket of its own.
+    demo_limiter = RateLimiter("60/minute")
     # a separate, roomier bucket for voice: each spoken turn is one /api/chat plus one /api/tts, so
     # sharing the chat bucket would halve the real conversation rate and cut the voice mid-demo
     tts_limiter = RateLimiter("60/minute")
@@ -349,9 +353,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         # the only way in. Rate-limited so it cannot be used to mint tokens in a loop.
         if production:
             raise HTTPException(status_code=404, detail="not found")
-        if not login_limiter.allow(client_key(request)):
+        if not demo_limiter.allow(client_key(request)):
             raise HTTPException(status_code=429, detail="too many attempts",
-                                headers={"Retry-After": "30"})
+                                headers={"Retry-After": "10"})
         user = store.get(settings.demo_username)
         if not user:
             raise HTTPException(status_code=404, detail="no demo user")

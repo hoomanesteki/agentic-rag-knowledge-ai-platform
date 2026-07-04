@@ -246,38 +246,58 @@ export default function ChatWidget({
 
   useEffect(() => {
     setMounted(true);
-    const existing = localStorage.getItem("skein_token");
-    if (existing) {
-      setToken(existing);
-    } else {
-      // frictionless demo: the chat never asks for a password. Silently mint a demo token (the
-      // landing gate has already authorized this visitor). Retry a couple of times if the API is
-      // slow, so it always connects rather than showing a login form.
-      let tries = 0;
-      const connect = () => {
-        fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => {
-            if (d?.access_token) {
-              localStorage.setItem("skein_token", d.access_token);
-              setToken(d.access_token);
-            } else if (++tries < 3) {
-              setTimeout(connect, 1500);
-            }
-          })
-          .catch(() => {
-            if (++tries < 3) setTimeout(connect, 1500);
-          });
-      };
-      connect();
-    }
+    let alive = true;
+    // frictionless demo: the chat never asks for a password. Silently mint a demo token (the
+    // landing gate already authorized this visitor). Keep retrying with backoff if the API is cold,
+    // so it self-heals rather than dead-ending at "Connecting..." until a manual refresh.
+    const connect = (tries = 0) => {
+      const cached = localStorage.getItem("skein_token");
+      if (cached) {
+        setToken(cached); // another mount (React StrictMode double-fires this) already got one
+        return;
+      }
+      fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!alive) return;
+          if (d?.access_token) {
+            localStorage.setItem("skein_token", d.access_token);
+            setToken(d.access_token);
+          } else {
+            const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3)); // 0.7s -> 5s, capped
+            setTimeout(() => alive && connect(tries + 1), delay);
+          }
+        })
+        .catch(() => {
+          if (!alive) return;
+          const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3));
+          setTimeout(() => alive && connect(tries + 1), delay);
+        });
+    };
+    connect();
     fetchStore().then((s) => {
       setBrand(s.brand);
       setProducts(s.products);
     });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const short = brand.split(" ")[0] || "Shopping"; // the assistant names itself from the pack
+
+  // one-shot manual reconnect, so a stuck visitor never has to refresh the page
+  function forceConnect() {
+    fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.access_token) {
+          localStorage.setItem("skein_token", d.access_token);
+          setToken(d.access_token);
+        }
+      })
+      .catch(() => {});
+  }
 
   function signOut() {
     localStorage.removeItem("skein_token");
@@ -325,6 +345,9 @@ export default function ChatWidget({
             <div className="chat-connecting">
               <Avatar state="thinking" size={34} />
               <p>Connecting you to the assistant...</p>
+              <button className="chip" type="button" onClick={forceConnect}>
+                Retry
+              </button>
             </div>
           )}
         </section>

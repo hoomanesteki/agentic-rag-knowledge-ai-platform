@@ -1,0 +1,98 @@
+---
+title: "Shipping & operating"
+pagetitle: "Skein Lite: shipping and operating it"
+---
+
+::: {.eyebrow}
+How it gets to production, and how you know it still works
+:::
+
+An LLM feature is easy to demo and hard to operate. This page is the operations story: how a change ships, how a regression is caught before it reaches a user, and how the system is watched once it is live.
+
+## Continuous integration
+
+Every push runs four jobs. Nothing merges to `main` unless all of them pass.
+
+| Job | What it proves |
+|---|---|
+| **check** | Lint, the full test suite, domain validation, the leak linter, and the offline eval gate |
+| **dbt** | The medallion builds and its governance tests pass, for both domains, plus the gold parity test |
+| **web** | The Next.js storefront lints and builds |
+| **security** | Python and web dependency audits (a real critical fails the build; a deferred high is visible but does not) |
+
+The **leak linter** is the load-bearing one for the "swap one folder" claim: it fails the build if a single product name, brand, metric, or glossary term appears in engine code.
+
+## Promotion is gated on measured quality
+
+A "model" here is a serving configuration: the LLM, the embedder, the reranker, and the prompt. Promotion from dev to staging to production is not automatic. It runs in two stages.
+
+```{mermaid}
+flowchart LR
+  CFG[A config change] --> SMOKE{Offline pipeline<br/>smoke gate}
+  SMOKE -->|fails| REJ1[Rejected:<br/>fix the pipeline]
+  SMOKE -->|passes| Q{Measured RAGAS<br/>on real providers}
+  Q -->|no real score| REJ2[Rejected:<br/>run make ragas first]
+  Q -->|config drifted| REJ3[Rejected:<br/>score is stale]
+  Q -->|>= 0.65| STG[Staging]
+  Q -->|>= 0.78 and beats champion| PROD[Production]
+  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  class REJ1,REJ2,REJ3 rej;
+```
+
+The smoke gate only proves the pipeline is wired. The real decision is the measured RAGAS answer-quality score from the actual providers, logged to MLflow. It refuses to promote on a score measured against a different config (that would ship an unmeasured change), and a production candidate must beat the frozen champion or it is capped at staging. This started life broken (it scored fake providers and always promoted to Production), which an adversarial review caught and fixed.
+
+## How a change would reach real users
+
+The demo runs on a hobby budget, so the following is the intended path, with the hooks already in place rather than a hosted pipeline.
+
+- **Shadow.** Run the new config on a copy of live traffic and compare RAGAS and grounding before any user sees it. The trace store already records everything needed to replay.
+- **Soft launch (canary).** Route a small slice of traffic to the new config behind the same eval gate, watch the drift and feedback monitors, then widen.
+- **Rollback.** Because a config is just providers plus a prompt behind factory seams, rollback is switching back to the previous config, not a redeploy. The champion in the registry is always a known-good target.
+- **Fallback at runtime.** Additive dependencies (graph, metric layer, voice) degrade rather than fail, and the retry seams ride out a transient provider blip, so a bad minute does not become a bad outage.
+
+## Observability: one trace per turn
+
+Every turn is traced end to end, so a bad answer can be explained rather than guessed at.
+
+- **Langfuse** wraps the LLM path and the LangGraph brain with `@observe` spans: model, token counts, latency, and cost, one trace per turn, viewable in the Langfuse UI.
+- **LangGraph** is the brain itself, a compiled `understand -> dispatch -> reconcile` state graph with a gate and a bounded retry loop around it, so the agent's steps are inspectable, not a black box.
+- **MLflow** records evaluation runs and the promotion decision.
+- **Four drift monitors** (query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate) run on the real trace store, by language, so a shift in what people ask shows up early.
+- **The admin dashboards** at `/admin` turn those traces into quality, health, and unmet-demand views for an operator.
+
+## The metrics that matter
+
+The same run produces numbers for two audiences.
+
+| Business | Technical | Success signal |
+|---|---|---|
+| Answer rate vs escalation rate | RAGAS faithfulness, relevance, context precision and recall | Fewer "I don't have that" dead-ends |
+| Self-serve resolution | Retrieval hit@k, MRR, abstain recall | Higher grounded-answer share |
+| Trust (no wrong facts, no leaks) | Grounding score, PII-gate test pass | Zero PII or injection incidents |
+| Cost per conversation | Tokens and latency per turn | Cost held under the instance cap |
+| Demand you cannot yet serve | Drift on query distribution | Content grows where users actually ask |
+
+## SWOT
+
+::: {.grid-cards}
+::: {.card}
+### Strengths
+Grounded-or-honest by design, deterministic safety guards, a real governed data layer, and CI that blocks a regression. One engine serves any domain.
+:::
+::: {.card}
+### Weaknesses
+Synthetic single-store scale, MLOps runs on demand rather than a hosted schedule, and one graph relationship is thin. All documented, not hidden.
+:::
+::: {.card}
+### Opportunities
+Logged-in personalization from order and chat history, more domains on the same engine, and a scheduled drift-and-retrain loop feeding the human-in-the-loop flywheel.
+:::
+::: {.card}
+### Threats
+Provider quota and cost, model or vendor drift, and adversarial users. Each has a seam, a fallback, or a guard, but they are the things to watch.
+:::
+:::
+
+## What is next
+
+Logged-in personalization (greet the returning shopper, recommend from their history), a scheduled drift-and-eval cron, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.

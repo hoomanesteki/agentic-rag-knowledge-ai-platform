@@ -4,7 +4,7 @@ project:
 
 website:
   title: "Skein Lite"
-  description: "A local-first, domain-swappable agentic RAG platform — architecture, evaluation, and the decisions behind it."
+  description: "A local-first, domain-swappable agentic RAG platform, architecture, evaluation, and the decisions behind it."
   navbar:
     background: light
     pinned: true
@@ -13,8 +13,12 @@ website:
         href: index.qmd
       - text: "Architecture"
         href: architecture.qmd
+      - text: "The data"
+        href: data.qmd
       - text: "Evaluation"
         href: evaluation.qmd
+      - text: "Shipping & ops"
+        href: mlops.qmd
       - text: "Decisions"
         href: decisions.qmd
       - text: "Reliability"

@@ -1,13 +1,13 @@
 ---
 title: "Architecture"
-pagetitle: "Skein Lite — Architecture"
+pagetitle: "Skein Lite: Architecture"
 ---
 
 ::: {.eyebrow}
 How a question becomes a grounded answer
 :::
 
-Every request follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic — it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+Every request follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
 
 ## The answer path
 
@@ -31,11 +31,11 @@ flowchart TD
   class HY,RR,EV,GEN core;
 ```
 
-The pink nodes are the guards — the places where the system says *no* or *not yet*. They are deliberately deterministic (regex and set logic, not the model deciding), because the one thing you cannot ask a language model to reliably do is withhold information it can already see in its context.
+The pink nodes are the guards, the places where the system says *no* or *not yet*. They are deliberately deterministic (regex and set logic, not the model deciding), because the one thing you cannot ask a language model to reliably do is withhold information it can already see in its context.
 
 ## The three retrieval seams
 
-Vector search alone is a blunt instrument. It is good at "something like this" and bad at "exactly this number" and "which supplier makes this." So retrieval has three seams, and they are kept separate on purpose — an authoritative fact never gets averaged into a fuzzy vector score.
+Vector search alone is a blunt instrument. It is good at "something like this" and bad at "exactly this number" and "which supplier makes this." So retrieval has three seams, and they are kept separate on purpose, an authoritative fact never gets averaged into a fuzzy vector score.
 
 ::: {.grid-cards}
 ::: {.card}
@@ -44,7 +44,7 @@ Cohere `embed-v4.0` (1536-dim) for dense meaning plus a sparse BM25-style leg fo
 :::
 ::: {.card}
 ### Knowledge graph
-Products, suppliers, and stores as nodes with typed edges. It answers relationship questions — "which supplier makes the Cloud Hoodie" — and is treated as authoritative only when the query names the entity itself.
+Products, suppliers, and stores as nodes with typed edges. It answers relationship questions, "which supplier makes the Cloud Hoodie", and is treated as authoritative only when the query names the entity itself.
 :::
 ::: {.card}
 ### Governed metrics
@@ -69,11 +69,11 @@ Anything numeric (return rate by size, cheapest in a category, stock) resolves t
 
 ## Domain-agnostic by construction
 
-The engine folders — ingestion, retrieval, the API, the web app — contain zero references to apparel. The brand name, the product vocabulary, the glossary: all of it lives under `domains/apparel_ecommerce/`. A [leak linter](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform) runs in CI and fails the build if a single domain term (a product name, the brand, a glossary key like "legging") appears in engine code. That constraint is what makes the "swap one folder" claim true rather than aspirational — and it's why the deterministic guards read the product catalog at runtime from the manifest instead of hardcoding a list.
+The engine folders, ingestion, retrieval, the API, the web app, contain zero references to apparel. The brand name, the product vocabulary, the glossary: all of it lives under `domains/apparel_ecommerce/`. A [leak linter](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform) runs in CI and fails the build if a single domain term (a product name, the brand, a glossary key like "legging") appears in engine code. That constraint is what makes the "swap one folder" claim true rather than aspirational, and it's why the deterministic guards read the product catalog at runtime from the manifest instead of hardcoding a list.
 
 ```{mermaid}
 flowchart LR
-  subgraph Engine [Engine — knows nothing about the store]
+  subgraph Engine [Engine, knows nothing about the store]
     ING[Ingestion] --- RET[Retrieval] --- API[API + Web]
   end
   subgraph Pack [domains/apparel_ecommerce/]

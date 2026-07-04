@@ -59,9 +59,14 @@ _SYSTEM = (
     "color or item is not available, say so plainly and offer the closest real option, relaxing "
     "price or color before category, and never substitute a different type of product (a cap is "
     "not a jacket, a bag is not a top). "
-    "If a request is too vague to recommend well (no recipient, use, category, or budget), ask ONE "
-    "short question first. Answer a yes/no or factual question (does it come in tall, is it in "
-    "stock) directly before offering options. "
+    "If a request is too vague to recommend well, ask ONE short, friendly clarifying question "
+    "first, then recommend. This includes a GIFT where you know the recipient but not what they "
+    "are into: for a gift, ask one warm question about their sport, style, favourite colour, or a "
+    "budget (for example 'love that, what is she into, running, yoga, or more lounging, and any "
+    "budget in mind?') before recommending, like a great in-store stylist, so the pick is "
+    "guess. Ask at most one question, keep it short, and once they answer, recommend confidently. "
+    "Answer a yes/no or factual question (does it come in tall, is it in stock) directly before "
+    "offering options. "
     "When a governed metric gives a rate or percentage with a sample size (n_sales) and that "
     "sample is small (roughly two dozen sales or fewer), say the figure is based on only that many "
     "sales instead of stating it as a settled fact. "
@@ -225,6 +230,21 @@ def _smalltalk(query: str, persona: str | None = None) -> str | None:
         return ("Love to help you find the perfect thing 😊! Quick question so I nail it: who's it "
                 "for, and what kind of piece, something for workouts, something cozy, a bag, or an "
                 "accessory? Any color or budget in mind?")
+    # a gift with a recipient but no detail ("a gift for my girlfriend in Toronto"): ask one warm
+    # clarifying question about what they like, like a good stylist, instead of guessing. If a
+    # sport, colour, budget, or stated preference is already there, fall through and recommend.
+    _gift = re.search(r"\b(gift|present)\b", q)
+    _recipient = re.search(r"\bfor (my |a |his |her )?(girlfriend|boyfriend|wife|husband|partner|"
+                           r"mom|mum|mother|dad|father|sister|brother|son|daughter|friend|gf|bf|"
+                           r"her|him)\b", q)
+    _gift_detail = re.search(
+        r"\b(yoga|pilates|run(ning)?|gym|train(ing)?|lift(ing)?|hik\w*|spin|barre|cycl\w*|swim\w*|"
+        r"budget|under|cheap|affordable|\$|\d+ ?(dollar|buck)|into|likes?|loves?|prefers?|enjoys?|"
+        r"red|blue|black|green|navy|grey|gray|pink|white|purple|colou?r)\b", q)
+    if _gift and _recipient and not _gift_detail:
+        return ("Love to help you find a great gift 😊! Quick question so it's spot on: what are "
+                "they into, workouts like running or yoga, or more everyday and cozy, and do you "
+                "have a budget in mind?")
     # "list all products": never dump the catalog, guide them to narrow down
     _all = r"\b(list|show|see|display|give me)\b.*\b(all|every|entire|whole)\b.*\bproduct"
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",

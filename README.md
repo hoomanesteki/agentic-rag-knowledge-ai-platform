@@ -7,7 +7,7 @@ is unsure, then learns from that answer. One engine serves any topic: a domain i
 not code.
 
 Built step by step, MVP first, each step reviewed by an independent model before it merged.
-Everything runs offline on fakes for tests and CI; the hosted models (Groq, Voyage) and the stores
+Everything runs offline on fakes for tests and CI; the hosted models (Groq, Cohere) and the stores
 (Qdrant, DuckDB, Neo4j, Postgres) are config swaps.
 
 ## What it does
@@ -85,7 +85,7 @@ analytics and semantic layer is real dbt: tested, documented, and lineage-traced
               v                |                  v
    +--------------------------+|      +-------------------------+
    |  dbt medallion (DuckDB)  ||      |  chunk + context prefix |
-   |                          ||      |  Voyage embeddings      |
+   |                          ||      |  Cohere embeddings      |
    |   bronze  raw text       ||      |          v              |
    |     v     (lineage)      ||      |  Qdrant hybrid index    |
    |   silver  typed + PII    ||      +-------------------------+
@@ -183,9 +183,13 @@ placeholder until a keyed run fills it).
 
 - **The plan, theme by theme:** [docs/plan/](docs/plan/) (the big picture, split into stages, each
   with a short result note).
+- **Architecture end to end:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data flow, the agentic
+  loop, and the fallback chain).
 - **Decisions and tradeoffs:** [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) Part A, the
   [semantic layer](docs/semantic-layer.md), and [model selection](docs/model-selection.md) (why
-  Groq + Voyage).
+  Groq + Cohere, evidenced against the live Health view).
+- **Showcase roadmap:** [docs/SHOWCASE-ROADMAP.md](docs/SHOWCASE-ROADMAP.md) (the staged plan and
+  progress log).
 - **Build log and deliberate deferrals:** [docs/DEV-NOTES.md](docs/DEV-NOTES.md).
 - **Deploy:** [docs/DEPLOY.md](docs/DEPLOY.md) (Vercel, Cloud Run at min-instances 0, the hosted
   stores, the cost cap, and the keepalive job).

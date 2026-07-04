@@ -42,7 +42,7 @@ an independent model, and every commit under the owner's identity with no assist
 
 ## Notes
 
-- Real infrastructure (Groq, Voyage, Qdrant, Neo4j) is not reachable in this environment; build
+- Real infrastructure (Groq, Cohere, Qdrant, Neo4j) is not reachable in this environment; build
   and test against the offline fakes, and hand the owner the one real-infra command to run
   locally (documented in DEV-NOTES), rather than claiming an unverified real run.
 - Push and open a PR only when the owner asks. The default is branch, review, merge locally.

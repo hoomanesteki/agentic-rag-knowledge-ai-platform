@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import Avatar, { AvatarState } from "./Avatar";
-import { API_BASE, fetchStore, PageContext, Product, swatchStyle } from "./catalog";
+import { API_BASE, fetchStore, PageContext, Product } from "./catalog";
+import ImageTile from "./ImageTile";
 import { Markdown } from "./markdown";
 
 type Citation = { n: number; id: string; doc_type?: string | null };
@@ -32,11 +33,11 @@ type Message = {
   feedback?: "up" | "down";
   recs?: Product[];
   followups?: string[];
-  agent?: boolean; // from Aaron, the human agent, after an escalation
+  agent?: boolean; // from Sara, the human agent, after an escalation
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. If it's about an order, " +
+  "Hi, I'm Sara from the Aster team. 👋 You've got a real person now. If it's about an order, " +
   "share the email on it and I'll pull it up right away. What's going on?";
 
 function cap(s: string): string {
@@ -499,7 +500,7 @@ function Conversation({
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
-      agentModeRef.current = true; // sync now so the intro is spoken in Aaron's voice, not Aria's
+      agentModeRef.current = true; // sync now so the intro is spoken in Sara's voice, not Aria's
       return AGENT_INTRO; // return the intro so voice mode speaks it
     }
     setInput("");
@@ -934,9 +935,9 @@ function Conversation({
     setVoiceState("greeting");
     speakingRef.current = true;
     // greet in the right voice: if the shopper was already handed to the human specialist, keep
-    // it Aaron, not Aria
+    // it Sara, not Aria
     const greeting = agentModeRef.current
-      ? `Hi${name ? " " + name : ""}, Aaron here. How can I help?`
+      ? `Hi${name ? " " + name : ""}, Sara here. How can I help?`
       : `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
     lastSpokenRef.current = greeting;
     await speak(greeting, agentModeRef.current ? "agent" : undefined);
@@ -1019,7 +1020,7 @@ function Conversation({
                 <div className="recs">
                   {lastBot.recs.map((p) => (
                     <Link key={p.id} className="rec" href={`/product/${p.id}`}>
-                      <div className="sw" style={swatchStyle(p.color)} />
+                      <ImageTile category={p.category} color={p.color} name={p.name} className="rec-img" />
                       <div className="rb">
                         <div className="rn">{p.name.replace(/^Aster /, "")}</div>
                         <div className="rp">{p.price != null ? `$${p.price.toFixed(0)}` : ""}</div>
@@ -1073,7 +1074,7 @@ function Conversation({
       {agentMode && (
         <div className="agent-banner">
           <span>
-            <b>Aaron</b> · Aster team, human agent
+            <b>Sara</b> · Aster team, human agent
           </span>
           <button onClick={endAgent}>End chat</button>
         </div>
@@ -1120,7 +1121,7 @@ function Conversation({
               </div>
             ) : (
               <>
-                {m.agent && <div className="agent-tag">Aaron · human agent</div>}
+                {m.agent && <div className="agent-tag">Sara · human agent</div>}
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
                   {m.role === "bot" ? <Markdown text={m.text} /> : m.text}
                 </div>
@@ -1164,7 +1165,7 @@ function Conversation({
               <div className="recs">
                 {m.recs.map((p) => (
                   <Link key={p.id} className="rec" href={`/product/${p.id}`}>
-                    <div className="sw" style={swatchStyle(p.color)} />
+                    <ImageTile category={p.category} color={p.color} name={p.name} className="rec-img" />
                     <div className="rb">
                       <div className="rn">{p.name.replace(/^Aster /, "")}</div>
                       <div className="rp">

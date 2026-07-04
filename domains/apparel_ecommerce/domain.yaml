@@ -126,6 +126,15 @@ sources:
       text_field: text
       lang_field: lang
       meta_fields: [category]
+    # Deep sales-expertise guides (tools/gen_expertise.py): gifts by recipient, occasion, and
+    # budget; sport-specific outfits (pilates, yoga, running, lifting); events; weather and cities;
+    # trends and influencer looks; fit and materials. Named products, so recommendations are concrete.
+    - file: seed/unstructured/expertise.jsonl
+      doc_type: guide
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [category]
     # Demo order history for one customer, so the assistant can look up orders and reason about a
     # delivery delay when the shopper gives their email (info@esteki.ca), verified with their name.
     - file: seed/unstructured/orders.jsonl

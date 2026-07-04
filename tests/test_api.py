@@ -361,7 +361,10 @@ def _env(**overrides):
 # A real production secret: not a placeholder and at least 32 characters.
 _STRONG_SECRET = "a-long-random-production-jwt-secret-0123456789"
 # Explicit non-default credentials so the production credential gate does not fire on these tests.
-_REAL_CREDS = {"ADMIN_PASSWORD": "a-real-admin-password", "DEMO_PASSWORD": "a-real-demo-password"}
+# Gate credentials are included so the boot check does not depend on a developer's local .env (CI
+# has none, so an empty GATE_USERNAME/GATE_PASSWORD would otherwise fail the production-boot test).
+_REAL_CREDS = {"ADMIN_PASSWORD": "a-real-admin-password", "DEMO_PASSWORD": "a-real-demo-password",
+               "GATE_USERNAME": "gatekeeper", "GATE_PASSWORD": "a-real-gate-password"}
 
 
 def test_production_refuses_insecure_jwt_secret():

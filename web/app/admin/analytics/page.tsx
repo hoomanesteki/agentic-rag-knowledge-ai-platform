@@ -17,6 +17,7 @@ type Analytics = {
   by_device: { label: string; pct: number }[];
   by_country: { label: string; pct: number }[];
   funnel: { step: string; count: number }[];
+  unmet_demand?: { term: string; count: number; reason: string }[];
 };
 type Gap = { question: string; count: number };
 
@@ -136,6 +137,25 @@ export default function AnalyticsPage() {
             <BarList items={gaps.slice(0, 8).map((g) => ({ label: g.question, count: g.count }))} />
           )}
         </div>
+        {a.unmet_demand && a.unmet_demand.length > 0 && (
+          <div className="ax-card ax-wide">
+            <h3>Unmet demand &mdash; what shoppers want that we don&apos;t offer</h3>
+            <p className="meta">
+              Money left on the table: things people searched or asked for that we can&apos;t serve
+              today. Each is a merchandising decision &mdash; stock it, expand sizes or regions, or
+              add the feature.
+            </p>
+            <ul className="unmet-list">
+              {a.unmet_demand.map((u) => (
+                <li key={u.term}>
+                  <span className="unmet-count">{u.count}</span>
+                  <span className="unmet-term">{u.term}</span>
+                  <span className="unmet-reason">{u.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );

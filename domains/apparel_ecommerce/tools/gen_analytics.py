@@ -41,6 +41,26 @@ PRODUCTS = (["Flow Legging"] * 9 + ["Storm Shell Jacket"] * 8 + ["Vent Tech Tee"
             + ["Commute Tote"] * 3 + ["Peak Beanie"] * 2 + ["Daytrip Belt Bag"] * 2)
 CATEGORIES = (["leggings"] * 8 + ["jackets"] * 7 + ["tops"] * 7 + ["hoodies"] * 5 + ["shorts"] * 4
               + ["bras"] * 4 + ["bottoms"] * 4 + ["bags"] * 3 + ["accessories"] * 2)
+# Unmet demand: things shoppers search or ask for that we can't serve today. This is the
+# money-left-on-the-table view - each row is a real gap with a reason, so the merchandising team
+# can act (stock it, expand sizes/regions, or add the feature). Weighted by how often it comes up.
+UNMET = (
+    [("running shoes", "not carried: no footwear")] * 9
+    + [("swimwear", "not carried: no swimwear")] * 7
+    + [("plus size 2XL / 3XL", "size gap: range ends at XL")] * 8
+    + [("tall / long inseam leggings", "size gap: no tall line")] * 6
+    + [("maternity leggings", "not carried: no maternity line")] * 5
+    + [("kids / youth sizes", "not carried: adults only")] * 5
+    + [("ship to the UK / Europe", "region gap: ships Canada and US only")] * 6
+    + [("ship to Australia", "region gap: ships Canada and US only")] * 4
+    + [("same-day delivery", "feature gap: not offered")] * 4
+    + [("gift wrapping", "feature gap: not offered")] * 4
+    + [("compression socks", "not carried: athletic socks only")] * 3
+    + [("yoga mat / equipment", "not carried: apparel only")] * 3
+    + [("denim / jeans", "not carried: activewear only")] * 3
+    + [("restock date for a sold-out size", "answer gap: no restock ETA on file")] * 5
+    + [("wholesale / bulk pricing", "feature gap: no online wholesale")] * 2
+)
 DEVICES = ["Mobile"] * 60 + ["Desktop"] * 32 + ["Tablet"] * 8
 COUNTRIES = ["Canada"] * 62 + ["United States"] * 33 + ["Other"] * 5
 MONTHS = ["Jun", "Jul"]
@@ -48,6 +68,8 @@ MONTHS = ["Jun", "Jul"]
 
 def main():
     searches, questions, products, cats, devices, countries = (Counter() for _ in range(6))
+    unmet = Counter()
+    unmet_reason: dict[str, str] = {}
     by_day = Counter()
     funnel = {"visit": 0, "engaged": 0, "viewed": 0, "cart": 0, "order": 0}
     revenue, orders, search_events, question_events = 0.0, 0, 0, 0
@@ -67,6 +89,11 @@ def main():
         for _ in range(random.choice([0, 0, 1, 1, 2])):
             questions[random.choice(QUESTIONS)] += 1
             question_events += 1
+        # ~14% of engaged sessions want something we can't serve today (money left on the table)
+        if random.random() < 0.14:
+            term, reason = random.choice(UNMET)
+            unmet[term] += 1
+            unmet_reason[term] = reason
         if random.random() < 0.74:
             funnel["viewed"] += 1
             for _ in range(random.choice([1, 1, 2, 3])):
@@ -105,6 +132,11 @@ def main():
         ],
         "top_searches": top(searches, "term"),
         "top_questions": top(questions, "question", 8),
+        # what shoppers wanted that we can't serve, most-requested first, each with the reason
+        "unmet_demand": [
+            {"term": k, "count": c, "reason": unmet_reason[k]}
+            for k, c in unmet.most_common(12)
+        ],
         "top_products": top(products, "name"),
         "by_category": pct(cats),
         "by_device": pct(devices),

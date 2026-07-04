@@ -3,90 +3,90 @@
   "kpis": {
     "sessions": 1240,
     "visitors": 979,
-    "searches": 1407,
-    "questions": 801,
-    "add_to_cart": 332,
-    "orders": 163,
-    "revenue": 25238,
-    "conversion": 13.1,
-    "aov": 155
+    "searches": 1356,
+    "questions": 814,
+    "add_to_cart": 327,
+    "orders": 144,
+    "revenue": 22242,
+    "conversion": 11.6,
+    "aov": 154
   },
   "sessions_by_day": [
     {
       "day": "Jun 01",
-      "count": 41
+      "count": 51
     },
     {
       "day": "Jun 02",
-      "count": 41
+      "count": 30
     },
     {
       "day": "Jun 03",
-      "count": 51
-    },
-    {
-      "day": "Jun 04",
-      "count": 49
-    },
-    {
-      "day": "Jun 05",
-      "count": 62
-    },
-    {
-      "day": "Jun 06",
-      "count": 33
-    },
-    {
-      "day": "Jun 07",
-      "count": 50
-    },
-    {
-      "day": "Jun 08",
-      "count": 53
-    },
-    {
-      "day": "Jun 09",
-      "count": 51
-    },
-    {
-      "day": "Jun 10",
       "count": 47
     },
     {
+      "day": "Jun 04",
+      "count": 45
+    },
+    {
+      "day": "Jun 05",
+      "count": 53
+    },
+    {
+      "day": "Jun 06",
+      "count": 29
+    },
+    {
+      "day": "Jun 07",
+      "count": 47
+    },
+    {
+      "day": "Jun 08",
+      "count": 50
+    },
+    {
+      "day": "Jun 09",
+      "count": 42
+    },
+    {
+      "day": "Jun 10",
+      "count": 32
+    },
+    {
       "day": "Jun 11",
-      "count": 26
-    },
-    {
-      "day": "Jun 12",
-      "count": 33
-    },
-    {
-      "day": "Jun 13",
-      "count": 37
-    },
-    {
-      "day": "Jun 14",
-      "count": 45
-    },
-    {
-      "day": "Jun 15",
-      "count": 51
-    },
-    {
-      "day": "Jul 01",
-      "count": 45
-    },
-    {
-      "day": "Jul 02",
       "count": 36
     },
     {
+      "day": "Jun 12",
+      "count": 42
+    },
+    {
+      "day": "Jun 13",
+      "count": 42
+    },
+    {
+      "day": "Jun 14",
+      "count": 41
+    },
+    {
+      "day": "Jun 15",
+      "count": 44
+    },
+    {
+      "day": "Jul 01",
+      "count": 42
+    },
+    {
+      "day": "Jul 02",
+      "count": 39
+    },
+    {
       "day": "Jul 03",
-      "count": 34
+      "count": 41
     },
     {
       "day": "Jul 04",
-      "count": 43
+      "count": 37
     },
     {
       "day": "Jul 05",
@@ -94,155 +94,217 @@
     },
     {
       "day": "Jul 06",
-      "count": 31
+      "count": 38
     },
     {
       "day": "Jul 07",
-      "count": 37
+      "count": 50
     },
     {
       "day": "Jul 08",
-      "count": 35
+      "count": 37
     },
     {
       "day": "Jul 09",
-      "count": 45
+      "count": 47
     },
     {
       "day": "Jul 10",
-      "count": 42
+      "count": 41
     },
     {
       "day": "Jul 11",
-      "count": 42
+      "count": 50
     },
     {
       "day": "Jul 12",
-      "count": 35
+      "count": 26
     },
     {
       "day": "Jul 13",
-      "count": 35
+      "count": 48
     },
     {
       "day": "Jul 14",
-      "count": 36
+      "count": 47
     },
     {
       "day": "Jul 15",
-      "count": 42
+      "count": 34
     }
   ],
   "top_searches": [
     {
       "term": "leggings",
-      "count": 167
-    },
-    {
-      "term": "hoodie",
-      "count": 150
+      "count": 153
     },
     {
       "term": "jacket",
-      "count": 144
+      "count": 148
     },
     {
-      "term": "sports bra",
-      "count": 98
+      "term": "hoodie",
+      "count": 145
     },
     {
       "term": "shorts",
-      "count": 96
+      "count": 92
     },
     {
-      "term": "tops",
-      "count": 80
+      "term": "sports bra",
+      "count": 84
     },
     {
       "term": "flow legging",
-      "count": 80
+      "count": 82
     },
     {
-      "term": "rain jacket",
-      "count": 67
+      "term": "storm shell",
+      "count": 77
+    },
+    {
+      "term": "black leggings",
+      "count": 75
     }
   ],
   "top_questions": [
     {
+      "question": "is it in stock in my size",
+      "count": 97
+    },
+    {
       "question": "what is the return policy",
-      "count": 100
+      "count": 89
     },
     {
       "question": "how long to ship to toronto",
-      "count": 77
-    },
-    {
-      "question": "is it in stock in my size",
-      "count": 62
-    },
-    {
-      "question": "how much is shipping",
-      "count": 62
-    },
-    {
-      "question": "do the leggings run small",
-      "count": 55
-    },
-    {
-      "question": "free shipping",
-      "count": 54
+      "count": 81
     },
     {
       "question": "which jacket for rain",
-      "count": 51
+      "count": 66
+    },
+    {
+      "question": "do the leggings run small",
+      "count": 58
     },
     {
       "question": "what should I wear for summer",
-      "count": 51
+      "count": 54
+    },
+    {
+      "question": "free shipping",
+      "count": 53
+    },
+    {
+      "question": "do you ship to the us",
+      "count": 50
+    }
+  ],
+  "unmet_demand": [
+    {
+      "term": "running shoes",
+      "count": 22,
+      "reason": "not carried: no footwear"
+    },
+    {
+      "term": "plus size 2XL / 3XL",
+      "count": 17,
+      "reason": "size gap: range ends at XL"
+    },
+    {
+      "term": "swimwear",
+      "count": 15,
+      "reason": "not carried: no swimwear"
+    },
+    {
+      "term": "tall / long inseam leggings",
+      "count": 13,
+      "reason": "size gap: no tall line"
+    },
+    {
+      "term": "maternity leggings",
+      "count": 13,
+      "reason": "not carried: no maternity line"
+    },
+    {
+      "term": "kids / youth sizes",
+      "count": 12,
+      "reason": "not carried: adults only"
+    },
+    {
+      "term": "ship to the UK / Europe",
+      "count": 10,
+      "reason": "region gap: ships Canada and US only"
+    },
+    {
+      "term": "restock date for a sold-out size",
+      "count": 9,
+      "reason": "answer gap: no restock ETA on file"
+    },
+    {
+      "term": "gift wrapping",
+      "count": 7,
+      "reason": "feature gap: not offered"
+    },
+    {
+      "term": "same-day delivery",
+      "count": 7,
+      "reason": "feature gap: not offered"
+    },
+    {
+      "term": "ship to Australia",
+      "count": 6,
+      "reason": "region gap: ships Canada and US only"
+    },
+    {
+      "term": "compression socks",
+      "count": 4,
+      "reason": "not carried: athletic socks only"
     }
   ],
   "top_products": [
     {
       "name": "Flow Legging",
-      "count": 215
+      "count": 213
     },
     {
       "name": "Storm Shell Jacket",
-      "count": 188
+      "count": 192
     },
     {
       "name": "Vent Tech Tee",
-      "count": 142
+      "count": 148
     },
     {
       "name": "Cloud Hoodie",
-      "count": 139
+      "count": 144
     },
     {
       "name": "Studio Sports Bra",
-      "count": 117
-    },
-    {
-      "name": "Trailhead Puffer",
-      "count": 89
+      "count": 127
     },
     {
       "name": "Momentum Short",
-      "count": 81
+      "count": 92
+    },
+    {
+      "name": "Trailhead Puffer",
+      "count": 90
     },
     {
       "name": "Everywhere Jogger",
-      "count": 72
+      "count": 83
     }
   ],
   "by_category": [
     {
       "label": "leggings",
-      "pct": 19
+      "pct": 18
     },
     {
       "label": "jackets",
-      "pct": 16
+      "pct": 17
     },
     {
       "label": "tops",
@@ -253,20 +315,20 @@
       "pct": 12
     },
     {
-      "label": "shorts",
-      "pct": 11
-    },
-    {
       "label": "bras",
-      "pct": 9
+      "pct": 10
     },
     {
       "label": "bottoms",
-      "pct": 8
+      "pct": 9
+    },
+    {
+      "label": "shorts",
+      "pct": 9
     },
     {
       "label": "bags",
-      "pct": 6
+      "pct": 7
     },
     {
       "label": "accessories",
@@ -276,25 +338,25 @@
   "by_device": [
     {
       "label": "Mobile",
-      "pct": 62
+      "pct": 59
     },
     {
       "label": "Desktop",
-      "pct": 31
+      "pct": 32
     },
     {
       "label": "Tablet",
-      "pct": 7
+      "pct": 9
     }
   ],
   "by_country": [
     {
       "label": "Canada",
-      "pct": 60
+      "pct": 63
     },
     {
       "label": "United States",
-      "pct": 35
+      "pct": 32
     },
     {
       "label": "Other",
@@ -308,19 +370,19 @@
     },
     {
       "step": "Engaged",
-      "count": 1019
+      "count": 1003
     },
     {
       "step": "Viewed a product",
-      "count": 749
+      "count": 763
     },
     {
       "step": "Added to bag",
-      "count": 332
+      "count": 327
     },
     {
       "step": "Ordered",
-      "count": 163
+      "count": 144
     }
   ]
 }

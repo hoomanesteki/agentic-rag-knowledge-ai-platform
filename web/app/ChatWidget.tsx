@@ -128,28 +128,33 @@ function detectTopic(text: string): string {
   return "";
 }
 
-function productFollowups(p: Product): string[] {
+// After recommending products, offer refinement follow-ups (narrow by color / price / use / a
+// specific pick), not generic policy questions. Relevant to what the shopper is actually browsing.
+function productFollowups(p: Product, recs: Product[]): string[] {
   const short = p.name.replace(/^Aster\s+/, "");
-  const byCat: Record<string, string> = {
-    jackets: `What should I layer under the ${short} when it's cold?`,
-    leggings: `Is the ${short} squat proof?`,
-    bras: `Is the ${short} high support?`,
-    tops: `Is the ${short} good for hot yoga?`,
-    bottoms: `Is the ${short} okay for travel?`,
-    shorts: `Does the ${short} have pockets?`,
-    bags: `What fits in the ${short}?`,
-    hoodies: `Does the ${short} run oversized?`,
-    accessories: `Is the ${short} warm enough for winter?`,
+  const useByCat: Record<string, string> = {
+    jackets: "Which is warmest for winter?",
+    leggings: "Which is best for the gym?",
+    bras: "Which has the most support?",
+    tops: "Which is best for hot weather?",
+    bottoms: "Which is best for travel?",
+    shorts: "Which has pockets?",
+    bags: "Which is best for the gym?",
+    hoodies: "Which is the coziest?",
+    accessories: "Which is warmest?",
   };
-  const out = [`Does the ${short} run true to size?`];
-  if (byCat[p.category]) out.push(byCat[p.category]);
-  out.push("Is it in stock in my size?");
+  const out = [`Do you have the ${short} in another color?`];
+  out.push(recs.length > 1 ? (useByCat[p.category] || "Which do you recommend most?") : "Show me similar options");
+  out.push("Any under $100?");
   return out;
 }
 
-// Sticky, narrowing follow-ups: a detected topic wins and is remembered; a product answer gets
-// product follow-ups; and a vague turn inside a thread keeps the last topic's follow-ups rather
-// than resetting to random suggestions.
+// Sticky, narrowing follow-ups. A HARD policy topic (order, returns, shipping...) always wins.
+// Otherwise a product recommendation gets refinement follow-ups (so "size and color for socks"
+// suggests colors/alternatives, not the size chart). Soft topics and suggestions are the fallback.
+const HARD_TOPICS = new Set([
+  "order", "returns", "warranty", "shipping", "payment", "membership", "discounts", "stores",
+]);
 function followupsFor(
   query: string,
   final: FinalEvent,
@@ -159,8 +164,9 @@ function followupsFor(
 ): { followups: string[]; topic: string } {
   const unsure = final.tier !== "auto";
   const detected = detectTopic(query);
+  if (detected && HARD_TOPICS.has(detected)) return { followups: TOPIC_MAP[detected], topic: detected };
+  if (!unsure && recs.length > 0) return { followups: productFollowups(recs[0], recs), topic: "" };
   if (detected) return { followups: TOPIC_MAP[detected], topic: detected };
-  if (!unsure && recs.length > 0) return { followups: productFollowups(recs[0]), topic: "" };
   if (lastTopic && TOPIC_MAP[lastTopic]) return { followups: TOPIC_MAP[lastTopic], topic: lastTopic };
   return { followups: suggestions.slice(0, 3).map((s) => s.text), topic: lastTopic };
 }
@@ -580,6 +586,7 @@ function Conversation({
         body: JSON.stringify({
           query: qSend,
           ...(agentMode ? { persona: "agent" } : {}),
+          ...(voiceLiveRef.current ? { concise: true } : {}), // short, speakable reply in voice mode
           ...(history.length ? { history } : {}),
         }),
       });

@@ -72,6 +72,8 @@ class ChatRequest(BaseModel):
     session_id: str | None = Field(default=None, max_length=64)
     # "agent" answers in the human specialist's voice after a shopper is escalated.
     persona: str | None = Field(default=None, max_length=16)
+    # true for a spoken (voice) turn, so the reply is kept short and speakable
+    concise: bool = Field(default=False)
     # prior turns [{"role": "user"|"assistant", "content": str}] so a follow-up can be rewritten
     history: list[dict] | None = Field(default=None, max_length=20)
 
@@ -436,7 +438,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                            metric_resolver=comp.get("metric_resolver"),
                                            graph_retriever=comp.get("graph_retriever"),
                                            lang=req.lang, persona=req.persona,
-                                           history=req.history):
+                                           history=req.history, concise=req.concise):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,

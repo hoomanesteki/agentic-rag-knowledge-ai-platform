@@ -544,11 +544,21 @@ function Conversation({
         }
         return copy;
       });
+    // prior turns, so the assistant can resolve follow-ups ("which is cheaper") and multi-turn
+    // verification (an email then a name) instead of treating each message as brand new
+    const history = messages
+      .filter((mm) => mm.text && mm.text.trim())
+      .slice(-6)
+      .map((mm) => ({ role: mm.role === "me" ? "user" : "assistant", content: mm.text }));
     try {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ query: qSend, ...(agentMode ? { persona: "agent" } : {}) }),
+        body: JSON.stringify({
+          query: qSend,
+          ...(agentMode ? { persona: "agent" } : {}),
+          ...(history.length ? { history } : {}),
+        }),
       });
       if (res.status === 401) {
         onSignOut();

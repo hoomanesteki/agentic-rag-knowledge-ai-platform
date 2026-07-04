@@ -57,7 +57,7 @@ Anything numeric (return rate by size, cheapest in a category, stock) resolves t
 | Layer | Choice | Why it's here |
 |---|---|---|
 | API | FastAPI, SSE streaming | Tokens stream to the browser as they're generated |
-| Brain | LangGraph supervisor + a linear pipeline | A bounded agent loop that can re-retrieve, or a fast one-pass path |
+| Brain | LangGraph on langchain-core + a linear pipeline | A bounded agent loop that can re-retrieve, compiled to a langchain-core `Runnable`; or a fast one-pass path |
 | Embeddings / rerank | Cohere `embed-v4.0` + `rerank-v3.5` | Strong multilingual retrieval; the reranker does the heavy lifting |
 | LLM | Groq, Llama 3.3 70B | Fast enough to stream conversationally; swappable behind one seam |
 | Vectors | Qdrant (hybrid) | Native sparse+dense in one query |
@@ -66,6 +66,7 @@ Anything numeric (return rate by size, cheapest in a category, stock) resolves t
 | Web | Next.js 14 App Router | The storefront and the chat/voice widget |
 | Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are shorter than typed ones by design |
 | MLOps | MLflow, RAGAS, PSI drift monitors | Tracking, answer-quality eval, and drift on live traffic |
+| Observability | Langfuse | One root span per turn, every generation nested with model, tokens, latency, and cost |
 
 ## Domain-agnostic by construction
 

@@ -16,7 +16,7 @@ Every push runs four jobs. Nothing merges to `main` unless all of them pass.
 | Job | What it proves |
 |---|---|
 | **check** | Lint, the full test suite, domain validation, the leak linter, and the offline eval gate |
-| **dbt** | The medallion builds and its governance tests pass, for both domains, plus the gold parity test |
+| **dbt** | The medallion builds and its governance tests pass, plus the gold parity test |
 | **web** | The Next.js storefront lints and builds |
 | **security** | Python and web dependency audits (a real critical fails the build; a deferred high is visible but does not) |
 
@@ -50,14 +50,20 @@ The demo runs on a hobby budget, so the following is the intended path, with the
 - **Rollback.** Because a config is just providers plus a prompt behind factory seams, rollback is switching back to the previous config, not a redeploy. The champion in the registry is always a known-good target.
 - **Fallback at runtime.** Additive dependencies (graph, metric layer, voice) degrade rather than fail, and the retry seams ride out a transient provider blip, so a bad minute does not become a bad outage.
 
-## Observability: one trace per turn
+## The stack: LangChain-core, LangGraph, Langfuse
 
-Every turn is traced end to end, so a bad answer can be explained rather than guessed at.
+Three pieces, one job each, wired so a turn is inspectable end to end.
 
-- **Langfuse** wraps the LLM path and the LangGraph brain with `@observe` spans: model, token counts, latency, and cost, one trace per turn, viewable in the Langfuse UI.
-- **LangGraph** is the brain itself, a compiled `understand -> dispatch -> reconcile` state graph with a gate and a bounded retry loop around it, so the agent's steps are inspectable, not a black box.
-- **MLflow** records evaluation runs and the promotion decision.
-- **Four drift monitors** (query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate) run on the real trace store, by language, so a shift in what people ask shows up early.
+- **LangChain-core** is the runtime substrate. The brain compiles to a langchain-core `Runnable` (`CompiledStateGraph`) and is driven through the standard `.invoke()` interface, so it composes and traces like any LangChain runnable.
+- **LangGraph** is the orchestration: a typed `understand -> dispatch -> reconcile` state graph with a gate and a bounded retry loop, so the agent's steps are a diagram, not a black box.
+- **Langfuse** is the observability: one root span per turn (`@observe`), every LLM generation nested under it with model, tokens, latency, and cost. The LLM is a custom Groq adapter rather than a LangChain LLM, so tracing uses spans instead of the callback handler, a deliberate choice noted in the code. One turn maps to one trace in the Langfuse UI.
+
+## Watching it once it is live
+
+Every turn is traced, and the same trace store feeds the monitors, so a bad answer can be explained rather than guessed at.
+
+- **MLflow** records each eval run and promotion decision. A recent promotion logged `gate 0.95, ragas 0.95, smoke 1.0` for the `cohere embed-v4.0 + rerank-v3.5 + Groq linear` config, promoted to Production; changing only the reranker forces a fresh candidate that must re-earn the stage.
+- **Four drift monitors** (query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate) run on the real trace store, by language. A run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content.
 - **The admin dashboards** at `/admin` turn those traces into quality, health, and unmet-demand views for an operator.
 
 ## The metrics that matter

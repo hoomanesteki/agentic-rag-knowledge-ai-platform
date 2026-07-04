@@ -12,10 +12,11 @@ from functools import lru_cache
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
+from adapters.elevenlabs import ElevenLabsTTS
 from adapters.observability import flush, request_span, update_span
 from api.auth import (
     DUMMY_HASH,
@@ -84,6 +85,12 @@ class TranscribeRequest(BaseModel):
     audio_base64: str = Field(min_length=1, max_length=13_400_000)
     mime: str = Field(default="audio/webm", max_length=100)
     lang: str | None = Field(default=None, max_length=8)
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+    # "agent" uses the human specialist's voice; anything else uses the assistant voice
+    persona: str | None = Field(default=None, max_length=16)
 
 
 class LoginRequest(BaseModel):
@@ -482,6 +489,26 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
             _log.warning("transcription failed: %s", str(exc)[:200])
             raise HTTPException(status_code=502, detail="transcription unavailable")
         return {"text": text}
+
+    @app.post("/api/tts")
+    def tts(body: TTSRequest, request: Request, user: dict = Depends(current_user)):
+        # Premium voice for spoken answers. The API key never leaves the server. With no provider
+        # or key configured, return 204 so the browser uses its built-in speechSynthesis instead.
+        if not limiter.allow(client_key(request)):
+            raise HTTPException(status_code=429, detail="rate limit exceeded",
+                                headers={"Retry-After": "10"})
+        if settings.tts_provider != "elevenlabs" or not settings.elevenlabs_api_key:
+            return Response(status_code=204)
+        voice = (settings.elevenlabs_agent_voice_id if body.persona == "agent"
+                 else settings.elevenlabs_voice_id)
+        try:
+            audio = ElevenLabsTTS(settings.elevenlabs_api_key,
+                                  model=settings.elevenlabs_model).synthesize(body.text, voice)
+        except Exception as exc:  # upstream failure: the client falls back to its built-in voice
+            _log.warning("tts failed: %s", str(exc)[:200])
+            return Response(status_code=204)
+        return Response(content=audio, media_type="audio/mpeg",
+                        headers={"Cache-Control": "no-store"})
 
     @app.post("/api/feedback")
     def feedback(fb: FeedbackRequest, request: Request, user: dict = Depends(current_user)):

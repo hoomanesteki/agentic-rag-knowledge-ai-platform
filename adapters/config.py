@@ -47,6 +47,11 @@ class Settings:
     mlflow_url: str
     langfuse_url: str
     judge_model: str
+    tts_provider: str
+    elevenlabs_api_key: str
+    elevenlabs_model: str
+    elevenlabs_voice_id: str
+    elevenlabs_agent_voice_id: str
 
 
 @lru_cache
@@ -98,4 +103,14 @@ def get_settings() -> Settings:
         langfuse_url=(os.getenv("LANGFUSE_HOST") or "https://cloud.langfuse.com")
         if (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")) else "",
         judge_model=os.getenv("JUDGE_MODEL", ""),  # an independent RAGAS judge; empty = the app LLM
+        # Premium voice for the spoken assistant. "none" (default) means the browser's built-in
+        # speechSynthesis is used, so voice still works with no key; set to "elevenlabs" for a real,
+        # human-sounding voice. The key stays server-side (the browser calls /api/tts).
+        tts_provider=os.getenv("TTS_PROVIDER", "none").strip().lower(),
+        elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
+        elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+        # default prebuilt ElevenLabs voices: "Aria" (warm female) for the assistant, a male voice
+        # for the human specialist, both overridable
+        elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "9BWtsMINqrJLrRacOk9x"),
+        elevenlabs_agent_voice_id=os.getenv("ELEVENLABS_AGENT_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
     )

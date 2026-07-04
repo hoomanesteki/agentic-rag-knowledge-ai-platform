@@ -390,6 +390,12 @@ function Conversation({
   const micDeadRef = useRef(false); // mic denied/unavailable, so do not restart the recognizer
   const micOnRef = useRef(true); // the shopper muted the mic without leaving voice mode
   const handlerRef = useRef<(t: string) => void>(() => {}); // latest handleUtterance, avoids stale closure
+  // premium (ElevenLabs) voice playback + lip-sync
+  const audioElRef = useRef<HTMLAudioElement | null>(null); // the currently playing answer audio
+  const audioCtxRef = useRef<AudioContext | null>(null); // reused Web Audio context for the analyser
+  const rafRef = useRef<number | null>(null); // lip-sync animation frame
+  const speakDoneRef = useRef<null | (() => void)>(null); // resolves the play promise on barge-in
+  const [speakLevel, setSpeakLevel] = useState(0); // 0..1 mouth openness, drives the avatar lips
 
   const authHeaders = {
     "Content-Type": "application/json",
@@ -635,6 +641,105 @@ function Conversation({
   }
 
   // Handle one spoken utterance. If we are mid-answer, the shopper is interrupting (barge-in), so
+  // Speak an answer. Try the premium server voice (ElevenLabs via /api/tts) with amplitude
+  // lip-sync; on 204 (no key configured) or any error, fall back to the browser's built-in voice.
+  async function speak(text: string, persona?: string): Promise<void> {
+    const clean = plainSpeak(text);
+    if (!clean) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/tts`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ text: clean.slice(0, 1200), persona: persona || null }),
+      });
+      if (res.ok && res.status !== 204) {
+        await playWithLipSync(await res.blob());
+        return;
+      }
+    } catch {
+      /* network/blocked: fall through to the browser voice */
+    }
+    await speakAsync(clean); // browser fallback (the ava-speaking CSS still animates the mouth)
+  }
+
+  function playWithLipSync(blob: Blob): Promise<void> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioElRef.current = audio;
+      const finish = () => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+        setSpeakLevel(0);
+        URL.revokeObjectURL(url);
+        if (audioElRef.current === audio) audioElRef.current = null;
+        speakDoneRef.current = null;
+        resolve();
+      };
+      speakDoneRef.current = finish; // so stopSpeaking() can resolve us on barge-in
+      audio.onended = finish;
+      audio.onerror = finish;
+      try {
+        const Ctx = (window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+        let ctx = audioCtxRef.current;
+        if (!ctx) {
+          ctx = new Ctx();
+          audioCtxRef.current = ctx;
+        }
+        if (ctx.state === "suspended") ctx.resume();
+        const srcNode = ctx.createMediaElementSource(audio);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        srcNode.connect(analyser);
+        analyser.connect(ctx.destination);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        let last = 0;
+        const tick = () => {
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const v = (data[i] - 128) / 128;
+            sum += v * v;
+          }
+          const level = Math.min(1, Math.sqrt(sum / data.length) * 2.4);
+          const now = performance.now();
+          if (now - last > 45) {
+            setSpeakLevel(Math.round(level * 100) / 100); // throttle to ~22fps
+            last = now;
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+      } catch {
+        /* Web Audio unsupported: play without lip-sync */
+      }
+      audio.play().catch(finish);
+    });
+  }
+
+  // Stop any speech immediately (barge-in / stop): cancels the browser voice and the audio element,
+  // resolves a pending play promise, and closes the mouth.
+  function stopSpeaking() {
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    const a = audioElRef.current;
+    if (a) {
+      try {
+        a.pause();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setSpeakLevel(0);
+    const done = speakDoneRef.current;
+    speakDoneRef.current = null;
+    if (done) done();
+  }
+
   // we cut the speech and take the new question. Superseded utterances drop out via the id check.
   async function handleUtterance(text: string) {
     if (!voiceLiveRef.current || !micOnRef.current) return;
@@ -647,7 +752,7 @@ function Conversation({
       const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
       if (words.length < 2) return; // a single word while speaking is almost always an echo/noise
       if (overlap > 0.6) return;
-      if (typeof window !== "undefined") window.speechSynthesis?.cancel(); // barge in
+      stopSpeaking(); // barge in: cut the premium audio (or browser voice) instantly
     } else if (Date.now() - spokeEndRef.current < 1500) {
       // recognition can finalize the tail of our own answer just after we stop speaking; drop an
       // utterance in that brief window if it mostly matches what we just said
@@ -668,7 +773,7 @@ function Conversation({
     const spoken = plainSpeak(answer);
     lastSpokenRef.current = spoken;
     setVoiceState("speaking");
-    await speakAsync(spoken);
+    await speak(spoken, agentMode ? "agent" : undefined);
     if (myId !== utterRef.current) return; // a newer utterance took over while we spoke
     speakingRef.current = false;
     spokeEndRef.current = Date.now(); // start the echo-tail window
@@ -700,7 +805,7 @@ function Conversation({
         const words = normWords(interim);
         const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
         if (words.length >= 1 && overlap < 0.5 && typeof window !== "undefined") {
-          window.speechSynthesis?.cancel();
+          stopSpeaking();
         }
       }
       if (finalText.trim()) handlerRef.current(finalText.trim());
@@ -759,7 +864,7 @@ function Conversation({
       ? `Hi${name ? " " + name : ""}, Aaron here. How can I help?`
       : `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
     lastSpokenRef.current = greeting;
-    await speakAsync(greeting);
+    await speak(greeting, agentMode ? "agent" : undefined);
     speakingRef.current = false;
     spokeEndRef.current = Date.now();
     if (!voiceLiveRef.current) return;
@@ -773,7 +878,7 @@ function Conversation({
     processingRef.current = false;
     speakingRef.current = false;
     recogRef.current?.abort();
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+    stopSpeaking();
     setVoiceOn(false);
   }
 
@@ -786,11 +891,13 @@ function Conversation({
   }
 
   useEffect(() => {
-    // stop the mic and any speech if the widget unmounts mid-conversation
+    // stop the mic and any speech if the widget unmounts mid-conversation (no setState here)
     return () => {
       voiceLiveRef.current = false;
       recogRef.current?.abort();
       if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+      audioElRef.current?.pause();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, []);
 
@@ -812,7 +919,7 @@ function Conversation({
       <div className="voice">
         <div style={{ width: "100%" }}>
           <div className={`voice-ring ${voiceState}`}>
-            <Avatar state={avatarState} size={104} />
+            <Avatar state={avatarState} size={104} level={speakLevel} />
           </div>
           <div className="state">
             {!micOn && voiceState !== "speaking" ? "Your mic is muted" : voiceLabel}

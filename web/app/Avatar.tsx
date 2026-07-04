@@ -2,9 +2,22 @@
 
 // A stylized, friendly assistant avatar drawn in SVG (no external assets). It animates by state:
 // idle blinks and gently breathes, thinking bobs with a soft pulse, speaking moves the mouth.
+// `level` (0..1) is the live audio amplitude, so the mouth opens in time with the spoken voice.
 export type AvatarState = "idle" | "thinking" | "speaking";
 
-export default function Avatar({ state = "idle", size = 34 }: { state?: AvatarState; size?: number }) {
+export default function Avatar({
+  state = "idle",
+  size = 34,
+  level = 0,
+}: {
+  state?: AvatarState;
+  size?: number;
+  level?: number;
+}) {
+  // when speaking, drive the mouth from the audio level; otherwise it rests as a soft smile
+  const open = state === "speaking" ? Math.max(0.12, Math.min(1, level)) : 0;
+  const mouthRy = 0.5 + open * 4.2; // vertical opening
+  const mouthRx = 3.6 - open * 0.7; // narrows slightly as it opens, like real speech
   return (
     <span className={`ava ava-${state}`} style={{ width: size, height: size }} aria-hidden="true">
       <svg viewBox="0 0 64 64" width={size} height={size}>
@@ -42,8 +55,15 @@ export default function Avatar({ state = "idle", size = 34 }: { state?: AvatarSt
           {/* blush */}
           <circle cx="23.5" cy="36" r="2.1" fill="#f0a488" opacity="0.55" />
           <circle cx="40.5" cy="36" r="2.1" fill="#f0a488" opacity="0.55" />
-          {/* mouth */}
-          <path className="ava-mouth" d="M28 39 Q32 42 36 39" stroke="#b5615a" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          {/* mouth: a soft smile at rest, an open ellipse that tracks the voice while speaking */}
+          {open > 0 ? (
+            <g>
+              <ellipse cx="32" cy="40" rx={mouthRx} ry={mouthRy} fill="#7a3b39" />
+              <ellipse cx="32" cy={40 + mouthRy * 0.35} rx={mouthRx * 0.6} ry={mouthRy * 0.4} fill="#c46f6a" opacity="0.7" />
+            </g>
+          ) : (
+            <path className="ava-mouth" d="M28 39 Q32 42 36 39" stroke="#b5615a" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          )}
         </g>
       </svg>
       <span className="ava-dots">

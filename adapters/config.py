@@ -81,7 +81,7 @@ def get_settings() -> Settings:
         neo4j_url=os.getenv("NEO4J_URL", "http://localhost:7474"),
         neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
         neo4j_password=os.getenv("NEO4J_PASSWORD", "skein_password"),
-        rate_limit=os.getenv("RATE_LIMIT", "30/minute"),
+        rate_limit=os.getenv("RATE_LIMIT", "300/minute"),
         jwt_secret=os.getenv("JWT_SECRET", "dev-insecure-change-me"),
         turnstile_secret=os.getenv("TURNSTILE_SECRET_KEY", ""),
         auth_db_path=os.getenv("AUTH_DB_PATH", ".auth.db"),

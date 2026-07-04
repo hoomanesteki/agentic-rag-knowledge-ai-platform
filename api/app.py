@@ -239,14 +239,16 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                 status_code=411)
         return await call_next(request)
 
-    login_limiter = RateLimiter("5/minute")  # tighter bucket for the credential endpoint
+    login_limiter = RateLimiter("50/minute")  # deters brute force without surprising a demo visitor
     # demo-login takes no password (it just mints a demo token), so the strict credential bucket is
-    # wrong for it: a page load + StrictMode double-fire + a retry can exhaust 5/min and 429 the
-    # visitor into a stuck "connecting" state. Give it a roomy bucket of its own.
-    demo_limiter = RateLimiter("60/minute")
+    # wrong for it: a page load + StrictMode double-fire + a retry can exhaust a tight bucket and
+    # 429 the visitor into a stuck "connecting" state. These buckets are sized so a hiring manager
+    # exploring the demo never hits a limit mid-session; they are a DoS/cost backstop, not a
+    # throttle on real use. A public deploy under abuse can lower them via env if needed.
+    demo_limiter = RateLimiter("600/minute")
     # a separate, roomier bucket for voice: each spoken turn is one /api/chat plus one /api/tts, so
     # sharing the chat bucket would halve the real conversation rate and cut the voice mid-demo
-    tts_limiter = RateLimiter("60/minute")
+    tts_limiter = RateLimiter("600/minute")
     store = UserStore(auth_db_path or settings.auth_db_path)
     seed_demo_user(store, settings.demo_username, settings.demo_password)
     seed_demo_user(store, settings.admin_username, settings.admin_password, role="admin")

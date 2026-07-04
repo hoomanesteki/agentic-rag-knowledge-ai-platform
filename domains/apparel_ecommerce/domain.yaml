@@ -126,6 +126,14 @@ sources:
       text_field: text
       lang_field: lang
       meta_fields: [category]
+    # Demo order history for one customer, so the assistant can look up orders and reason about a
+    # delivery delay when the shopper gives their email (info@esteki.ca), verified with their name.
+    - file: seed/unstructured/orders.jsonl
+      doc_type: order
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [email]
     # Product descriptions: the marketing copy with materials, fit, and what each piece is good
     # for (weather, activity). This is what the assistant retrieves to recommend a product.
     - file: seed/unstructured/products.jsonl

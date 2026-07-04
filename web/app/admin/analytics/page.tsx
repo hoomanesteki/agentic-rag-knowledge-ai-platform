@@ -81,7 +81,10 @@ export default function AnalyticsPage() {
     <main className="admin">
       <AdminNav />
       <h1>Store overview</h1>
-      <p className="meta">Last 30 days, {num(k.sessions)} simulated sessions.</p>
+      <p className="ax-intro">
+        The business view behind the assistant: traffic, what shoppers search and ask, and how the
+        funnel converts. Last 30 days, {num(k.sessions)} sessions.
+      </p>
 
       <div className="stats">
         {kpis.map((kp) => (

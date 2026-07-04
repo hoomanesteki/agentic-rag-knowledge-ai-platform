@@ -173,6 +173,11 @@ export default function AdminPage() {
     <main className="admin">
       <AdminNav />
       <h1>Review queue ({items.length})</h1>
+      <p className="ax-intro">
+        Questions the assistant handed to a human, plus items you have claimed. Claim one to lock it,
+        write the verified answer, and close it. Running the flywheel re-indexes those answers so the
+        assistant can handle the same question itself next time.
+      </p>
       <div className="row">
         <button onClick={runFlywheel}>Run flywheel</button>
         <button className="signout" onClick={signOut}>Sign out</button>

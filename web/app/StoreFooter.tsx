@@ -28,12 +28,15 @@ export default function StoreFooter({ brand }: { brand?: string }) {
         </div>
         <div className="sfoot-col">
           <h4>Help</h4>
-          <Link href="/help">Shipping &amp; returns</Link>
-          <Link href="/help">Sizing</Link>
-          <Link href="/cart">Your bag</Link>
+          <Link href="/shipping">Shipping</Link>
+          <Link href="/size-guide">Size guide</Link>
+          <Link href="/payment">Payment</Link>
+          <Link href="/help">All policies</Link>
         </div>
         <div className="sfoot-col">
-          <h4>More</h4>
+          <h4>Company</h4>
+          <Link href="/membership">Aster Circle</Link>
+          <Link href="/contact">Contact us</Link>
           <a href="/admin">Backoffice</a>
           <a href="https://esteki.ca/" target="_blank" rel="noopener noreferrer">
             Built by esteki.ca

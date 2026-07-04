@@ -36,7 +36,8 @@ type Message = {
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. How can I help?";
+  "Hi, I'm Aaron from the Aster team. 👋 You've got a real person now. If it's about an order, " +
+  "share the email on it and I'll pull it up right away. What's going on?";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -366,7 +367,15 @@ function Conversation({
   );
   const [heard, setHeard] = useState("");
   const [name, setName] = useState("");
-  const [agentMode, setAgentMode] = useState(false);
+  const [agentMode, setAgentMode] = useState<boolean>(() => {
+    // restore agent mode with the history, so a refresh mid-handoff does not silently turn the
+    // "human" specialist back into the assistant
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("aster_agent") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [micOn, setMicOn] = useState(true);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef<string | null>(null);
@@ -377,6 +386,7 @@ function Conversation({
   const speakingRef = useRef(false); // currently speaking, so a new utterance can barge in
   const utterRef = useRef(0); // id of the current utterance, to drop superseded ones
   const lastSpokenRef = useRef(""); // what we are saying, to ignore the mic hearing our own voice
+  const spokeEndRef = useRef(0); // when we stopped speaking, so a lagging echo tail is still caught
   const micDeadRef = useRef(false); // mic denied/unavailable, so do not restart the recognizer
   const micOnRef = useRef(true); // the shopper muted the mic without leaving voice mode
   const handlerRef = useRef<(t: string) => void>(() => {}); // latest handleUtterance, avoids stale closure
@@ -405,6 +415,26 @@ function Conversation({
   }, [messages]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem("aster_agent", agentMode ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [agentMode]);
+
+  function clearChat() {
+    setMessages([]);
+    setAgentMode(false);
+    lastTopicRef.current = "";
+    try {
+      localStorage.removeItem("aster_chat");
+      localStorage.setItem("aster_agent", "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  useEffect(() => {
     // keep the newest message in view as tokens stream in
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
@@ -422,47 +452,70 @@ function Conversation({
     // light personalization: remember a name the shopper explicitly gives, and greet back if that
     // is all they said. Only the explicit forms, so "I'm between sizes" never becomes a name.
     const nameHit = /(?:my name is|call me)\s+([a-zA-Z][a-zA-Z'-]{1,19})\b/i.exec(q);
-    const notAName = /^(when|what|where|why|how|if|the|a|me|you|back|later|about|that|this|please|maybe)$/i;
+    // words that follow "call me" but are not a name ("call me asap", "call me back later",
+    // "my name is not important"), so we never greet someone as "Asap" or persist "Not"
+    const notAName =
+      /^(an?|the|me|you|i|it|when|what|where|why|how|who|if|back|now|soon|later|today|tonight|tomorrow|anytime|whenever|asap|about|that|this|please|maybe|not|no|yes|ok|okay|sir|maam|madam|dude|guys?|again|here|there)$/i;
     if (nameHit && !notAName.test(nameHit[1])) {
       const nm = nameHit[1][0].toUpperCase() + nameHit[1].slice(1).toLowerCase();
       localStorage.setItem("aster_name", nm);
       setName(nm);
       if (q.trim().length <= nameHit[0].length + 4) {
+        const reply = `Nice to meet you, ${nm}. How can I help you shop today?`;
         setInput("");
-        setMessages((m) => [
-          ...m,
-          { role: "me", text: q },
-          { role: "bot", text: `Nice to meet you, ${nm}. How can I help you shop today?` },
-        ]);
-        return "";
+        setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: reply }]);
+        return reply; // return the text so voice mode speaks it
       }
     }
     // human handoff: a short bare request ("human", "agent", "human plz") or a verb+person phrase.
     // The length guard keeps "a gift for a person who loves yoga" from being an escalation.
+    const qt = q.trim();
+    // a question about the assistant's nature ("are you human?", "is this a bot?") is answered
+    // honestly by the backend, not treated as a request to be transferred to a person
+    const asksNature = /^(are|is|am)\s+(you|this|it|i|u)\b/i.test(qt);
+    // an explicit refusal must not escalate ("I don't want to talk to an agent, just answer here")
+    const refusesHuman =
+      /\b(don'?t|do not|no|not|never|without)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+        q,
+      );
     const shortHuman =
-      q.trim().split(/\s+/).length <= 4 && /\b(human|agent|representative|real person|advisor)\b/i.test(q);
+      qt.split(/\s+/).length <= 4 &&
+      /\b(human|agent|representative|real person|advisor|operator|manager)\b/i.test(q);
     const verbHuman =
-      /\b(talk|speak|chat|connect|transfer|reach)\b.{0,24}\b(human|person|agent|someone|representative|rep|advisor)\b/i.test(q);
-    if (!agentMode && (shortHuman || verbHuman)) {
+      /\b(talk|speak|chat|connect|transfer|reach|escalate|get)\b.{0,40}\b(human|person|agent|someone|somebody|representative|rep|advisor|operator|manager|supervisor|support)\b/i.test(
+        q,
+      );
+    if (!agentMode && !asksNature && !refusesHuman && (shortHuman || verbHuman)) {
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
-      return "";
+      return AGENT_INTRO; // return the intro so voice mode speaks it
     }
     setInput("");
     setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: agentMode }]);
     setLoading(true);
     // Only fold the current product into the query when the shopper clearly means "it" (a pronoun)
-    // and is not naming another category. Otherwise "a jacket for LA" while viewing a belt bag would
-    // keep retrieving the belt bag.
+    // and is not naming another category. Otherwise "a jacket for LA" while viewing a waist pack
+    // would keep retrieving that same product.
     let qSend = q;
-    if (context?.kind === "product") {
+    // never fold product context in agent mode: after escalating from a product page, "when will
+    // it arrive?" is about the shopper's order, not the product they were viewing
+    if (context?.kind === "product" && !agentMode) {
       const nm = context.name.replace(/^Aster /i, "");
       const pronoun = /\b(it|its|it's|this|that|the one|the item|the product)\b/i.test(q);
-      const otherThing =
-        /\b(jacket|legging|tight|hoodie|pullover|short|bra|top|tee|tank|sleeve|pant|jogger|bag|tote|backpack|duffel|sling|beanie|cap|glove|sock|scarf|headband|dress|gift|jacket)/i.test(
-          q,
+      // Domain agnostic: the query "names another item" if it mentions any catalog category
+      // other than the one in context. Categories come from the live catalog, not a hardcoded
+      // vocabulary, so the engine stays domain neutral (and the leak linter stays green).
+      const stem = (s: string) => s.toLowerCase().replace(/s$/, "");
+      const ctxCat = stem(context.category || "");
+      const otherThing = products.some((pp) => {
+        const c = stem(pp.category || "");
+        // "top"/"bottom" double as ordinary words ("top pick", "loose at the bottom"), so never
+        // treat those category stems as the shopper naming a different item
+        return (
+          !!c && c !== ctxCat && c !== "top" && c !== "bottom" && new RegExp(`\\b${c}s?\\b`, "i").test(q)
         );
+      });
       if (pronoun && !otherThing && !q.toLowerCase().includes(nm.toLowerCase())) {
         qSend = `${q} (about the Aster ${nm})`;
       }
@@ -483,7 +536,7 @@ function Conversation({
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ query: qSend }),
+        body: JSON.stringify({ query: qSend, ...(agentMode ? { persona: "agent" } : {}) }),
       });
       if (res.status === 401) {
         onSignOut();
@@ -592,8 +645,16 @@ function Conversation({
       const spoken = new Set(normWords(lastSpokenRef.current));
       const words = normWords(text);
       const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
-      if (words.length >= 2 && overlap > 0.6) return;
+      if (words.length < 2) return; // a single word while speaking is almost always an echo/noise
+      if (overlap > 0.6) return;
       if (typeof window !== "undefined") window.speechSynthesis?.cancel(); // barge in
+    } else if (Date.now() - spokeEndRef.current < 1500) {
+      // recognition can finalize the tail of our own answer just after we stop speaking; drop an
+      // utterance in that brief window if it mostly matches what we just said
+      const spoken = new Set(normWords(lastSpokenRef.current));
+      const words = normWords(text);
+      const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
+      if (words.length < 2 || overlap > 0.6) return;
     }
     const myId = ++utterRef.current;
     processingRef.current = true;
@@ -610,6 +671,7 @@ function Conversation({
     await speakAsync(spoken);
     if (myId !== utterRef.current) return; // a newer utterance took over while we spoke
     speakingRef.current = false;
+    spokeEndRef.current = Date.now(); // start the echo-tail window
     processingRef.current = false;
     if (voiceLiveRef.current) setVoiceState("listening");
   }
@@ -691,10 +753,15 @@ function Conversation({
     setHeard("");
     setVoiceState("greeting");
     speakingRef.current = true;
-    const greeting = `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
+    // greet in the right voice: if the shopper was already handed to the human specialist, keep
+    // it Aaron, not Aria
+    const greeting = agentMode
+      ? `Hi${name ? " " + name : ""}, Aaron here. How can I help?`
+      : `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
     lastSpokenRef.current = greeting;
     await speakAsync(greeting);
     speakingRef.current = false;
+    spokeEndRef.current = Date.now();
     if (!voiceLiveRef.current) return;
     setVoiceState("listening");
     startListening();
@@ -820,6 +887,13 @@ function Conversation({
             <b>Aaron</b> · Aster team, human agent
           </span>
           <button onClick={endAgent}>End chat</button>
+        </div>
+      )}
+      {!agentMode && messages.length > 0 && (
+        <div className="chat-toolbar">
+          <button className="chat-clear" onClick={clearChat}>
+            Clear chat
+          </button>
         </div>
       )}
       <div className="stream" ref={streamRef}>

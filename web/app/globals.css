@@ -259,6 +259,32 @@ img { max-width: 100%; }
 .bar-fill.warn { background: #d97706; }
 .admin .ext { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
 
+/* metric help: a "?" badge that reveals a plain-language explanation on hover/focus */
+.ax-hint { position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 5px; border-radius: 999px; background: #e7e5df;
+  color: var(--muted); font-size: 10px; font-weight: 700; cursor: help; vertical-align: middle;
+  user-select: none; }
+.ax-hint:hover, .ax-hint:focus { background: var(--accent); color: #fff; outline: none; }
+.ax-hint-bubble { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 260px; padding: 9px 12px; border-radius: 10px; background: #14140f;
+  color: #f5f4f0; font-size: 12px; font-weight: 400; line-height: 1.45; letter-spacing: 0;
+  text-transform: none; text-align: left; opacity: 0; visibility: hidden; transition: opacity 0.14s ease;
+  z-index: 30; box-shadow: var(--shadow); pointer-events: none; }
+.ax-hint-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #14140f; }
+.ax-hint:hover .ax-hint-bubble, .ax-hint:focus .ax-hint-bubble { opacity: 1; visibility: visible; }
+.ax-intro { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0 0 22px; max-width: 720px; }
+th .ax-hint { text-transform: none; }
+
+/* knowledge-gaps worklist */
+.gap-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.gap-list li { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--card); }
+.gap-count { min-width: 40px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.gap-q { flex: 1; font-size: 14px; }
+.gap-lang { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); background: var(--accent-soft); padding: 2px 8px; border-radius: 999px; }
+
 /* admin login as a centered card */
 .admin .login { max-width: 360px; margin: 12vh auto 0; padding: 32px; border: 1px solid var(--line);
   border-radius: 20px; background: var(--card); box-shadow: var(--shadow); gap: 12px; }
@@ -429,6 +455,25 @@ img { max-width: 100%; }
 .help-card h3 { margin: 0 0 8px; font-size: 16px; }
 .help-card p { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 0 0 14px; }
 
+/* info pages (shipping, payment, size guide, membership, contact) */
+.info { max-width: 860px; }
+.info-sec { margin: 28px 0 0; }
+.info-sec h3 { font-size: 17px; margin: 0 0 12px; }
+.info-sec p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 10px; }
+.info-note { font-size: 13px; color: var(--muted); margin-top: 12px; }
+.info-ask { margin-top: 36px; }
+.sizetable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sizetable th, .sizetable td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.sizetable thead th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.04em; border-bottom: 1px solid var(--line); }
+.sizetable td { font-variant-numeric: tabular-nums; }
+.sizetable tbody tr:hover { background: var(--accent-soft); }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; font-size: 13px; font-weight: 500; }
+.contact-value { color: var(--fg) !important; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums;
+  margin: 0 0 4px !important; }
+
 /* chat context chip */
 .ctx-chip { display: inline-block; background: var(--accent-soft); color: var(--accent);
   font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; margin-bottom: 10px; }
@@ -560,6 +605,10 @@ img { max-width: 100%; }
   border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer; }
 .agent-banner button:hover { background: var(--accent); color: #fff; }
 .agent-tag { font-size: 11px; color: var(--accent); font-weight: 700; margin: 4px 0 -2px 2px; }
+.chat-toolbar { display: flex; justify-content: flex-end; padding: 6px 14px 0; }
+.chat-clear { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer;
+  padding: 2px 4px; text-decoration: underline; }
+.chat-clear:hover { color: var(--fg); }
 .msg.bot.agent { background: var(--accent-soft); }
 .escalate-btn { align-self: flex-start; background: var(--ink); color: #fff; border: none;
   border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer; }

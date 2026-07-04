@@ -101,6 +101,22 @@ sources:
         edge_type: MENTIONS
         target_label: Product
         target_name_property: name
+    # Human-voice reviews, two per product (one positive-specific, one honest-critical), grounded in
+    # each product's real attributes. The critical half gives "what are the downsides" queries a
+    # truthful signal to cite instead of the assistant guessing. Same shape, so each links its Product.
+    - file: seed/unstructured/reviews_voice.jsonl
+      doc_type: review
+      id_field: id
+      text_field: text
+      lang_field: lang
+      meta_fields: [product_id, rating, date]
+      entity_ref: [product_id]
+      context_fields: [product_id]
+      mentions:
+        node_label: Review
+        edge_type: MENTIONS
+        target_label: Product
+        target_name_property: name
     # Company knowledge: policies and guides (shipping, returns, sizing, care, payment). General
     # store knowledge, not tied to one product, so no entity_ref or graph mentions.
     - file: seed/unstructured/company_knowledge.jsonl

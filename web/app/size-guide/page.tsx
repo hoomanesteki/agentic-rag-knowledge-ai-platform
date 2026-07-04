@@ -23,7 +23,7 @@ export default function SizeGuidePage() {
   return (
     <InfoPage
       title="Size guide"
-      intro="Measurements are body measurements in inches, not garment measurements. Between two sizes? Most people size down in leggings for compression and up in outerwear for layering."
+      intro="Measurements are body measurements in inches, not garment measurements. Between two sizes? Our leggings run compressive and a touch small, so size up for a relaxed feel, and size up in outerwear if you plan to layer."
       ask="I am between two sizes, how should I choose?"
     >
       <div className="info-sec">

@@ -17,6 +17,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from adapters.base import Embedder, HybridStore, LLMClient, Reranker
 from data.metrics import MetricResolver
@@ -87,8 +88,10 @@ _SYSTEM = (
     "support bra): do not put one in a list for a shopper whose gender you do not know. For an "
     "unspecified shopper, lead with unisex-friendly pieces (a top, shorts, a jacket, a pullover) "
     "and ask before adding a gender-specific item. When the shopper states a gender, recommend "
-    "only pieces for that gender or unisex ones; if a guide or outfit idea lists an item and the "
-    "context shows it is made for the other gender, leave it out. "
+    "only pieces for that gender or unisex ones. The guides label picks 'for men' or 'for women': "
+    "for a man, choose only the 'for men' (and unisex) items and never the 'for women' ones; for a "
+    "woman, the reverse. If an item's gender is unclear, leave it out rather than risk the wrong "
+    "one. "
     "For casual chit-chat, a joke, or 'how are you', reply briefly and warmly, with no citations "
     "and no forced product mentions. "
     "ORDER AND ACCOUNT PRIVACY (strict): before revealing ANY order information at all (order "
@@ -298,7 +301,9 @@ _VOICE_BREVITY = (
     "bulleted-list rules above. The answer MUST be one or two short, natural sentences and nothing "
     "more. Do NOT use bullet points, numbered lists, dashes, or citation markers like [1]. "
     "Name ONE product, two at the very most, and do not list their alternates ('or the X, or the "
-    "Y') out loud. If there is more to show, say you have put a few options on the screen to tap."
+    "Y') out loud. Even for a full-outfit or 'head to toe' request, still name at most two pieces "
+    "aloud and say the rest of the look is on the screen. If there is more to show, say you have "
+    "put a few options on the screen to tap."
 )
 
 # Approximate Groq prices per 1M tokens (input, output). Update as pricing changes.
@@ -587,6 +592,88 @@ def _explicit_gender(query: str) -> str | None:
     return None  # unstated or mixed -> no hard filter; the prompt infers or asks
 
 
+def _redact_other_gender(text: str, gender: str | None) -> str:
+    """Remove the opposite-gender product picks from a guide's text when the shopper stated a
+    gender. The gender-aware guides label picks 'for men'/'for women' (and use 'her Aster X' /
+    'women can ... Aster X'), so for a male shopper the women's clauses are stripped before the text
+    reaches the model. This is deterministic, so a men's outfit request cannot surface a women's
+    piece even when a single guide lists both. Unlabeled text is left untouched."""
+    if gender not in ("men", "women"):
+        return text
+    other = "women" if gender == "men" else "men"
+    poss = "her" if other == "women" else "his"
+    pats = [
+        r",?\s*(?:and\s+|or\s+)?the Aster [\w' ]+? for " + other + r"\b",
+        r"\bfor " + other + r",?\s+the Aster [\w' ]+?(?=[,.;])",
+        r"\b" + poss + r" Aster [\w' ]+?(?=[,.;])",
+        r"\bthe " + other + r"'s Aster [\w' ]+?(?=[,.;])",
+        r"\b" + other + r" (?:can|should|get|reach for|add|grab|go with|layer)\b[^.;]*",
+    ]
+    out = text
+    for p in pats:
+        out = re.sub(p, "", out, flags=re.I)
+    return re.sub(r"\s{2,}", " ", out).replace(" ,", ",").replace(" .", ".").strip()
+
+
+@lru_cache(maxsize=8)
+def _product_genders(domain: str) -> frozenset:
+    """{(name, gender)} for the domain's products, read from the manifest's products role. Domain
+    agnostic: no product name or gender is hardcoded in engine code, so a men's request can be kept
+    free of women's-only pieces even when an unlabeled review or guide names one."""
+    import csv as _csv
+
+    import yaml
+    pack = os.path.join("domains", domain)
+    try:
+        manifest = yaml.safe_load(open(os.path.join(pack, "domain.yaml"), encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return frozenset()
+    out: dict[str, str] = {}
+    for src in (manifest.get("sources", {}) or {}).get("structured", []) or []:
+        cols = src.get("columns", {}) or {}
+        if src.get("role") != "products" or "gender" not in cols or "name" not in cols:
+            continue
+        try:
+            for row in _csv.DictReader(open(os.path.join(pack, src["file"]), encoding="utf-8")):
+                g = (row.get("gender") or "").strip().lower()
+                if g in ("men", "women"):
+                    out[row["name"]] = g
+        except OSError:
+            continue
+    return frozenset(out.items())
+
+
+def _redact_contexts_by_gender(contexts: list[dict], gender: str | None,
+                               domain: str | None = None) -> list[dict]:
+    if gender not in ("men", "women"):
+        return contexts
+    other = "women" if gender == "men" else "men"
+    if domain is None:
+        from adapters.config import get_settings
+        domain = get_settings().domain
+    # Match each opposite-gender product by its full name AND by its brand-stripped form (first word
+    # dropped), since guides and reviews often say "the Base Merino Long Sleeve" without the brand.
+    # Keep only distinctive forms (>= 2 words, >= 10 chars) so a short token cannot over-match.
+    opposite: set[str] = set()
+    for name, g in _product_genders(domain):
+        if g != other:
+            continue
+        opposite.add(name)
+        tail = name.split(" ", 1)[1] if " " in name else ""
+        if len(tail.split()) >= 2 and len(tail) >= 10:
+            opposite.add(tail)
+    for c in contexts:
+        text = _redact_other_gender(c.get("text") or "", gender)  # label-based first
+        if opposite and any(name in text for name in opposite):
+            # drop any clause that names an opposite-gender product, so the model cannot recommend
+            # one even from an unlabeled review or guide. Context text, not user-facing prose.
+            clauses = [cl.strip() for cl in re.split(r"[,;.]", text)
+                       if cl.strip() and not any(name in cl for name in opposite)]
+            text = ". ".join(clauses)
+        c["text"] = text
+    return contexts
+
+
 def _gender_filter(hits: list[dict], gender: str | None) -> list[dict]:
     """Drop product hits of the opposite gender when the shopper stated one, so the model composes
     recommendations only from SKUs they can actually buy. Unisex/ungendered docs and all non-product
@@ -755,6 +842,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
         return AnswerResult(answer=abstain_msg, tier="abstain", confidence=confidence,
                             citations=[], contexts=contexts, trace=trace)
 
+    contexts = _redact_contexts_by_gender(contexts, _explicit_gender(query))
     prompt = _build_prompt(query, contexts)
     result = llm.generate(prompt, system=_SYSTEM)
     grounding = grounding_score(result.text, contexts)
@@ -845,6 +933,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                "citations": []}
         return
 
+    contexts = _redact_contexts_by_gender(contexts, _explicit_gender(rquery))
     prompt = _build_prompt(query, contexts, history)
     parts = []
     for piece in llm.stream(prompt, system=system):

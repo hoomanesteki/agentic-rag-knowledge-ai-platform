@@ -1129,7 +1129,14 @@ function Conversation({
           </button>
         </div>
       )}
-      <div className="stream" ref={streamRef}>
+      <div
+        className="stream"
+        ref={streamRef}
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-label="Conversation"
+      >
         {empty && (
           <div className="greet">
             {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}

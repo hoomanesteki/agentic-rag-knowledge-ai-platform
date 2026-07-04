@@ -29,6 +29,6 @@ Make it easy for anyone to see how the system works and why, at a glance and in 
 
 ## Where the phase lands
 
-Phase 2 is done: a tested dbt semantic layer, fuller data for both domains, Langfuse tracing, a
+Phase 2 is done: a tested dbt semantic layer, fuller data for the domain, Langfuse tracing, a
 guided and polished experience, new governance and reproducibility tests in CI, and the story to
 tie it together. Every claim in the README has a test or a doc behind it.

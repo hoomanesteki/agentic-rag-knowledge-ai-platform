@@ -72,7 +72,8 @@ and preserving paragraph structure.
 An end-to-end review after M4 surfaced items fixed in place (broadened the SSE error catch so a
 non-RuntimeError cannot kill the stream silently, attributed feedback to the logged-in user,
 warned when the lakehouse is missing, dropped bare "how" from the metric pre-gate, and
-strengthened the dual-domain test to assert real retrieval plus the metric layer per domain).
+strengthened the reproducibility test to assert real retrieval plus the metric layer for the
+domain).
 Three were deferred on purpose:
 
 - Pack `defaults` (confidence_high/low, top_k_in/top_n_out) are not read yet. This is not dead

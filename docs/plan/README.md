@@ -14,7 +14,7 @@ plain result note (what I did, what I tested, what passed or failed). Those note
 The north star for Phase 2 is the data-architecture discipline: a single source of truth, modeled
 in tested and documented transformations, with a semantic layer on top that analysts, dashboards,
 and the AI agent all read the same way. Around that I want the things that make it real: good
-sample data for both domains, end-to-end observability I can watch on a dashboard, an experience
+sample data for the domain, end-to-end observability I can watch on a dashboard, an experience
 that guides the user instead of leaving them staring at a blank box, and reproducibility so anyone
 can clone and run it.
 
@@ -23,7 +23,7 @@ can clone and run it.
 | Theme | What it delivers | Why it matters |
 | --- | --- | --- |
 | T1 Semantic layer in dbt | The medallion and metrics rebuilt as dbt models with tests, lineage, and docs | One tested, documented source of truth |
-| T2 Sample data and knowledge | Fuller, realistic data and knowledge for both domains | The demo answers well the moment you pick a domain |
+| T2 Sample data and knowledge | Fuller, realistic data and knowledge for the domain | The demo answers well the moment you open it |
 | T3 Observability with Langfuse | Traced LLM and graph calls, plus the two dashboards | I can see and debug every answer end to end |
 | T4 Guided experience | Suggested prompts, guidance, and a clean design | The user always knows what to ask and what to expect |
 | T5 Reproducibility and tests | New data-quality, governance, and reproducibility tests in CI | It runs the same everywhere, and regressions are caught |
@@ -36,7 +36,7 @@ layer is modeled in dbt (dbt-duckdb, local, no warehouse bill), so the medallion
 documented, and lineage-traced like a production data stack.
 
 - T1.1 Stand up dbt-duckdb; generate dbt sources and staging (bronze, silver) from the domain
-  manifest so the models stay manifest-driven, not hand-copied per domain.
+  manifest so the models stay manifest-driven, not hand-copied.
 - T1.2 Gold marts as dbt models; the metric layer reads dbt's gold, one build path.
 - T1.3 dbt tests: schema tests (not_null, unique, accepted_values, relationships) plus custom
   data-quality and governance tests (every declared PII column is masked in silver and gold).
@@ -45,12 +45,12 @@ documented, and lineage-traced like a production data stack.
 - T1.5 Lineage and docs: dbt docs (the DAG) and exposures that name the RAG app and the dashboards
   as downstream consumers, so I can trace what data feeds any output.
 
-## T2. Sample data and knowledge for both domains
+## T2. Sample data and knowledge
 
 - T2.1 Apparel: fuller products, reviews, sales, suppliers, stores, plus a short company-knowledge
   set, sized so retrieval, the graph, and the metrics all return good answers.
-- T2.2 SaaS support: the same treatment for plans, tickets, articles, and company knowledge.
-- T2.3 Prove both: pick each domain, run the whole path, confirm real answers on common questions.
+- T2.2 Prove it end to end: run the whole path on the domain and confirm real answers on common
+  questions. The engine ingests any pack from its manifest, so a new domain is a pack swap.
 
 ## T3. Observability with Langfuse
 
@@ -64,7 +64,7 @@ documented, and lineage-traced like a production data stack.
 
 - T4.1 A small design system: type scale, spacing, color, and motion, applied to the chat and the
   admin, clean and calm.
-- T4.2 Guidance: per-domain starter prompts, suggested follow-ups drawn from what was just asked,
+- T4.2 Guidance: starter prompts from the domain pack, suggested follow-ups drawn from what was just asked,
   and short hints on what to expect (an answer, a number, a citation, or an honest "I do not know").
 - T4.3 Polished admin charts so the dashboards read at a glance.
 

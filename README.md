@@ -20,11 +20,11 @@ DuckDB, Neo4j) are config swaps.
 
 - **Grounded or honest.** Hybrid retrieval (dense + sparse, RRF) with a reranker, sentence-level
   citation checks, and an abstain gate. Retrieved text is sanitized against prompt injection.
-- **A brain, not a prompt.** A LangGraph state machine (understand, dispatch, reconcile) with a
-  **supervisor** that dispatches to three **specialists** (a Retriever, a governed **Metrics**
-  agent, and a knowledge-**Graph** agent) and reconciles their findings (a governed number beats a
-  contradicting review), wrapped by a gate and a bounded agent loop that retries before it
-  escalates.
+- **A brain, not a prompt.** A LangGraph state machine (understand, dispatch, reconcile) that
+  compiles to a langchain-core `Runnable`, with a **supervisor** that dispatches to three
+  **specialists** (a Retriever, a governed **Metrics** agent, and a knowledge-**Graph** agent) and
+  reconciles their findings (a governed number beats a contradicting review), wrapped by a gate and
+  a bounded agent loop that retries before it escalates. Langfuse traces the whole run as one span.
 - **Guards that do not trust the model.** Order PII, prompt injection, customer enumeration, and
   gender-correct recommendations are enforced deterministically in code, before the prompt. See
   [the guardrails](#guardrails-enforced-in-code-not-in-the-prompt).
@@ -43,8 +43,14 @@ DuckDB, Neo4j) are config swaps.
 - **Guided and voiced.** Per-domain starter prompts, spoken input (Groq Whisper), spoken replies
   (browser voice by default, ElevenLabs when keyed), a storefront-style demo UI with the chat
   widget, and a backoffice dashboard at `/admin`.
-- **One engine, two domains.** `apparel_ecommerce` and `saas_support`, proven in CI on every
-  commit.
+- **One engine, any domain.** A domain is a config folder (`domains/<name>/`: seed data plus a
+  manifest), never engine code. The demo ships `apparel_ecommerce`; a leak linter fails CI if a
+  single brand, product, metric, or persona name reaches an engine folder, which is what keeps the
+  swap honest.
+- **Fails soft, never dark.** Every provider degrades in layers instead of dying: embeddings roll
+  trial key to paid key to local sparse, the LLM large to small to a safe reply, voice premium to
+  browser to text, and the graph and metric layers are additive. Full chain in
+  [docs/fallbacks.md](docs/fallbacks.md).
 
 ## The stack
 
@@ -128,7 +134,7 @@ analytics and semantic layer is real dbt: tested, documented, and lineage-traced
    |     v     masked         ||
    |   gold    curated        ||   dbt tests on every build:
    +-----------+--------------+|     not_null, unique, relationships,
-               |               |     is_masked (PII never reaches gold raw)
+               |               |     is_masked (any declared PII column)
         +------+------+        |
         v             v        |   semantic layer: metrics.yaml is the single
    +---------+  +-----------+  |   source of truth, read by the agent, the
@@ -209,8 +215,10 @@ cd web && npm install && npm run dev             # web chat on :3000
 ```
 
 Demo login: `demo` / `Canada54321`. Admin console at `/admin` (`admin` / `skein-admin-2026`).
-Switch topic with `DOMAIN=saas_support` (the starter prompts switch with it). Voice input needs
-`TRANSCRIBE_PROVIDER=groq`; spoken replies use the browser voice by default, or ElevenLabs with
+A new topic is a new folder under `domains/`: scaffold and validate one with the `domain-pack`
+skill, then point `DOMAIN` at it (the starter prompts and everything else follow the manifest).
+Voice input needs `TRANSCRIBE_PROVIDER=groq`; spoken replies use the browser voice by default, or
+ElevenLabs with
 `TTS_PROVIDER=elevenlabs` and a key. Tracing needs the `LANGFUSE_*` keys. `make reproduce` runs
 the whole offline verification in one command.
 
@@ -248,7 +256,7 @@ regression, and the drift monitor flags a distribution shift. The walkthrough is
                                 \--> RAGAS answer-quality eval
 
    every commit --> CI: make check (lint, tests, domain validation, leak check, eval gate)
-                        + dbt build and tests for both domains + a gold parity test
+                        + dbt build and governance tests + a gold parity test
                         + web lint and build + dependency audits
 ```
 
@@ -258,6 +266,10 @@ regression, and the drift monitor flags a distribution shift. The walkthrough is
   with a short result note).
 - **Architecture end to end:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (data flow, the agentic
   loop, and the fallback chain).
+- **Reliability and fallbacks:** [docs/fallbacks.md](docs/fallbacks.md), every provider's layered
+  backup plan, one table.
+- **MLOps evidence:** [docs/mlops/](docs/mlops/), a real drift run over the demo traffic and the
+  MLflow promotion runs, with the command to view them.
 - **Decisions and tradeoffs:** [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md) Part A, the
   [semantic layer](docs/semantic-layer.md), and [model selection](docs/model-selection.md) (why
   Groq + Cohere, evidenced against the live Health view).
@@ -272,5 +284,5 @@ regression, and the drift monitor flags a distribution shift. The walkthrough is
 
 Short-lived `build/<step>` branches, one stage each, merged to `main` only when `make check` is
 green and an independent review has passed. CI (`.github/workflows/ci.yml`) runs the same checks
-plus the eval gate, the dbt build and tests for both domains, the web build, and dependency audits
-on every change.
+plus the eval gate, the dbt build and governance tests, the web build, and dependency audits on
+every change.

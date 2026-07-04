@@ -109,8 +109,9 @@ def get_settings() -> Settings:
         tts_provider=os.getenv("TTS_PROVIDER", "none").strip().lower(),
         elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
         elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
-        # default prebuilt ElevenLabs voices: "Aria" (warm female) for the assistant, a male voice
-        # for the human specialist, both overridable
-        elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "9BWtsMINqrJLrRacOk9x"),
-        elevenlabs_agent_voice_id=os.getenv("ELEVENLABS_AGENT_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
+        # Premade voices (usable on the free tier; Voice-Library voices need a paid plan): "Sarah",
+        # a warm, natural young-adult woman for the assistant, and "Brian", a friendly male, for the
+        # human specialist. Both overridable with any voice id from your ElevenLabs account.
+        elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+        elevenlabs_agent_voice_id=os.getenv("ELEVENLABS_AGENT_VOICE_ID", "nPczCjzI2devNBz1zQrb"),
     )

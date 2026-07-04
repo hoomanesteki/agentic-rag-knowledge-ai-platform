@@ -109,3 +109,21 @@ The demo lives or dies here. A reviewer types real shopper questions and reads t
 Ship one stage at a time, each green through `make check` (lint, tests, validate, leak-check,
 eval gate) and committed on its own. This document is the running plan; it is updated as stages
 complete.
+
+---
+
+## Progress log
+
+- **Stage 0** done — baseline audit (table above).
+- **Stage 1** done — assistant content depth (medical/eczema, 2026 trends, occasions, gifts, care),
+  scannable bulleted answers with a reason per product, restock/size/price policies.
+- **Stage 2** done — governed `stock_by_size` metric closes the per-size stock gap; the rest of the
+  medallion stack (bronze/silver/gold, schema tests, PII masking, exposures, semantic layer) was
+  already in place.
+- **Stage 3** in progress — model-selection rationale corrected (Voyage → Cohere) and evidenced
+  against the live Health view / RAGAS gate / ablation; MLflow staging→prod promotion still to add.
+- **Stage 6** in progress — AI-safety test harness (injection, harm decline, PII gate; caught a
+  real first-person-gate leak) and a `pr-review` skill (AI suggests on the PR, human approves)
+  landed; CI edge-case matrix still to add.
+- **Stages 4, 5, 7, 8** pending — back-office BI insights, agentic-loop doc + fallback chain,
+  README/notebooks/decision-log, and the Fable end-to-end pass.

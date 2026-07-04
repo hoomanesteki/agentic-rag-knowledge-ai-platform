@@ -39,6 +39,8 @@ class Settings:
     auth_db_path: str
     demo_username: str
     demo_password: str
+    demo_customer_name: str
+    demo_customer_email: str
     admin_username: str
     admin_password: str
     gate_username: str
@@ -91,6 +93,11 @@ def get_settings() -> Settings:
         auth_db_path=os.getenv("AUTH_DB_PATH", ".auth.db"),
         demo_username=os.getenv("DEMO_USERNAME", "demo"),
         demo_password=os.getenv("DEMO_PASSWORD", "Canada54321"),
+        # The demo shopper's account identity (deployment config, blank by default so no name is
+        # baked into engine code). When set, a logged-in shopper is greeted by name and unlocks
+        # their OWN orders without re-typing name+email; the login already proved who they are.
+        demo_customer_name=os.getenv("DEMO_CUSTOMER_NAME", ""),
+        demo_customer_email=os.getenv("DEMO_CUSTOMER_EMAIL", ""),
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "skein-admin-2026"),
         # The public landing page gates the demo behind this one shared credential (emailed to a

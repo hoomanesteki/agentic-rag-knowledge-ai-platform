@@ -396,6 +396,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         if not req.query.strip():
             raise HTTPException(status_code=400, detail="query is required")
 
+        # A logged-in shopper's account identity (from the verified JWT, mapped via deployment
+        # config), so they unlock their own orders without re-typing name+email. None when the demo
+        # account identity is not configured, in which case the typed name+email gate applies.
+        auth_identity = None
+        if user.get("username") == settings.demo_username and settings.demo_customer_email:
+            auth_identity = (settings.demo_customer_name, settings.demo_customer_email)
+
         message_id = uuid.uuid4().hex
         started = time.perf_counter()
 
@@ -440,7 +447,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                            metric_resolver=comp.get("metric_resolver"),
                                            graph_retriever=comp.get("graph_retriever"),
                                            lang=req.lang, persona=req.persona,
-                                           history=req.history, concise=req.concise):
+                                           history=req.history, concise=req.concise,
+                                           auth_identity=auth_identity):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,

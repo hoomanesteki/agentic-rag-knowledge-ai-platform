@@ -209,6 +209,19 @@ class _EchoLLM:
         return LLMResult(text="ok [1]", prompt_tokens=1, completion_tokens=1)
 
 
+def test_logged_in_identity_unlocks_own_orders_but_not_a_strangers():
+    # A logged-in shopper carries a JWT-proven identity (name + email). The pipeline injects it into
+    # the gate's auth text, so they unlock their OWN orders without re-typing, but the same identity
+    # must NOT authorize a different customer's order (whose email it does not match).
+    identity = "Jordan Avery info@esteki.ca"
+    own = {"doc_type": "order", "email": "info@esteki.ca",
+           "text": "Order AS100219 for Jordan Avery (info@esteki.ca): 1x Aster Aurora Jacket."}
+    stranger = {"doc_type": "order", "email": "someone@other.com",
+                "text": "Order ZZ1 for Pat Lee (someone@other.com): 1x Aster Cloud Hoodie."}
+    assert _order_access_ok(identity + " where are my orders", own) is True
+    assert _order_access_ok(identity + " where are my orders", stranger) is False
+
+
 def test_surname_from_email_domain_does_not_unlock_orders():
     # The account key info@esteki.ca contains the surname, so an attacker who only knows the email
     # can type "esteki" as a "name". That token is derivable from the email, so it must NOT count as

@@ -944,7 +944,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   min_confidence: float = DEFAULT_MIN_CONFIDENCE,
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None,
                   lang: str | None = None, persona: str | None = None,
-                  history: list[dict] | None = None, concise: bool = False):
+                  history: list[dict] | None = None, concise: bool = False,
+                  auth_identity: tuple[str, str] | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
@@ -970,9 +971,19 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     from adapters.config import get_settings
     rquery = _correct_typos(rquery, get_settings().domain)  # repair typos before retrieval
     # Identity for the order-PII gate is proven from the shopper's own turns (name on one turn,
-    # email on the next both count), never from the assistant's words or retrieved text.
-    hits = retrieve(rquery, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
-                    auth_text=_user_authored_text(query, history))
+    # email on the next both count), never from the assistant's words or retrieved text. A logged-in
+    # shopper also carries a JWT-proven identity (auth_identity = account name + email), so they
+    # unlock their OWN orders without re-typing; third-party lookups are still blocked upstream.
+    identity = " ".join(p for p in (auth_identity or ()) if p)
+    auth_text = (identity + " " + _user_authored_text(query, history)).strip()
+    # For a logged-in shopper asking about their account, add their email to the retrieval query so
+    # their own order records surface (order docs are keyed on the email); the gate then authorizes
+    # them from the proven identity, without the shopper having to re-type name and email.
+    retrieval_q = rquery
+    if auth_identity and auth_identity[1] and _account_intent(rquery):
+        retrieval_q = (rquery + " " + auth_identity[1]).strip()
+    hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
+                    auth_text=auth_text)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
     # use the expanded query for graph/metric evidence too, so "what about size M?" can still
     # slot-fill a governed stock metric with the product from the prior turn

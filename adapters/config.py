@@ -27,6 +27,7 @@ class Settings:
     groq_api_key: str
     voyage_api_key: str
     cohere_api_key: str
+    cohere_api_key_fallback: str
     qdrant_url: str
     qdrant_api_key: str
     neo4j_url: str
@@ -76,6 +77,9 @@ def get_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY", ""),
         voyage_api_key=os.getenv("VOYAGE_API_KEY", ""),
         cohere_api_key=os.getenv("COHERE_API_KEY", ""),
+        # Optional second Cohere key (e.g. a paid Production key) used only when the primary key
+        # returns 429. Lets a free Trial key be the first layer and a paid key the backstop.
+        cohere_api_key_fallback=os.getenv("COHERE_API_KEY_FALLBACK", ""),
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),  # required by Qdrant Cloud, empty locally
         neo4j_url=os.getenv("NEO4J_URL", "http://localhost:7474"),

@@ -1,12 +1,31 @@
 """Cohere embeddings and reranker behind the Embedder/Reranker interfaces. One account and key
-cover both. Uses the v2 API. Kept dependency-free via the shared HTTP helper."""
+cover both. Uses the v2 API. Kept dependency-free via the shared HTTP helper.
+
+Two-key layering: COHERE_API_KEY is tried first (a free Trial key is fine as the first layer), and
+on a 429 (the trial monthly cap or a per-minute rate limit) the request retries once on
+COHERE_API_KEY_FALLBACK if set (a paid Production key). If both fail, the retrieval layer degrades
+to local sparse search, so the answer still lands."""
 from __future__ import annotations
+
+import logging
 
 from ._http import request_json
 from .config import get_settings
 
+_log = logging.getLogger("skein.cohere")
 _EMBED_API = "https://api.cohere.com/v2/embed"
 _RERANK_API = "https://api.cohere.com/v2/rerank"
+
+
+def _post(url: str, body: dict, api_key: str, fallback_key: str) -> dict:
+    """POST to Cohere on the primary key; on a 429, retry once on the fallback key if configured."""
+    try:
+        return request_json("POST", url, body, {"Authorization": "Bearer " + api_key})
+    except RuntimeError as exc:
+        if fallback_key and fallback_key != api_key and "HTTP 429" in str(exc):
+            _log.warning("Cohere primary key hit 429, retrying on the fallback key")
+            return request_json("POST", url, body, {"Authorization": "Bearer " + fallback_key})
+        raise
 
 # embed-v4.0 lets you pick the output size; the v3 models are fixed. Default v4 to 1536.
 _MODEL_DIMS = {
@@ -28,6 +47,7 @@ class CohereEmbedder:
         settings = get_settings()
         self.model = model or settings.embed_model
         self.api_key = api_key or settings.cohere_api_key
+        self.fallback_key = settings.cohere_api_key_fallback
         if self.model in _MODEL_DIMS:
             self._dim = _MODEL_DIMS[self.model]
         elif "v4" in self.model:
@@ -56,8 +76,7 @@ class CohereEmbedder:
                     "embedding_types": ["float"]}
             if "v4" in self.model:  # only v4 accepts a chosen output size
                 body["output_dimension"] = self._dim
-            resp = request_json("POST", _EMBED_API, body,
-                                {"Authorization": "Bearer " + self.api_key})
+            resp = _post(_EMBED_API, body, self.api_key, self.fallback_key)
             out.extend(resp["embeddings"]["float"])  # v2 returns vectors in input order
         return out
 
@@ -67,6 +86,7 @@ class CohereReranker:
         settings = get_settings()
         self.model = model or settings.rerank_model
         self.api_key = api_key or settings.cohere_api_key
+        self.fallback_key = settings.cohere_api_key_fallback
 
     def rerank(self, query: str, documents: list[str],
                top_n: int = 8) -> list[tuple[int, float]]:
@@ -76,8 +96,7 @@ class CohereReranker:
             return []
         documents = list(documents)[:_RERANK_MAX_DOCS]
         body = {"model": self.model, "query": query, "documents": documents, "top_n": top_n}
-        resp = request_json("POST", _RERANK_API, body,
-                            {"Authorization": "Bearer " + self.api_key})
+        resp = _post(_RERANK_API, body, self.api_key, self.fallback_key)
         # Sort by score rather than trusting array order, mirroring the other adapters.
         rows = sorted(resp["results"], key=lambda r: r["relevance_score"], reverse=True)
         return [(row["index"], row["relevance_score"]) for row in rows]

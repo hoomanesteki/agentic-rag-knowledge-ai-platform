@@ -17,6 +17,12 @@ import sys
 # Folders that must stay domain agnostic. Only the ones that exist are scanned.
 ENGINE_DIRS = ["adapters", "ingest", "retrieval", "pipeline", "rag", "api", "data", "mlops",
                "knowledge", "evaluation", "scripts", "web/app", "web/components", "web/lib"]
+# The reusable server engine: the code that must serve ANY pack unchanged. High-signal but short
+# tokens (the short brand form, the persona names) are only checked here, not against the Next.js
+# storefront in web/app, which is demo presentation you would fork per client. This keeps the strict
+# check honest (it catches brand or persona baked into the pipeline) without flagging demo chrome.
+BACKEND_DIRS = ["adapters", "ingest", "retrieval", "pipeline", "rag", "api", "data", "mlops",
+                "knowledge", "evaluation", "scripts"]
 CODE_EXT = (".py", ".ts", ".tsx", ".js", ".jsx", ".sql", ".yaml", ".yml")
 
 # Generic words that are legitimate in engine code even though a domain might use them.
@@ -71,8 +77,28 @@ def vocab_for_pack(pack):
     return cleaned
 
 
-def engine_files():
-    for base in ENGINE_DIRS:
+def strict_vocab_for_pack(pack):
+    """High-signal short tokens checked only against the reusable backend (BACKEND_DIRS): the
+    persona names the engine speaks as and the short brand form used in copy (the first word of a
+    brand). The broad check only knew the full brand string, so a short brand baked into a prompt
+    slipped through; and it had no persona source at all. Both are the exact things that break the
+    domain-swap thesis if they live in engine code, so they are guarded here."""
+    dom = load_yaml(os.path.join(pack, "domain.yaml"))
+    terms = set()
+    persona = dom.get("persona") or {}
+    for key in ("assistant", "specialist", "brand_short"):
+        val = persona.get(key)
+        if isinstance(val, str) and val.strip():
+            terms.add(val.strip())
+    brand = dom.get("brand")
+    if isinstance(brand, str) and brand.strip():
+        terms.add(brand.strip().split()[0])  # the short brand form (first word of the full brand)
+    # persona names can be short (3+ chars); still drop generic stopwords
+    return {t for t in terms if len(t) >= 3 and t.lower() not in STOPWORDS}
+
+
+def engine_files(dirs=ENGINE_DIRS):
+    for base in dirs:
         if not os.path.isdir(base):
             continue
         for root, _, files in os.walk(base):
@@ -86,22 +112,29 @@ def main():
         print("no domains/ yet, nothing to check")
         return 0
 
-    terms = set()
+    terms, strict_terms = set(), set()
     for name in sorted(os.listdir("domains")):
         pack = os.path.join("domains", name)
         if os.path.isdir(pack) and os.path.isfile(os.path.join(pack, "domain.yaml")):
             terms |= vocab_for_pack(pack)
+            strict_terms |= strict_vocab_for_pack(pack)
 
-    if not terms:
+    if not terms and not strict_terms:
         print("no domain vocabulary found, nothing to check")
         return 0
 
+    # broad vocab (products, metrics, glossary, full brand) is scanned everywhere; the short
+    # persona/brand tokens only against the reusable backend (see BACKEND_DIRS).
     patterns = [(t, re.compile(r"\b" + re.escape(t) + r"\b", re.IGNORECASE)) for t in terms]
+    strict_patterns = [(t, re.compile(r"\b" + re.escape(t) + r"\b", re.IGNORECASE))
+                       for t in strict_terms]
+    strict_files = set(engine_files(BACKEND_DIRS))
     leaks = []
     for path in engine_files():
+        active = patterns + (strict_patterns if path in strict_files else [])
         with open(path, encoding="utf-8", errors="ignore") as f:
             for i, line in enumerate(f, 1):
-                for term, rx in patterns:
+                for term, rx in active:
                     if rx.search(line):
                         leaks.append((path, i, term, line.strip()))
 
@@ -113,8 +146,8 @@ def main():
         return 1
 
     scanned = sum(1 for _ in engine_files())
-    print("no leaks: {} engine file(s) scanned against {} domain term(s)".format(
-        scanned, len(terms)))
+    print("no leaks: {} engine file(s) scanned against {} broad + {} strict domain term(s)".format(
+        scanned, len(terms), len(strict_terms)))
     return 0
 
 

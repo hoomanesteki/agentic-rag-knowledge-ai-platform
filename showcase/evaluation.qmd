@@ -53,7 +53,7 @@ The judge runs at temperature 0, and can be pointed at an independent, stronger 
 
 ## Layer 3, drift monitors
 
-Four PSI (population stability index) monitors watch live traffic by language: query-length distribution, retrieval scores, grounding, and refusal rate. A monitor that trips exits non-zero so a scheduled job can alert. The point isn't to page someone at 3am, it's to notice when the questions people ask start drifting away from what the corpus can answer, which is the early signal that the content needs to grow.
+Four monitors watch live traffic: query-embedding distance (cosine between the reference and current query centroids), retrieval-score PSI (population stability index of the top vector-hit score), confidence PSI (of the lexical-overlap gate), and feedback rate (the change in thumbs-down). The retrieval-score and confidence monitors are stratified by language. A monitor that trips exits non-zero so a scheduled job can alert. The point isn't to page someone at 3am, it's to notice when the questions people ask start drifting away from what the corpus can answer, which is the early signal that the content needs to grow.
 
 ## Layer 4, the promotion gate
 

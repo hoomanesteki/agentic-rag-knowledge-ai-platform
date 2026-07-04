@@ -17,12 +17,12 @@ from langgraph.graph import END, START, StateGraph
 from adapters.observability import request_span, update_span
 from pipeline.answer import (
     _ABSTAIN,
-    _SYSTEM,
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_TRACE_PATH,
     AnswerResult,
     _build_prompt,
     _estimate_cost,
+    _system,
     _used_citations,
     build_contexts,
     grounding_score,
@@ -100,7 +100,8 @@ def build_chat_graph(components: dict, *, min_confidence: float = DEFAULT_MIN_CO
     def generate_node(state: ChatState) -> dict:
         contexts = state["contexts"]
         prompt = _build_prompt(state["rewritten_query"], contexts)
-        result = llm.generate(prompt, system=_SYSTEM)
+        from adapters.config import get_settings
+        result = llm.generate(prompt, system=_system(get_settings().domain))
         grounding = grounding_score(result.text, contexts)
         citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
                      for c in _used_citations(result.text, contexts)]

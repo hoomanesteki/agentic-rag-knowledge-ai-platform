@@ -28,6 +28,13 @@ SCORES_PATH = os.getenv("RAGAS_SCORES_PATH", "evaluation/ragas_scores.json")
 BASELINE_PATH = os.getenv("RAGAS_BASELINE_PATH", "evaluation/ragas_baseline.json")
 RAGAS_MIN = float(os.getenv("RAGAS_MIN", "0.6"))
 REGRESSION_EPS = 0.02  # tolerate this much noise below the baseline before failing
+# Core metrics that a real golden run must actually measure. Each judge metric is a separate LLM
+# call, so a rate limit or malformed verdict can null one out; the aggregate would then silently
+# average only the survivors and could pass with faithfulness (the hallucination guard) never
+# measured. Requiring these to be present distinguishes "not applicable" from "failed to measure".
+# context_recall is intentionally NOT required: it needs a ground_truth, which a golden item may
+# legitimately lack, so its absence is not a measurement failure.
+REQUIRED_METRICS = ("faithfulness", "answer_relevance", "context_precision")
 
 
 def _aggregate(report: dict) -> float:
@@ -116,6 +123,16 @@ def main() -> int:
 
     if offline:
         return 0  # offline scores are meaningless; do not gate a fake-provider run
+
+    # Coverage gate: a core metric that was never measured (e.g. faithfulness rate-limited to None
+    # for every item) must fail, not silently drop out of the average. Otherwise a run could pass on
+    # an incomplete score with the hallucination guard never actually computed.
+    measured = report.get("overall", {})
+    missing = [m for m in REQUIRED_METRICS if m not in measured]
+    if missing:
+        print("FAIL: required ragas metric(s) not measured: {}".format(", ".join(missing)),
+              file=sys.stderr)
+        return 1
 
     # Gate: fail on a score below the floor or meaningfully below the frozen baseline champion.
     if aggregate < RAGAS_MIN:

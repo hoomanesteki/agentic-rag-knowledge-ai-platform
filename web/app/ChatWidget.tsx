@@ -579,9 +579,11 @@ function Conversation({
     // a question about the assistant's nature ("are you human?", "is this a bot?") is answered
     // honestly by the backend, not treated as a request to be transferred to a person
     const asksNature = /^(are|is|am)\s+(you|this|it|i|u)\b/i.test(qt);
-    // an explicit refusal must not escalate ("I don't want to talk to an agent, just answer here")
+    // an explicit refusal must not escalate ("I don't want to talk to an agent, just answer here").
+    // Match a negation that attaches to the desire/handoff, NOT a bare leading discourse "no"/"not",
+    // so "No, I want to talk to a human" (an affirmative request) still escalates.
     const refusesHuman =
-      /\b(don'?t|do not|no|not|never|without)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
         q,
       );
     const shortHuman =

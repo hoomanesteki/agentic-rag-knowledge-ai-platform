@@ -5,6 +5,15 @@ name: apparel_ecommerce
 brand: Aster Athletics
 languages: [en, fr]
 
+# The persona the engine speaks as: the assistant's name, the human specialist's name, the short
+# brand token used in copy, and the industry phrase. Kept in the pack (never in engine code) so the
+# same answer pipeline serves any domain by swapping this file, not by editing prompts.
+persona:
+  assistant: Aria
+  specialist: Sara
+  brand_short: Aster
+  industry: an athletic apparel brand
+
 # Terms the understand step normalizes before retrieval.
 glossary:
   belt bag: [waist bag, fanny pack]

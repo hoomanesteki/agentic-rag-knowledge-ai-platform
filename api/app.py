@@ -427,6 +427,11 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                     # buffered response. The whole turn runs synchronously here before the first
                     # yield, so the Langfuse span opens and closes within one execution (no cross-
                     # yield context hop) and every LLM generation nests under it. No-op when off.
+                    # NOTE: voice brevity (concise) and logged-in personalization (auth_identity:
+                    # own-order auto-unlock plus the taste profile) are LINEAR-BRAIN features, not
+                    # applied on this non-default agent path. It fails closed: the deterministic
+                    # name+email PII gate still applies, so a logged-in shopper simply re-types
+                    # name+email to see their own orders here.
                     with request_span("chat.agent", input=req.query,
                                       metadata={"message_id": message_id, "lang": req.lang}):
                         result = answer_with_agent(

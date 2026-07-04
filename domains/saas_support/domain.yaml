@@ -8,6 +8,14 @@ name: saas_support
 brand: Northwind Cloud
 languages: [en, fr]
 
+# The persona the engine speaks as (see the apparel pack for the rationale): swapping this block
+# re-skins the assistant, specialist, brand token, and industry with no engine code change.
+persona:
+  assistant: Nova
+  specialist: Remy
+  brand_short: Northwind
+  industry: a project-management software company
+
 # Terms the understand step normalizes before retrieval. Keep these domain-specific: generic
 # app words (like "sign in") belong to the engine UI, not a domain glossary.
 glossary:

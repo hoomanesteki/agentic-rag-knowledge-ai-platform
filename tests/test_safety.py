@@ -168,6 +168,43 @@ def test_order_docs_unlock_with_matching_name_and_email(auth_text):
     assert _order_access_ok(auth_text, _ORDER_DOC) is True, auth_text
 
 
+# The account holder's name is the independent second factor, so it must not be brute-forceable in a
+# single request. The gate requires the FULL independent name (given + family) as a contiguous
+# phrase, so a two-token account cannot be unlocked by guessing one common given name, by flooding a
+# dictionary of names, or by assembling the name from tokens scattered across turns.
+_TWO_TOKEN_ORDER = {
+    "doc_type": "order",
+    "email": "info@esteki.ca",
+    "text": ("Order AS100219 for Jordan Avery (info@esteki.ca): 1x Aster Aurora Jacket, $198, "
+             "placed 2026-05-02, status in transit."),
+}
+
+
+@pytest.mark.parametrize("auth_text", [
+    # single common given-name guess for a two-token account must NOT unlock
+    "my order info@esteki.ca, my name is Jordan",
+    # a flooded dictionary of common names (without the exact full name) must NOT unlock
+    ("my order info@esteki.ca my name is one of James Robert John Michael David Jordan William "
+     "Richard Joseph Thomas Christopher"),
+    # the two real tokens scattered far apart (not a contiguous name) must NOT unlock
+    ("jordan i think my order info@esteki.ca is late and i live near the avery street bakery "
+     "downtown so please check the status of it for me today thanks a lot"),
+    # family name alone is not the full name
+    "avery here, info@esteki.ca, where is my order",
+])
+def test_two_token_name_is_not_brute_forceable(auth_text):
+    assert _order_access_ok(auth_text, _TWO_TOKEN_ORDER) is False, auth_text
+
+
+@pytest.mark.parametrize("auth_text", [
+    "my name is Jordan Avery, email info@esteki.ca, where are my orders",
+    "this is Jordan Avery, info@esteki.ca, my package status?",
+    "Jordan Avery info@esteki.ca where are my orders",  # the logged-in identity form
+])
+def test_full_contiguous_name_unlocks_two_token_account(auth_text):
+    assert _order_access_ok(auth_text, _TWO_TOKEN_ORDER) is True, auth_text
+
+
 def _seed_pii(docs):
     embedder = make_embedder("fake")
     encoder = SparseEncoder()

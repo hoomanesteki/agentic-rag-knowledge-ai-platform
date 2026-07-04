@@ -18,7 +18,7 @@ Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storef
 ::: {.stat-strip}
 ::: {.stat}
 ::: {.n}
-354
+395
 :::
 ::: {.k}
 tests, all green

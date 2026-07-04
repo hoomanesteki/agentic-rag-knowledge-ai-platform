@@ -14,10 +14,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pipeline.answer import (
-    _SYSTEM,
     DEFAULT_MIN_CONFIDENCE,
     _build_prompt,
     _metric_has_value,
+    _system,
     _used_citations,
     build_contexts,
     grounding_score,
@@ -78,7 +78,8 @@ def retriever_finding(query: str, *, embedder, store, llm, reranker=None, top_k:
         # found context but did not answer (gated, or no model); leave it to the supervisor
         return Finding("retriever", "text", found=True, abstained=True, confidence=confidence,
                        contexts=contexts)
-    result = llm.generate(_build_prompt(query, contexts), system=_SYSTEM)
+    from adapters.config import get_settings
+    result = llm.generate(_build_prompt(query, contexts), system=_system(get_settings().domain))
     cited = _used_citations(result.text, contexts)
     grounding = grounding_score(result.text, contexts)
     return Finding("retriever", "text", found=True, answer=result.text, confidence=confidence,

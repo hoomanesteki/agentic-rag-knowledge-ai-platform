@@ -1,7 +1,7 @@
 name: Showcase (GitHub Pages)
 
 # Render the Quarto showcase site and deploy it to GitHub Pages. The site is reproducible from
-# source (showcase/*.qmd) — no built HTML is committed. Enable Pages for the repo (Settings ->
+# source (showcase/*.qmd); no built HTML is committed. Enable Pages for the repo (Settings ->
 # Pages -> Source: GitHub Actions) for this to publish.
 on:
   push:

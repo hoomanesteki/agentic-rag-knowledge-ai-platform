@@ -121,8 +121,8 @@ def get_settings() -> Settings:
         elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
         elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
         # Premade voices (usable on the free tier; Voice-Library voices need a paid plan): "Sarah",
-        # a warm, natural young-adult woman for the assistant (Aria), and "Jessica", a friendly,
-        # conversational woman for the human specialist (Sara). Both overridable with any voice id.
+        # a warm, natural young-adult woman for the shopping assistant, and "Jessica", a friendly,
+        # conversational woman for the human specialist. Both overridable with any voice id.
         elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
         elevenlabs_agent_voice_id=os.getenv("ELEVENLABS_AGENT_VOICE_ID", "cgSgspJ2msm6clMCkdW9"),
     )

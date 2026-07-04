@@ -17,7 +17,7 @@ cp .env.example .env       # fill in GROQ_API_KEY and COHERE_API_KEY for real ru
 make check                 # lint, tests, dbt checks, eval gate, fully offline
 ```
 
-`make check` is the honest signal: it runs the linter, 354 tests, the domain-leak check, the dbt semantic-layer build, and the eval gate, all with no external services. If it's green, the machinery works. `make doctor` explains what's missing if a step hangs (Docker, `.env`, or a provider key).
+`make check` is the honest signal: it runs the linter, 395 tests, the domain-leak check, the dbt semantic-layer build, and the eval gate, all with no external services. If it's green, the machinery works. `make doctor` explains what's missing if a step hangs (Docker, `.env`, or a provider key).
 
 For the full experience, live retrieval, real answers, voice, bring up the services (`docker compose`), set the provider keys, run `make ingest`, and start the API and the Next.js storefront.
 

@@ -256,31 +256,37 @@ export default function ChatWidget({
   useEffect(() => {
     setMounted(true);
     let alive = true;
-    // frictionless demo: the chat never asks for a password. Silently mint a demo token (the
-    // landing gate already authorized this visitor). Keep retrying with backoff if the API is cold,
-    // so it self-heals rather than dead-ending at "Connecting..." until a manual refresh.
+    const controller = new AbortController();
+    // Frictionless demo: the chat never asks for a password; it silently mints a demo token. This
+    // MUST converge on the very first load, even when the API is still warming up (uvicorn --reload,
+    // or a scaled-to-zero deploy) and even under React StrictMode's double-mounted effect. The old
+    // version could dead-end at "Connecting..." until a manual refresh, because StrictMode's first
+    // mount resolved after its own cleanup and DISCARDED the token without caching it, and the
+    // exponential backoff (up to 5s) meant a slow first hit felt like a hang. Fixes:
+    //  - cache the token the instant it arrives, before the alive check, so a mount React has
+    //    already discarded never wastes it;
+    //  - converge to whatever is cached on every path, so any live closure updates the UI;
+    //  - retry on a short, near-constant interval (~0.6s, then 2s) instead of a runaway backoff;
+    //  - abort the orphaned StrictMode request so only one call is ever in flight.
     const connect = (tries = 0) => {
+      if (!alive) return;
       const cached = localStorage.getItem("skein_token");
       if (cached) {
-        setToken(cached); // another mount (React StrictMode double-fires this) already got one
+        setToken(cached);
         return;
       }
-      fetch(`${API_BASE}/api/demo-login`, { method: "POST" })
+      fetch(`${API_BASE}/api/demo-login`, { method: "POST", signal: controller.signal })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
+          if (d?.access_token) localStorage.setItem("skein_token", d.access_token); // cache first
+          const now = localStorage.getItem("skein_token");
           if (!alive) return;
-          if (d?.access_token) {
-            localStorage.setItem("skein_token", d.access_token);
-            setToken(d.access_token);
-          } else {
-            const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3)); // 0.7s -> 5s, capped
-            setTimeout(() => alive && connect(tries + 1), delay);
-          }
+          if (now) setToken(now);
+          else setTimeout(() => connect(tries + 1), tries < 8 ? 500 + Math.random() * 300 : 2000);
         })
-        .catch(() => {
-          if (!alive) return;
-          const delay = Math.min(5000, 700 * 2 ** Math.min(tries, 3));
-          setTimeout(() => alive && connect(tries + 1), delay);
+        .catch((e) => {
+          if (e?.name === "AbortError" || !alive) return;
+          setTimeout(() => connect(tries + 1), tries < 8 ? 500 + Math.random() * 300 : 2000);
         });
     };
     connect();
@@ -290,6 +296,7 @@ export default function ChatWidget({
     });
     return () => {
       alive = false;
+      controller.abort();
     };
   }, []);
 

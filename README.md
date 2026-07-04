@@ -1,5 +1,7 @@
 # Skein Lite
 
+[![CI](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/actions/workflows/ci.yml)
+
 A local-first, domain-swappable **agentic RAG platform**. It answers questions over a mix of
 structured and unstructured data, grounds every answer in citations (or abstains), routes hard
 questions through a supervisor that coordinates specialist agents, and hands off to a human when it
@@ -178,6 +180,14 @@ make dbt-docs    # the dbt lineage graph and column docs
 Only real runs (keys + `make up` + `make ingest`) produce real numbers; offline they are zero by
 design. The ablation lands in [docs/eval-report.md](docs/eval-report.md) (currently the offline
 placeholder until a keyed run fills it).
+
+Two of these run fully offline on recorded fixtures and produce real signal — the CI gate blocks a
+regression, and the drift monitor flags a distribution shift. The walkthrough is in
+[notebooks/02-evaluation.ipynb](notebooks/02-evaluation.ipynb):
+
+| The gate blocks a regression | Drift catches a shift |
+| --- | --- |
+| ![eval gate blocks a regression](docs/img/eval-gate.png) | ![drift PSI](docs/img/drift-psi.png) |
 
 ## The thinking
 

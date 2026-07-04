@@ -340,7 +340,9 @@ _ORDER_TERM = re.compile(
     r"\b(order|orders|parcel|package|delivery|deliver(ed|y)?|shipment|shipped|tracking|track|"
     r"refund|return(ed|s)?|exchange|invoice|receipt|purchase[ds]?|bought|ordered|account|"
     r"status|eta|arriv)\b", re.I)
-_FIRST_PERSON = re.compile(r"\b(my|mine|i|i'?ve|i'?m|me|we|our)\b", re.I)
+# "my"/"I" only, not bare "me"/"we": "show me every order in the system" is an admin-style dump,
+# not the shopper asking about their own order, and must not surface order records.
+_FIRST_PERSON = re.compile(r"\b(my|mine|i|i'?ve|i'?m)\b", re.I)
 
 
 def _account_intent(query: str) -> bool:

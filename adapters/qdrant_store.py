@@ -66,11 +66,20 @@ class QdrantStore:
                      "{}/collections/{}/points?wait=true".format(self.url, self.collection),
                      body, headers=self._headers)
 
-    def hybrid_search(self, dense_query: list[float], sparse_query: dict,
+    def hybrid_search(self, dense_query: list[float] | None, sparse_query: dict,
                       top_k: int = 8, where: dict | None = None,
-                      dense_only: bool = False) -> list[dict]:
+                      dense_only: bool = False, sparse_only: bool = False) -> list[dict]:
         flt = _to_filter(where) if where else None
         url = "{}/collections/{}/points/query".format(self.url, self.collection)
+        if sparse_only:
+            # local BM25-only path: the fallback when the dense embedder is unavailable, so the
+            # assistant still retrieves on lexical match instead of failing the turn
+            body = {"query": {"indices": sparse_query["indices"], "values": sparse_query["values"]},
+                    "using": "sparse", "limit": top_k, "with_payload": True}
+            if flt:
+                body["filter"] = flt
+            return request_json("POST", url, body, headers=self._headers).get(
+                "result", {}).get("points", [])
         if dense_only:
             body = {"query": dense_query, "using": "dense", "limit": top_k, "with_payload": True}
             if flt:

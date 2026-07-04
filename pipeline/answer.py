@@ -769,12 +769,21 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     holder's name. auth_text defaults to the query; the streaming path passes the full set of user
     turns so a name given on one turn and an email on the next still verify.
     """
-    dense_q = embedder.embed([query], input_type="query")[0]
     sparse_q = SparseEncoder().encode(query)
+    # Fallback: if the dense embedder (Cohere) is down or over quota, retrieve on the local sparse
+    # (BM25) leg alone instead of failing the turn. Degraded relevance, but the assistant still
+    # answers, and the sparse encoder needs no API. This is the embedder's "second option".
+    dense_q = None
+    sparse_only = False
+    try:
+        dense_q = embedder.embed([query], input_type="query")[0]
+    except Exception as exc:
+        _log.warning("dense embedder unavailable, falling back to sparse-only retrieval: %s", exc)
+        sparse_only = True
     fetch = top_k_in if reranker is not None else top_k
     hits = store.hybrid_search(
         dense_q, {"indices": sparse_q.indices, "values": sparse_q.values}, top_k=fetch,
-        dense_only=dense_only)
+        dense_only=dense_only, sparse_only=sparse_only)
     auth = auth_text if auth_text is not None else query
     if not _account_intent(query):
         hits = [h for h in hits if (h.get("payload") or {}).get("doc_type") != "order"]
@@ -787,8 +796,15 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     if reranker is None or not hits:
         return hits[:top_k]
     texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs
+    # Fallback: if the reranker (Cohere) is unavailable, keep the hybrid order rather than fail. The
+    # reranker sharpens precision; without it retrieval is coarser but still relevant.
+    try:
+        ranked = reranker.rerank(query, texts, top_n=min(top_k, len(hits)))
+    except Exception as exc:
+        _log.warning("reranker unavailable, returning hybrid order: %s", exc)
+        return hits[:top_k]
     reordered = []
-    for index, score in reranker.rerank(query, texts, top_n=min(top_k, len(hits))):
+    for index, score in ranked:
         if not 0 <= index < len(hits):
             raise RuntimeError(
                 "reranker returned out-of-range index {} for {} hits".format(index, len(hits)))

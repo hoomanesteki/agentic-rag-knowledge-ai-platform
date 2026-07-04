@@ -1,0 +1,88 @@
+---
+title: "Skein Lite"
+pagetitle: "Skein Lite — an agentic RAG platform"
+toc: false
+---
+
+::: {.hero}
+::: {.eyebrow}
+Retrieval-augmented generation · built end to end
+:::
+# A shopping assistant that knows when it doesn't know {.hero-title}
+
+::: {.lede}
+Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storefront — an apparel brand called Aster Athletics with an assistant named Aria — but the engine underneath knows nothing about apparel. Swap one folder and it becomes a different store.
+:::
+:::
+
+::: {.stat-strip}
+::: {.stat}
+::: {.n}
+354
+:::
+::: {.k}
+tests, all green
+:::
+:::
+::: {.stat}
+::: {.n}
+5
+:::
+::: {.k}
+retrieval + graph + metric layers
+:::
+:::
+::: {.stat}
+::: {.n}
+1.0
+:::
+::: {.k}
+CI eval-gate score
+:::
+:::
+::: {.stat}
+::: {.n}
+0
+:::
+::: {.k}
+domain terms in engine code
+:::
+:::
+:::
+
+The interesting problem in a retrieval system is not answering — it is refusing. A model that always answers will confidently invent an order number, a price, or a color it never saw. Most of the work here is in the seams around the model: a confidence gate that abstains on thin evidence, a governed metric layer for anything numeric, a knowledge graph for relationships, and a set of deterministic guards for the things a prompt can't be trusted to enforce — customer privacy, prompt injection, gender-correct recommendations.
+
+The assistant is grounded in synthetic data for a fictional brand. Every product, review, and order is invented. What's real is the machinery: the ingestion, the hybrid retrieval, the evaluation harness, and the CI that blocks a regression before it ships.
+
+## What to read next
+
+::: {.grid-cards}
+::: {.card}
+### [Architecture →](architecture.qmd)
+The path a question takes from keypress to grounded answer: hybrid retrieval, the reranker, the graph and metric seams, and the domain-agnostic engine.
+:::
+::: {.card}
+### [Evaluation →](evaluation.qmd)
+Four layers of quality control — an offline CI gate, RAGAS on a golden set, drift monitors, and an eval-gated model-promotion flow — and what each one actually catches.
+:::
+::: {.card}
+### [Decisions →](decisions.qmd)
+Why Cohere over the alternatives, why Groq for the LLM, why a graph at all, and where I'd switch if the constraints changed.
+:::
+::: {.card}
+### [Reliability →](reliability.qmd)
+The failure modes I planned for: what happens when the LLM, the vector store, or the voice service is slow or down, and the fallback for each.
+:::
+::: {.card}
+### [Try it →](usage.qmd)
+How to run it locally with no API keys, and how to talk to the assistant — the things it does well and the honest edges.
+:::
+::: {.card}
+### [Source →](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform)
+The full codebase: engine, domain packs, evaluation, the Next.js storefront, and the CI that keeps it honest.
+:::
+:::
+
+::: {.callout-note appearance="simple"}
+**A note on honesty.** This site documents what the system does, including where it is weak. The [Reliability](reliability.qmd) page lists the failure modes and the residual issues an adversarial review found and I chose to accept. A portfolio that only lists wins is a portfolio that stopped looking.
+:::

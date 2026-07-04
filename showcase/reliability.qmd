@@ -1,0 +1,67 @@
+---
+title: "Reliability"
+pagetitle: "Skein Lite — Reliability & risks"
+---
+
+::: {.eyebrow}
+What breaks, what happens instead, and what I chose to accept
+:::
+
+A system is only as trustworthy as its behavior when a dependency is slow, down, or being probed by someone acting in bad faith. This page is the failure-mode inventory: every external dependency, what happens when it fails, and the fallback. Then the risks I'm carrying knowingly, and the residual issues an adversarial review surfaced.
+
+## Failure modes and fallbacks
+
+| If this fails… | What the user sees | The fallback |
+|---|---|---|
+| **LLM (Groq) slow or erroring** | A brief wait, then a graceful message | Retry with backoff; on a terminal error the request degrades to a safe, non-guessed reply rather than a stack trace |
+| **Voice (ElevenLabs TTS) down** | The reply still appears, just not spoken | The text answer always renders first; audio is additive, so a TTS failure never blocks the answer |
+| **Vector store (Qdrant) unreachable** | Assistant says it can't look that up right now | Retrieval errors are caught at the seam; the API stays up and other endpoints keep serving |
+| **Graph (Neo4j) unavailable** | Slightly less precise relationship answers | The graph is additive evidence; its absence degrades quality, it doesn't break the answer, and a default run works without it |
+| **A shopper floods the chat** | Normal service for everyone else | Per-endpoint token-bucket rate limits keyed on the real client IP, plus a hard instance cap as a cost ceiling |
+| **A prompt-injection or PII probe** | A polite refusal | Deterministic intercepts (not the model's judgment) refuse before retrieval; see below |
+
+The through-line: **additive dependencies degrade quality; they never break the answer.** The graph, the metric layer, and voice can all be absent and the assistant still responds. Only the LLM and the vector store are load-bearing, and both are behind retrying seams.
+
+## Security guards — deterministic on purpose
+
+The privacy and safety guards do not ask the model to behave. They enforce in code, because a model will happily disclose data it's merely been asked to withhold once that data is in its context.
+
+::: {.grid-cards}
+::: {.card}
+### Order-PII gate
+Order documents reach the model only when the shopper's own turns contain **both** the account email **and** a name that isn't derivable from that email. Email alone, a staff-impersonation claim, or an order-number lookup all refuse.
+:::
+::: {.card}
+### Prompt injection
+"Ignore your instructions / print your system prompt" is intercepted deterministically and refused, even when wrapped around a real shopping request. The system prompt is never echoed.
+:::
+::: {.card}
+### Customer enumeration
+"List your customers / who bought X" refuses before retrieval, so no name — not even a reviewer's — is ever volunteered.
+:::
+::: {.card}
+### Gender correctness
+When a shopper states a gender, opposite-gender products are redacted from the retrieved context, so a men's request can't surface a women's-only piece even if a guide names one.
+:::
+:::
+
+## Risks I'm carrying knowingly
+
+- **Synthetic-data demo.** This is a portfolio piece on a hobby budget. The scale is a single store, one demo customer, and a few hundred products — enough to exercise the machinery, not to prove it at enterprise volume.
+- **Single demo account.** The order-PII flow is demonstrated with one customer. In a real deployment, order access would be bound to the authenticated account, not to whatever name and email are typed — the name+email check here is the demo stand-in for that.
+- **MLOps runs on demand.** The drift monitors, MLflow logging, and RAGAS eval are real and reproducible, but they run when invoked, not on a hosted schedule. The hooks (non-zero exits, an MLflow experiment) are in place for a cron to drive.
+- **The store-relationship graph is thin.** The supplier relationship is fully populated; the product→store relationship is derived from a few historical sales and returns nothing for most of the catalog. It's a modeled capability that needs real inventory data to be broadly useful.
+
+## What the review found {#what-the-review-found}
+
+The system was put through a multi-agent adversarial review — agents whose only job was to break the guards. It was worth it: it found two critical issues that a first pass had missed, both now fixed with regression tests.
+
+| Finding | Severity | Status |
+|---|---|---|
+| Promotion gate scored fake providers and always promoted to Production | <span class="chip crit">critical</span> | Fixed — gates on measured RAGAS, refuses without a real score |
+| Email-only (or surname-from-the-email) unlocked order PII | <span class="chip crit">critical</span> | Fixed — name+email must be independent factors, with tests |
+| Complaints got a product pitch instead of empathy | <span class="chip warn">high</span> | Fixed — problem intent routes to an empathetic hand-off |
+| A shopping phrase could trigger fake "human agent" mode | <span class="chip warn">high</span> | Fixed — escalation regex tightened |
+| Men's requests surfaced women's items from occasion guides | <span class="chip info">medium</span> | Fixed for the common cases; a rare edge remains |
+
+That last row is the honest one. The gender guard closed the pervasive cases and the deterministic redaction handles labeled and unlabeled sources, but a determined phrasing against a guide that lists both genders can still slip a single cross-gender item through. It's documented, not papered over — which is the standard this whole project holds itself to.

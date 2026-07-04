@@ -232,3 +232,7 @@ dbt/dbt_packages/
 dbt/logs/
 dbt/.user.yml
 evaluation/ragas_scores.json
+
+# Quarto showcase build output (rendered by CI for Pages)
+showcase/_site/
+showcase/.quarto/

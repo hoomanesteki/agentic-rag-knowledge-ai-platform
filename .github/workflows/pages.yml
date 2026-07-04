@@ -1,0 +1,43 @@
+name: Showcase (GitHub Pages)
+
+# Render the Quarto showcase site and deploy it to GitHub Pages. The site is reproducible from
+# source (showcase/*.qmd) — no built HTML is committed. Enable Pages for the repo (Settings ->
+# Pages -> Source: GitHub Actions) for this to publish.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "showcase/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - name: Render the showcase
+        run: quarto render showcase
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: showcase/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

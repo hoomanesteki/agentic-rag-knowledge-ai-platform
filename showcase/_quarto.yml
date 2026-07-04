@@ -1,0 +1,46 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Skein Lite"
+  description: "A local-first, domain-swappable agentic RAG platform — architecture, evaluation, and the decisions behind it."
+  navbar:
+    background: light
+    pinned: true
+    left:
+      - text: "Overview"
+        href: index.qmd
+      - text: "Architecture"
+        href: architecture.qmd
+      - text: "Evaluation"
+        href: evaluation.qmd
+      - text: "Decisions"
+        href: decisions.qmd
+      - text: "Reliability"
+        href: reliability.qmd
+      - text: "Try it"
+        href: usage.qmd
+    right:
+      - icon: github
+        href: https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform
+        aria-label: GitHub
+  page-footer:
+    border: true
+    left: "Built by Aaron (Hooman) Esteki · [esteki.ca](https://esteki.ca)"
+    right: "Synthetic data. Source on [GitHub](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform)."
+
+format:
+  html:
+    theme: [cosmo, custom.scss]
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    number-sections: false
+    smooth-scroll: true
+    link-external-newwindow: true
+    grid:
+      body-width: 860px
+    fig-responsive: true
+    code-copy: true
+    code-overflow: wrap

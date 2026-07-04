@@ -1,0 +1,56 @@
+---
+title: "Decisions"
+pagetitle: "Skein Lite — Decisions"
+---
+
+::: {.eyebrow}
+Why these parts, and where I'd switch
+:::
+
+Every choice here is a trade-off against constraints: this runs on a hobby budget, it has to work offline for a reviewer with no API keys, and it has to be swappable so it isn't wedded to one vendor. Below is the reasoning, and the honest "if your constraints differ, switch to this" for each.
+
+## Embeddings & rerank — Cohere
+
+**Chosen:** Cohere `embed-v4.0` (1536-dim) for embeddings and `rerank-v3.5` for reranking.
+
+The reranker is the highest-leverage component in the whole retrieval path. Dense vectors get you a rough top-50; the reranker is what turns that into a precise top-8, and a good one covers for a merely-adequate embedder. Cohere's rerank is strong, multilingual (the demo runs English and French), and cheap at this scale. Embeddings and rerank from one vendor keeps the seam simple.
+
+::: {.callout-note appearance="simple"}
+**If your constraints differ.** Everything is behind a factory seam (`make_embedder`, `make_reranker`), so switching is a config change, not a rewrite. Want fully local and free? Point it at a sentence-transformers embedder and a local cross-encoder. Already on OpenAI? Swap in `text-embedding-3-large`. The project started on Voyage and moved to Cohere — that migration was a manifest and adapter change, which is the whole point of the seam.
+:::
+
+## The LLM — Groq, Llama 3.3 70B
+
+**Chosen:** Llama 3.3 70B served by Groq.
+
+For a *streaming conversational* assistant, tokens-per-second is a feature, not a nicety — a shopper watching a reply appear word by word forgives a lot. Groq's inference speed makes a 70B model feel instant, and Llama 3.3 70B is more than capable of the grounded, cited, format-following answers this needs. It's also open-weight, so there's no lock-in to the model itself.
+
+::: {.callout-note appearance="simple"}
+**If your constraints differ.** The LLM sits behind one `make_llm` seam and a `.generate()` interface. For higher reasoning quality on hard multi-step questions, point it at a frontier model (Claude, GPT-4-class) — the prompts are model-agnostic. For a stronger *judge* in the RAGAS eval, set `JUDGE_MODEL` independently so the app model isn't grading itself.
+:::
+
+## A knowledge graph — worth it, but scoped
+
+**Chosen:** Neo4j, used for relationship questions only.
+
+Vectors are bad at relationships. "Which supplier makes the Cloud Hoodie" is a graph hop, not a similarity search, and forcing it through vector retrieval gives vague, wrong-shaped answers. The graph earns its place for exactly that class of question, and it's treated as *authoritative* only when the query names the entity — so it grounds rather than guesses.
+
+Honesty about scope: of the two relationships modeled, one (supplier → product) is fully populated and genuinely useful, and one (product → store, derived from a handful of historical sales) is thin and mostly returns nothing. That's documented on the [Reliability](reliability.qmd) page rather than hidden. The graph is a real capability, not a checkbox — which means being clear about where it's strong and where it isn't.
+
+## A governed metric layer instead of "let the model do math"
+
+**Chosen:** A validated semantic layer (`metrics.yaml`) over read-only DuckDB.
+
+Language models are unreliable at arithmetic and worse at making up plausible numbers. Any question with a number in the answer — return rate by size, the cheapest hoodie, per-size stock — routes to a governed metric: the model fills declared slots, a resolver runs a parameterized SQL template on a read-only connection, and the result comes back as a labeled evidence block that is never fused with vector scores. The model presents the number; it never invents it. Small samples even come back with the sample size attached, so a rate over six sales is stated as "based on only six sales."
+
+## DuckDB + dbt for the lakehouse
+
+**Chosen:** a DuckDB medallion (bronze → silver → gold) built and tested by dbt.
+
+This is a portfolio, so the data layer has to *demonstrate* governance, not just have it. dbt gives real schema tests, PII-masking rules, and a deterministic, reproducible build — and it runs in CI, where a parity test asserts the dbt-built gold tables match the in-app builder exactly. DuckDB keeps the whole thing local and zero-infrastructure: no warehouse to provision, and the same file works on a laptop and in CI.
+
+## Two brains, one seam
+
+**Chosen:** a fast linear pipeline *and* a LangGraph supervisor, selectable by config.
+
+The linear path is one pass — retrieve, ground, answer — and it's what streams to the storefront. The LangGraph "brain" is a bounded agent loop: it can reformulate and re-retrieve when the first pass is thin, and escalate to a human review queue when it still can't ground an answer. Same retrieval, same guards, different control flow. Keeping both behind one seam means the demo can show the agentic loop without slowing down the common case.

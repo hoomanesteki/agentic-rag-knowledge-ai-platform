@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/actions/workflows/ci.yml)
 
+**[Read the showcase →](https://hoomanesteki.github.io/agentic-rag-knowledge-ai-platform/)** — architecture, evaluation, the decisions behind it, and an honest look at the failure modes. Source for the site is in [`showcase/`](showcase/) (Quarto, rendered to GitHub Pages by CI).
+
 A local-first, domain-swappable **agentic RAG platform**. It answers questions over a mix of
 structured and unstructured data, grounds every answer in citations (or abstains), routes hard
 questions through a supervisor that coordinates specialist agents, and hands off to a human when it

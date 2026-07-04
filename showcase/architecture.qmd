@@ -1,0 +1,84 @@
+---
+title: "Architecture"
+pagetitle: "Skein Lite — Architecture"
+---
+
+::: {.eyebrow}
+How a question becomes a grounded answer
+:::
+
+Every request follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic — it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+
+## The answer path
+
+```{mermaid}
+flowchart TD
+  Q([Shopper question]) --> SM{Small-talk /<br/>safety intercept}
+  SM -->|greeting, harm,<br/>injection, enumeration| DIRECT[Deterministic reply]
+  SM -->|a real request| TY[Typo repair<br/>+ follow-up expansion]
+  TY --> HY[Hybrid retrieval<br/>dense + sparse]
+  HY --> RR[Cohere reranker<br/>top-50 → top-8]
+  RR --> GATE{Confidence gate<br/>lexical overlap}
+  GATE -->|thin evidence| ABSTAIN[Abstain or hand off<br/>to a human]
+  GATE -->|enough| EV[Add evidence:<br/>graph + governed metric]
+  EV --> PII[PII gate + gender<br/>redaction on context]
+  PII --> GEN[Groq LLM<br/>grounded, cited answer]
+  GEN --> STREAM([Streamed to the UI<br/>with source chips])
+
+  classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  class SM,GATE,PII guard;
+  class HY,RR,EV,GEN core;
+```
+
+The pink nodes are the guards — the places where the system says *no* or *not yet*. They are deliberately deterministic (regex and set logic, not the model deciding), because the one thing you cannot ask a language model to reliably do is withhold information it can already see in its context.
+
+## The three retrieval seams
+
+Vector search alone is a blunt instrument. It is good at "something like this" and bad at "exactly this number" and "which supplier makes this." So retrieval has three seams, and they are kept separate on purpose — an authoritative fact never gets averaged into a fuzzy vector score.
+
+::: {.grid-cards}
+::: {.card}
+### Hybrid vectors
+Cohere `embed-v4.0` (1536-dim) for dense meaning plus a sparse BM25-style leg for exact terms, fused and then reranked by `rerank-v3.5`. This is the default path for "what should I wear for a rainy run."
+:::
+::: {.card}
+### Knowledge graph
+Products, suppliers, and stores as nodes with typed edges. It answers relationship questions — "which supplier makes the Cloud Hoodie" — and is treated as authoritative only when the query names the entity itself.
+:::
+::: {.card}
+### Governed metrics
+Anything numeric (return rate by size, cheapest in a category, stock) resolves through a validated semantic layer over read-only DuckDB. The model fills slots; it never writes SQL and never sees raw rows.
+:::
+:::
+
+## The stack
+
+| Layer | Choice | Why it's here |
+|---|---|---|
+| API | FastAPI, SSE streaming | Tokens stream to the browser as they're generated |
+| Brain | LangGraph supervisor + a linear pipeline | A bounded agent loop that can re-retrieve, or a fast one-pass path |
+| Embeddings / rerank | Cohere `embed-v4.0` + `rerank-v3.5` | Strong multilingual retrieval; the reranker does the heavy lifting |
+| LLM | Groq, Llama 3.3 70B | Fast enough to stream conversationally; swappable behind one seam |
+| Vectors | Qdrant (hybrid) | Native sparse+dense in one query |
+| Graph | Neo4j | Typed relationships, allowlisted traversals (injection-safe) |
+| Lakehouse | DuckDB medallion + dbt | Bronze → silver → gold, with governance tests in CI |
+| Web | Next.js 14 App Router | The storefront and the chat/voice widget |
+| Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are shorter than typed ones by design |
+| MLOps | MLflow, RAGAS, PSI drift monitors | Tracking, answer-quality eval, and drift on live traffic |
+
+## Domain-agnostic by construction
+
+The engine folders — ingestion, retrieval, the API, the web app — contain zero references to apparel. The brand name, the product vocabulary, the glossary: all of it lives under `domains/apparel_ecommerce/`. A [leak linter](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform) runs in CI and fails the build if a single domain term (a product name, the brand, a glossary key like "legging") appears in engine code. That constraint is what makes the "swap one folder" claim true rather than aspirational — and it's why the deterministic guards read the product catalog at runtime from the manifest instead of hardcoding a list.
+
+```{mermaid}
+flowchart LR
+  subgraph Engine [Engine — knows nothing about the store]
+    ING[Ingestion] --- RET[Retrieval] --- API[API + Web]
+  end
+  subgraph Pack [domains/apparel_ecommerce/]
+    MAN[manifest] --- DATA[products, reviews,<br/>guides, orders] --- METR[metrics.yaml]
+  end
+  Pack -->|read at runtime| Engine
+  LINT[leak linter in CI] -. fails build if a domain<br/>term appears in Engine .-> Engine
+```

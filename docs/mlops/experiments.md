@@ -6,21 +6,46 @@ tracking and PSI-style monitors for drift. Regenerate any of it with the `make` 
 
 ## Experiment tracking (MLflow)
 
-Every candidate config is scored and promoted through stages (`dev -> Staging -> Production`) by its
-eval numbers, and each decision is logged as an MLflow run. Two runs from the local store:
+A "model" here is the whole serving config: LLM, embeddings, reranker, and brain. Promotion is a
+gate, not a rubber stamp. Every candidate is logged to MLflow as a run, and its stage
+(`dev -> Staging -> Production`) is decided in this order:
 
-| run | embed | rerank | brain | gate | ragas | smoke | stage |
-|-----|-------|--------|-------|------|-------|-------|-------|
-| big-deer-206 | cohere embed-v4.0 | cohere rerank-v3.5 | linear | 0.95 | 0.95 | 1.0 | Production |
-| skittish-whale-911 | cohere embed-v4.0 | rerank-vDIFFERENT | linear | 0.95 | 0.95 | 1.0 | Production |
+1. **Pipeline smoke gate** (precondition). The offline eval gate must pass on recorded fixtures, so
+   retrieval, grounding, and the abstain path are wired. It is not a quality score, so on its own it
+   can never promote anything.
+2. **Measured answer quality** (the gate). The decision uses the RAGAS aggregate from the real
+   providers, written by `make ragas`. Staging needs at least 0.65, Production at least 0.78.
+3. **Same-config check.** That score must have been measured on the exact config being promoted. A
+   changed reranker (or LLM, or brain) makes the old number stale, and a stale number cannot promote.
+4. **Champion check.** A Production candidate must also beat the frozen champion
+   (`ragas_baseline.json`). With no champion committed yet, the first candidate is capped at Staging,
+   so the first Production push is always a deliberate, compared-against-a-baseline decision.
 
-The second run changes only the reranker model. The promotion guard treats a config change as a new
-candidate that must re-earn its stage, so a swap cannot inherit the old model's blessing.
+The gate in action, straight from `make promote` on the committed code:
 
-View the runs locally:
+| candidate | change | measured RAGAS | gate decision |
+|-----------|--------|----------------|---------------|
+| current config | cohere embed-v4.0, rerank-v3.5, linear brain | 0.82 | **Staging** (clears the 0.78 bar, capped until a champion is frozen) |
+| reranker swap | same number, reranker changed | stale | **REJECTED**, measured on a different config |
+| fresh checkout | nothing measured yet | none | **REJECTED**, needs a real `make ragas` first |
+
+The swap rejection is the whole point, a config change cannot inherit the old model's blessing:
+
+```text
+REJECTED: the RAGAS score was measured on a different config than the one being
+promoted, so it is stale. Mismatches (measured -> current):
+{'rerank_model': ('rerank-v3.5-swap', 'rerank-v3.5')}. Re-run `make ragas` first.
+```
+
+The RAGAS number in row one is a recorded score fed to the gate to show the decision; a live
+Production promotion needs real providers (a `make ragas` run) plus a frozen champion, which are
+deliberately not shipped on a hobby budget. What ships is the gate itself, and its refusals are
+reproducible offline.
+
+Reproduce or browse locally:
 
 ```bash
-make promote                 # scores the current config and logs a run
+make promote                              # gate the current config, log an MLflow run
 mlflow ui --backend-store-uri ./mlruns    # open http://localhost:5000
 ```
 

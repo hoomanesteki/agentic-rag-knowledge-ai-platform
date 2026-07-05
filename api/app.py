@@ -468,7 +468,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                              lang=req.lang, persona=req.persona,
                                              history=req.history, concise=req.concise,
                                              auth_identity=auth_identity, notes=req.notes,
-                                             small_llm=getattr(comp["llm"], "fallback", None)):
+                                             small_llm=getattr(comp["llm"], "fallback", None),
+                                             review_queue=comp.get("review_queue"),
+                                             domain=comp.get("domain")):
                         yield _sse(event)
                     return
                 # Linear path: tokens stream across threadpool resumes, so we do not open a span

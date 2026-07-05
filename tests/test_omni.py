@@ -24,12 +24,35 @@ def test_own_order_turn_routes_through_the_care_lane(monkeypatch):
     assert rec.calls[-1]["role_fragment"]  # a non-empty focus was applied
 
 
-def test_explicit_human_request_speaks_as_the_specialist(monkeypatch):
+class _Queue:
+    def __init__(self):
+        self.filed = []
+
+    def enqueue(self, question, **kw):
+        self.filed.append((question, kw))
+        return "abcd1234efgh"
+
+
+def test_escalation_files_a_case_brief_and_confirms(monkeypatch, tmp_path):
     rec = _Recorder()
     monkeypatch.setattr(omni, "stream_answer", rec)
-    list(omni.stream_omni("please connect me to a human", embedder=None, store=None, llm=None))
-    assert rec.calls[-1]["lane"] == "escalation"
-    assert rec.calls[-1]["persona"] == "agent"
+    rq = _Queue()
+    events = list(omni.stream_omni(
+        "please connect me to a human", embedder=None, store=None, llm=None, review_queue=rq,
+        domain="apparel_ecommerce", auth_identity=("Aaron Esteki", "info@esteki.ca"),
+        message_id="m1", trace_path=str(tmp_path / "t.jsonl")))
+    assert not rec.calls  # escalation does not go through the normal answer path
+    assert rq.filed and "Escalation:" in rq.filed[0][0]  # a case brief was filed
+    final = events[-1]
+    assert final["tier"] == "escalate" and final["escalation_id"] == "abcd1234efgh"
+    assert "1." in final["answer"] and "2." in final["answer"]  # a numbered confirm list
+    assert "info@esteki.ca" in final["answer"]  # the shopper's own email, echoed to confirm
+
+
+def test_escalation_without_a_queue_still_confirms(tmp_path):
+    events = list(omni.stream_omni("I want to talk to a representative", embedder=None, store=None,
+                                   llm=None, trace_path=str(tmp_path / "t.jsonl")))
+    assert events[-1]["tier"] == "escalate"  # degrades gracefully with no queue wired
 
 
 def test_ambiguous_turn_asks_instead_of_answering(monkeypatch, tmp_path):

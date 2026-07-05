@@ -22,7 +22,7 @@ import time
 import uuid
 
 from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
-from rag.roles import lane_persona, role_fragment
+from rag.roles import role_fragment
 from rag.router import route
 
 # Lanes that carry a real task. A clause that only routes to "answers" is not enough on its own to
@@ -95,9 +95,63 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps):
            "confidence": 0.8, "grounding": 1.0, "citations": [], "lane": "multi"}
 
 
+_ORDER_ID = re.compile(r"\b[A-Z]{2}\d{5,}\b")
+
+
+def _find_order_ref(query: str, history) -> str:
+    text = query + " " + " ".join(
+        t.get("content", "") for t in (history or []) if t.get("role") == "user")
+    m = _ORDER_ID.search(text)
+    return m.group(0) if m else ""
+
+
+def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review_queue, domain,
+                      trace_path):
+    """The handoff to a person. The escalation specialist confirms what a human will need as a
+    numbered list (only the shopper's OWN proven identity, so this echoes nothing they did not
+    supply), files a case brief to the durable review queue, and asks if there is anything else.
+    The human then picks up a ready case instead of starting cold, which is the AI helper doing the
+    repetitive prep so the person spends their time on the resolution."""
+    name = auth_identity[0] if (auth_identity and auth_identity[0]) else ""
+    email = (auth_identity[1] if (auth_identity and len(auth_identity) > 1 and auth_identity[1])
+             else "")
+    order_ref = _find_order_ref(query, history)
+    concern = query.strip()
+    case_id = ""
+    if review_queue is not None:
+        brief = " | ".join(p for p in (
+            "Escalation: " + concern,
+            "shopper: " + name if name else "",
+            "email: " + email if email else "",
+            "order: " + order_ref if order_ref else "") if p)
+        try:
+            case_id = review_queue.enqueue(brief, domain=domain, message_id=message_id,
+                                           route="escalation", lang=lang)
+        except Exception:
+            case_id = ""
+    rows = [("Your concern", concern), ("Name on the account", name),
+            ("Email on the order", email), ("Order reference", order_ref)]
+    lines = ["I've got you, and I'll make this quick. Here is what I'm noting for our care "
+             "specialist:"]
+    for i, (label, val) in enumerate(rows, start=1):
+        lines.append("{}. {}: {}".format(i, label, val or "please confirm"))
+    ref = " (ref {})".format(case_id[:8]) if case_id else ""
+    lines.append("I've logged this{} and a specialist will follow up by email. Is there anything "
+                 "else you'd like me to add before I pass it over?".format(ref))
+    text = "\n".join(lines)
+    mid = message_id or uuid.uuid4().hex
+    write_trace({"ts": time.time(), "message_id": mid, "query": query, "lang": lang,
+                 "tier": "escalate", "lane": "escalation", "escalation_id": case_id,
+                 "streamed": True}, trace_path or DEFAULT_TRACE_PATH)
+    yield {"type": "token", "text": text}
+    yield {"type": "final", "message_id": mid, "answer": text, "tier": "escalate",
+           "confidence": 1.0, "grounding": 1.0, "citations": [], "escalation_id": case_id}
+
+
 def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=None,
                 graph_retriever=None, lang=None, persona=None, history=None, concise=False,
-                auth_identity=None, notes=None, message_id=None, small_llm=None, trace_path=None):
+                auth_identity=None, notes=None, message_id=None, small_llm=None, trace_path=None,
+                review_queue=None, domain=None):
     """Yield the same event dicts as stream_answer (token chunks then one final), after routing."""
     signed_in = bool(auth_identity and auth_identity[0])
     decision = route(query, history=history, signed_in=signed_in, small_llm=small_llm)
@@ -115,6 +169,14 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                "confidence": round(decision.confidence, 3), "grounding": 1.0, "citations": []}
         return
 
+    # A request to reach a person: the escalation specialist files a ready case brief and confirms.
+    # This takes the whole turn, whatever the persona; a human request never fans out.
+    if decision.lane == "escalation":
+        yield from _escalate_handoff(query, message_id=message_id, auth_identity=auth_identity,
+                                     history=history, lang=lang, review_queue=review_queue,
+                                     domain=domain, trace_path=trace_path)
+        return
+
     deps = dict(embedder=embedder, store=store, llm=llm, reranker=reranker,
                 metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
                 persona=persona, history=history, concise=concise, auth_identity=auth_identity,
@@ -122,11 +184,18 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
     if trace_path is not None:
         deps["trace_path"] = trace_path
 
+    # Already with the specialist after an earlier handoff: keep the specialist persona and answer
+    # the routed lane's focus, rather than restarting the shopper with the assistant.
+    if persona == "agent":
+        yield from stream_answer(query, message_id=message_id,
+                                 role_fragment=role_fragment(decision.lane), lane=decision.lane,
+                                 **deps)
+        return
+
     # Multi-task: split, and only fan out when the clauses hit two or more distinct actionable
-    # lanes (so "a red and blue jacket" stays one shopping turn). Escalation never fans out; a
-    # request for a person takes the whole turn.
+    # lanes (so "a red and blue jacket" stays one shopping turn).
     clauses = _split_clauses(query)
-    if len(clauses) > 1 and decision.lane != "escalation":
+    if len(clauses) > 1:
         routed = [(c, route(c).lane) for c in clauses]
         actionable = [(c, ln) for c, ln in routed if ln in _ACTIONABLE]
         if len({ln for _, ln in actionable}) >= 2:
@@ -134,9 +203,7 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                                          auth_identity=auth_identity, deps=deps)
             return
 
-    # Single-task fast path. Escalation speaks as the specialist persona; every other lane keeps
-    # the caller's persona.
-    effective_persona = "agent" if lane_persona(decision.lane) == "agent" else persona
-    yield from stream_answer(query, persona=effective_persona, message_id=message_id,
+    # Single-task fast path.
+    yield from stream_answer(query, message_id=message_id,
                              role_fragment=role_fragment(decision.lane), lane=decision.lane,
-                             **{k: v for k, v in deps.items() if k != "persona"})
+                             **deps)

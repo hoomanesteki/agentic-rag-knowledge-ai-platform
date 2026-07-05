@@ -116,6 +116,46 @@ function recsFromAnswer(text: string, products: Product[]): Product[] {
   return hits.sort((a, b) => a.at - b.at).slice(0, 4).map((h) => h.p);
 }
 
+// On-device shopper memory: accumulate who they shop for (with the recipient's gender) and what
+// they like, from their OWN messages, so the assistant can pick up across visits. Stored only in
+// localStorage; the sole thing sent to the server is the short derived note below, as trusted
+// context, so no personal data is retained server-side (privacy by design, PIPEDA/GDPR-friendly).
+const REL_GENDER: Record<string, string> = {
+  mum: "a woman", mom: "a woman", mother: "a woman", wife: "a woman", girlfriend: "a woman",
+  sister: "a woman", daughter: "a woman", grandma: "a woman", aunt: "a woman", niece: "a woman",
+  dad: "a man", father: "a man", husband: "a man", boyfriend: "a man", brother: "a man",
+  son: "a man", grandpa: "a man", uncle: "a man", nephew: "a man",
+};
+function updateShopperProfile(query: string): string {
+  let prof: { recipients: Record<string, string>; likes: string[] };
+  try {
+    prof = JSON.parse(localStorage.getItem("aster_profile") || "null") || { recipients: {}, likes: [] };
+  } catch {
+    prof = { recipients: {}, likes: [] };
+  }
+  prof.recipients = prof.recipients || {};
+  prof.likes = prof.likes || [];
+  const q = query.toLowerCase();
+  for (const rel of Object.keys(REL_GENDER)) {
+    if (new RegExp(`\\b(my|his|her|the)\\s+${rel}s?\\b`).test(q)) prof.recipients[rel] = REL_GENDER[rel];
+  }
+  const likes = q.match(
+    /\b(running|yoga|pilates|spin|cycling|hiking|gym|training|travel|commute|swimming|climbing|golf|skiing|wedding|formal|date night)\b/g,
+  );
+  for (const l of likes || []) if (!prof.likes.includes(l)) prof.likes.push(l);
+  prof.likes = prof.likes.slice(-6);
+  try {
+    localStorage.setItem("aster_profile", JSON.stringify(prof));
+  } catch {
+    /* ignore */
+  }
+  const rec = Object.entries(prof.recipients).map(([r, g]) => `their ${r} (${g})`);
+  const parts: string[] = [];
+  if (rec.length) parts.push("has shopped for " + rec.slice(0, 3).join(", "));
+  if (prof.likes.length) parts.push("interests mentioned: " + prof.likes.join(", "));
+  return parts.join("; ");
+}
+
 // Topic-narrowing follow-ups: after a policy answer, drill into that same topic rather than
 // jumping to random suggestions, so each question can go deeper.
 // Topic threads: each keeps its own set of narrowing follow-ups, so a conversation about returns
@@ -548,6 +588,8 @@ function Conversation({
     try {
       localStorage.removeItem("aster_chat");
       localStorage.setItem("aster_agent", "0");
+      localStorage.removeItem("aster_profile"); // forget the on-device personalization memory
+      localStorage.removeItem("aster_visited"); // a truly fresh start greets as first-time again
     } catch {
       /* ignore */
     }
@@ -676,6 +718,8 @@ function Conversation({
     // Watchdog so a cold or wedged API that accepts the socket but never sends bytes can't leave the
     // typing dots (and voice "Thinking...") spinning forever: abort if no first byte in 30s, and if
     // the stream then goes idle for 60s. An abort lands in the catch below ("Could not reach...").
+    // update the on-device shopper memory from this message and send the short derived note along
+    const shopperNotes = updateShopperProfile(q);
     const ctrl = new AbortController();
     let watchdog = setTimeout(() => ctrl.abort(), 30_000);
     const armIdle = () => {
@@ -692,6 +736,7 @@ function Conversation({
           ...(agentMode ? { persona: "agent" } : {}),
           ...(voiceLiveRef.current ? { concise: true } : {}), // short, speakable reply in voice mode
           ...(history.length ? { history } : {}),
+          ...(shopperNotes ? { notes: shopperNotes } : {}), // on-device personalization memory
         }),
       });
       if (res.status === 401) {

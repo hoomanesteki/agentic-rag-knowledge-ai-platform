@@ -76,6 +76,11 @@ class ChatRequest(BaseModel):
     concise: bool = Field(default=False)
     # prior turns [{"role": "user"|"assistant", "content": str}] so a follow-up can be rewritten
     history: list[dict] | None = Field(default=None, max_length=20)
+    # a compact personalization note the CLIENT derived and stores on-device (localStorage), e.g.
+    # "shopping for their mum (a woman); likes running; budget around $100". It persists across
+    # sessions in the browser so the assistant can pick up where they left off. Trusted shopper
+    # context, never instructions, and no personal data is stored server-side.
+    notes: str | None = Field(default=None, max_length=600)
 
 
 class FeedbackRequest(BaseModel):
@@ -459,7 +464,7 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                            graph_retriever=comp.get("graph_retriever"),
                                            lang=req.lang, persona=req.persona,
                                            history=req.history, concise=req.concise,
-                                           auth_identity=auth_identity):
+                                           auth_identity=auth_identity, notes=req.notes):
                     yield _sse(event)
             # Catch broadly: the response is already a 200 SSE stream, so any failure (a hosted
             # SDK error not wrapped as RuntimeError, a mid-stream drop) must surface as an event,

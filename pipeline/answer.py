@@ -1300,7 +1300,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None,
                   lang: str | None = None, persona: str | None = None,
                   history: list[dict] | None = None, concise: bool = False,
-                  auth_identity: tuple[str, str] | None = None):
+                  auth_identity: tuple[str, str] | None = None, notes: str | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
@@ -1403,6 +1403,14 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         taste = _personal_profile_note(auth_identity, embedder, store)
         if taste:
             profile = (profile + " " + taste) if profile else taste
+    # a client-derived, on-device personalization note ("shopping for their mum (a woman); likes
+    # running") the shopper built up over past visits. Fold it in so the model can pick up where
+    # they left off and restate it, while still confirming with a question, never assuming.
+    if notes and notes.strip():
+        shared = ("The shopper has shared before (use it to pick up where they left off: restate "
+                  "it naturally and still confirm with a light question, never assume): "
+                  + sanitize_context(notes.strip())[:400])
+        profile = (profile + " " + shared) if profile else shared
     prompt = _build_prompt(query, contexts, history, profile=profile)
     parts = []
     for piece in llm.stream(prompt, system=system):

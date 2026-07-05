@@ -469,6 +469,11 @@ _VOICE_BREVITY = (
 _PRICES = {
     "llama-3.3-70b-versatile": (0.59, 0.79),
     "llama-3.1-8b-instant": (0.05, 0.08),
+    # frontier models for the escalation persona (steady list price per 1M tokens, conservative;
+    # Sonnet 5 is cheaper in its intro window). Cache reads bill ~0.1x input, writes ~1.25x.
+    "claude-sonnet-5": (3.00, 15.00),
+    "claude-opus-4-8": (5.00, 25.00),
+    "claude-haiku-4-5": (1.00, 5.00),
 }
 
 _CITE = re.compile(r"\[(\d+)\]")
@@ -660,11 +665,16 @@ def _build_prompt(query: str, contexts: list[dict], history: list[dict] | None =
     )
 
 
-def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
+def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
+                   cache_read_tokens: int = 0, cache_creation_tokens: int = 0) -> float | None:
     if model not in _PRICES:
         return None  # unknown model: do not pretend the cost is zero
     price_in, price_out = _PRICES[model]
-    return round(prompt_tokens / 1e6 * price_in + completion_tokens / 1e6 * price_out, 6)
+    # regular input + output, plus cached tokens billed on their own rates: cache reads at ~0.1x the
+    # input price, cache writes at ~1.25x. Defaults of 0 keep the Groq path (no prompt cache) exact.
+    return round(prompt_tokens / 1e6 * price_in + completion_tokens / 1e6 * price_out
+                 + cache_read_tokens / 1e6 * price_in * 0.1
+                 + cache_creation_tokens / 1e6 * price_in * 1.25, 6)
 
 
 def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:

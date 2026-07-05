@@ -37,8 +37,8 @@ type Message = {
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Sara from the Aster care team. 👋 I've got you from here. If it's about an order, " +
-  "share the name and email on it and I'll pull it up right away. What's going on?";
+  "Hi, I'm Sara from the Aster care team. 👋 I've got you from here. Tell me what's going on, and " +
+  "if it's about an order I'll pull it up right away.";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -581,16 +581,16 @@ function Conversation({
     const asksNature = /^(are|is|am)\s+(you|this|it|i|u)\b/i.test(qt);
     const shortHuman =
       qt.split(/\s+/).length <= 4 &&
-      /\b(human|agent|representative|real person|advisor|operator|manager)\b/i.test(q);
+      /\b(human|agent|representative|real person|advisor|operator|manager|specialist)\b/i.test(q);
     // A verb+person phrase in EITHER order, so "talk to a human" and "a human I can talk to" both
     // escalate. NOT "get" (too generic: "get someone a gift", "get the most support") and NOT the
     // vague nouns "someone/somebody/support" that ordinary shopping uses. The gap is tight so
     // "connect me with a plan that has good support" cannot match.
     const verbHuman =
-      /\b(talk|speak|chat|connect|transfer|reach|escalate)\b.{0,20}\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b/i.test(
+      /\b(talk|speak|chat|connect|transfer|reach|escalate)\b.{0,20}\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor|specialist)\b/i.test(
         q,
       ) ||
-      /\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor)\b.{0,20}\b(talk|speak|chat|connect|transfer|reach|escalate)\b/i.test(
+      /\b(human|person|agent|representative|rep|advisor|operator|manager|supervisor|specialist)\b.{0,20}\b(talk|speak|chat|connect|transfer|reach|escalate)\b/i.test(
         q,
       );
     // An explicit refusal must not escalate. Two shapes: (1) a negated desire/handoff
@@ -599,10 +599,10 @@ function Conversation({
     // a human please"). A leading discourse "No, I want to talk to a human" is NOT a refusal: it
     // carries an affirmative verbHuman, so it still escalates.
     const refusesHuman =
-      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+      /\b(don'?t|do not|never|without|no need|rather not|no thanks?)\b[^.?!]{0,24}\b(human|person|agent|representative|rep|advisor|operator|manager|specialist)\b/i.test(
         q,
       ) ||
-      (/\b(no|not)\b[^.?!]{0,12}\b(human|person|agent|representative|rep|advisor|operator|manager)\b/i.test(
+      (/\b(no|not)\b[^.?!]{0,12}\b(human|person|agent|representative|rep|advisor|operator|manager|specialist)\b/i.test(
         q,
       ) &&
         !verbHuman);
@@ -1247,7 +1247,7 @@ function Conversation({
       {agentMode && (
         <div className="agent-banner">
           <span>
-            <b>Sara</b> · Aster team, human agent
+            <b>Sara</b> · Aster care specialist
           </span>
           <button onClick={endAgent}>Back to Aria</button>
         </div>
@@ -1301,7 +1301,7 @@ function Conversation({
               </div>
             ) : (
               <>
-                {m.agent && <div className="agent-tag">Sara · human agent</div>}
+                {m.agent && <div className="agent-tag">Sara · care specialist</div>}
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
                   {m.role === "bot" ? <Markdown text={m.text} products={products} /> : m.text}
                 </div>

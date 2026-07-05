@@ -33,24 +33,28 @@ function linkTargets(products?: Prod[]): { label: string; id: string }[] {
 function linkify(text: string, key: string, targets: { label: string; id: string }[]): ReactNode[] {
   if (targets.length === 0) return [text];
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rx = new RegExp(`\\b(${targets.map((t) => esc(t.label)).join("|")})\\b`, "gi");
+  // match the name with an optional trailing plural "s" ("Flow Leggings"), so the inline link agrees
+  // with the card matcher, which uses a substring match
+  const rx = new RegExp(`\\b(${targets.map((t) => esc(t.label)).join("|")})(s?)\\b`, "gi");
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(text)) !== null) {
+    const base = m[1];
+    const shown = m[1] + (m[2] || ""); // keep the plural in the visible/linked text
     if (m.index > last) out.push(text.slice(last, m.index));
-    const hit = targets.find((t) => t.label.toLowerCase() === m![1].toLowerCase());
+    const hit = targets.find((t) => t.label.toLowerCase() === base.toLowerCase());
     if (hit) {
       out.push(
         <Link key={`${key}-a${i++}`} href={`/product/${hit.id}`} className="prod-link">
-          {m[1]}
+          {shown}
         </Link>,
       );
     } else {
-      out.push(m[1]);
+      out.push(shown);
     }
-    last = m.index + m[1].length;
+    last = m.index + shown.length;
     if (rx.lastIndex === m.index) rx.lastIndex++; // guard against a zero-width match
   }
   if (last < text.length) out.push(text.slice(last));

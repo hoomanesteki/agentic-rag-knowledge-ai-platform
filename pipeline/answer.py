@@ -313,9 +313,11 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     _category = re.search(r"\b(leggings?|legings?|jackets?|hoodies?|bras?|shorts?|tops?|tees?|"
                           r"shirts?|bags?|caps?|hats?|beanies?|socks?|pants?|trousers?|outfits?|"
                           r"gear|joggers?|pullovers?|sweaters?|crops?|tanks?|accessor\w*)\b", q)
-    _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|ship|track|"
-                         r"does it|do you have the|is the|what colou?r)\b", q)
-    if _facets == 0 and not _factual:
+    _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|shipping|"
+                         r"tracking|does it|do you have the|is the|what colou?r)\b", q)
+    # a complaint ("my leggings arrived damaged", "I need a replacement for my torn jacket") must go
+    # to the empathetic problem path, never the cheery buy clarifier
+    if _facets == 0 and not _factual and not _problem_intent(query):
         if _gift and _recipient:
             return ("Love to help you find a great gift 😊 A few quick things so it's spot on: "
                     "what are they into, a sport like running or yoga, or more everyday and cozy? "
@@ -449,11 +451,13 @@ def _shopping_intent(query: str) -> bool:
 # A complaint / billing / order problem. These must never get the shopping "tell me a category,
 # color, or budget" fallback; they get empathy and a handoff to a human/service instead.
 _PROBLEM_INTENT = re.compile(
-    r"\b(charged (me )?twice|double[- ]charge|charged twice|wrong charge|overcharged|billing|"
+    r"\b(charged (me )?twice|double[- ]charged?|charged twice|wrong charge|overcharged|billing|"
     r"refund me|damaged|broken|defective|faulty|torn|ripped|never (arrived|got|received)|"
-    r"didn'?t (arrive|get|receive)|missing|complaint|furious|angry|upset|terrible|worst|"
-    r"disappointed|unacceptable|fix this|problem with (my|the)|issue with (my|the)|wrong item|"
-    r"not what i ordered|scam|ripped me off)\b", re.I)
+    r"didn'?t (arrive|get|receive)|hasn'?t (arrived|shipped|come|showed up)|"
+    r"still (waiting|haven'?t (got|received))|taking (too long|forever)|late|delayed?|missing|"
+    r"complaint|furious|angry|upset|"
+    r"terrible|worst|disappointed|unacceptable|fix this|problem with (my|the)|issue with (my|the)|"
+    r"wrong item|not what i ordered|scam|ripped me off)\b", re.I)
 
 
 def _problem_intent(query: str) -> bool:
@@ -469,6 +473,19 @@ _PROBLEM_ABSTAIN_AGENT = (
     "I'm so sorry about that, and I've got you. Let me sort it out: could you share your order "
     "number and the email on the order so I can pull it up?"
 )
+
+
+def _problem_abstain_verified(first: str, agent: bool) -> str:
+    """Complaint hand-off for a signed-in shopper: their identity is already proven, so it never
+    asks them to re-share their name, email, or order number."""
+    hi = ", " + first if first else ""
+    if agent:
+        return ("I'm so sorry about that{}, and I've got you. You're signed in, so I can see your "
+                "account, no need to look anything up. Tell me a bit more about what went wrong "
+                "and I'll sort it out right away.".format(hi))
+    return ("I'm really sorry about that{} 🙏. You're signed in, so a specialist can pick this up "
+            "on your order right away, nothing to re-share. Can you tell me what went wrong?"
+            .format(hi))
 DEFAULT_TRACE_PATH = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 
 
@@ -1290,7 +1307,11 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
 
     if abstained:
         if _problem_intent(rquery):  # a complaint/billing/order problem, not a product miss
-            abstain_msg = _PROBLEM_ABSTAIN_AGENT if persona == "agent" else _PROBLEM_ABSTAIN
+            if auth_identity and auth_identity[0]:  # signed in: never ask them to re-verify
+                abstain_msg = _problem_abstain_verified(
+                    auth_identity[0].split(" ")[0], persona == "agent")
+            else:
+                abstain_msg = _PROBLEM_ABSTAIN_AGENT if persona == "agent" else _PROBLEM_ABSTAIN
         else:
             abstain_msg = _AGENT_ABSTAIN if persona == "agent" else _ABSTAIN
         trace.update(tier="abstain", model=None, grounding=0.0, streamed=True,

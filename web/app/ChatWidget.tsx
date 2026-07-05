@@ -1249,7 +1249,7 @@ function Conversation({
           <span>
             <b>Sara</b> · Aster team, human agent
           </span>
-          <button onClick={endAgent}>End chat</button>
+          <button onClick={endAgent}>Back to Aria</button>
         </div>
       )}
       {!agentMode && messages.length > 0 && (
@@ -1287,15 +1287,6 @@ function Conversation({
                 {t}
               </button>
             ))}
-          </div>
-        )}
-
-        {agentMode && (
-          <div className="agent-banner">
-            <span>You&rsquo;re with Sara, a human specialist.</span>
-            <button className="link-btn" onClick={endAgent}>
-              Back to Aria
-            </button>
           </div>
         )}
 

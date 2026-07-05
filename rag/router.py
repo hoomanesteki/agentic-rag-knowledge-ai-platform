@@ -107,7 +107,7 @@ _CARE_CUE = re.compile(
 _COMPLAINT_CUE = re.compile(
     r"\b(arrived|came|showed up|shipped|received|has a|had a|got a|there'?s a|with a)\b[^.?!]{0,18}"
     r"\b(hole|torn|ripped|stain(ed)?|scuff\w*|peel\w*|unravel\w*|frayed|defect\w*|damaged|"
-    r"broken|cracked|falling apart)\b(?!\s*-?\s*(resistant|proof|repellent))"
+    r"broken|cracked|falling apart)\b(?!\s*-\s*(resistant|proof|repellent|in)\b)"
     r"|\b(wrong (size|colou?r|item|order)|not what i ordered|someone else'?s (order|package))\b"
     r"|\b(charged|billed)\b[^.?!]{0,24}\b(twice|two times|again|double|duplicate|extra)\b"
     r"|\b(double|duplicate|extra) (charge|charges|payment|billing)\b"

@@ -54,3 +54,29 @@ def test_lane_roles_and_personas():
         assert lane_persona(lane) is None
         assert role_fragment(lane)  # service lanes carry a focus
     assert role_fragment("escalation") == ""  # escalation focus lives in the specialist prompt
+
+
+def test_multitask_turn_fans_out_to_both_lanes_and_stitches(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    events = list(omni.stream_omni("suggest a gift for my mum and check where my order is",
+                                   embedder=None, store=None, llm=None))
+    lanes = [c["lane"] for c in rec.calls]
+    assert "stylist" in lanes and "care" in lanes  # both parts handled
+    assert len(rec.calls) == 2
+    assert events[-1]["lane"] == "multi"
+
+
+def test_single_shopping_turn_with_and_is_not_split(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("a red and blue jacket for running", embedder=None, store=None, llm=None))
+    assert len(rec.calls) == 1  # one shopping turn, not two clauses
+
+
+def test_multitask_puts_a_complaint_clause_first(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("suggest a warmer coat and my last order never arrived",
+                          embedder=None, store=None, llm=None))
+    assert rec.calls[0]["lane"] == "complaint"  # empathy leads regardless of typed order

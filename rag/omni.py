@@ -1,17 +1,23 @@
-"""The omni brain's single-turn fast path.
+"""The omni brain: route a turn, then answer it through the one gated pipeline.
 
-Every turn is routed by the cheap-first router, then answered by the one gated streaming pipeline
-with the chosen lane's focus applied. Because the answer still flows through stream_answer, the
-order-PII gate, safety intercepts, smalltalk handling, retrieval, and grounding are exactly the
-linear path's. Routing adds specialization without standing up a second, weaker safety surface,
-which is the PII-parity guarantee.
+Single-task turns take the fast path: route, then stream the chosen lane straight through
+stream_answer, so the order-PII gate, safety intercepts, smalltalk, retrieval, and grounding are
+exactly the linear path's. Routing adds specialization, not a second weaker safety surface, which
+is the PII-parity guarantee.
 
-A genuinely ambiguous turn is not answered: the router returns a two-option clarify and the brain
-asks the one question that splits them, instead of guessing. Multi-task turns are handled by the
-heavy graph (rag/omni_graph.py); on this fast path the primary lane answers.
+Multi-task turns ("suggest a gift AND check my order") take the heavy path: split into clauses,
+route and answer each through the same gated pipeline, then stitch the parts into one reply with a
+complaint clause leading. A reroute budget lets one clause that abstained try the answers lane
+once, and an output guard scans the stitched reply for a leaked email as a last-line tripwire.
+This is deterministic control flow rather than a LangGraph Send fan-out; for a two or three clause
+plan that is simpler to read and test, and the map-reduce is the documented scale-up.
+
+A genuinely ambiguous turn is not answered at all: the router returns a two-option clarify and the
+brain asks the one question that splits it.
 """
 from __future__ import annotations
 
+import re
 import time
 import uuid
 
@@ -19,12 +25,74 @@ from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.roles import lane_persona, role_fragment
 from rag.router import route
 
+# Lanes that carry a real task. A clause that only routes to "answers" is not enough on its own to
+# call a turn multi-task, so "a red and blue jacket" stays a single shopping turn.
+_ACTIONABLE = ("complaint", "care", "stylist", "escalation")
+_MAX_CLAUSES = 3  # cap the fan-out so a run-on sentence cannot spawn unbounded work
+
+# split on a coordinating conjunction between clauses. Kept conservative, and a split only counts
+# as multi-task when the clauses route to two or more different actionable lanes (checked below).
+_CONJ = re.compile(r"\s*(?:\band then\b|\band also\b|\balso\b|\bthen\b|;|\band\b)\s*", re.I)
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+_SAFE_LEAK = ("I want to be careful with personal details here. Could you confirm the order number "
+              "and the email on the order, and I'll pull it up securely?")
+
 
 def _clarify_text(clarify: dict) -> str:
     a = clarify.get("a", "one thing")
     b = clarify.get("b", "something else")
     return ("Happy to help, and I want to point you the right way. Are you after {a}, or {b}?"
             .format(a=a, b=b))
+
+
+def _split_clauses(query: str) -> list[str]:
+    parts = [p.strip(" ,.;:") for p in _CONJ.split(query)]
+    parts = [p for p in parts if len(p.split()) >= 2]  # drop fragments like "a red"
+    return parts[:_MAX_CLAUSES] if len(parts) > 1 else [query]
+
+
+def _output_leaks(text: str, auth_identity) -> bool:
+    """A stitched reply is the one new surface the per-clause gate did not see as a whole, so scan
+    it for an email that is not the authorized shopper's. Each clause is already gated, so this is
+    defense in depth, not the primary control."""
+    authorized = ""
+    if auth_identity and len(auth_identity) > 1 and auth_identity[1]:
+        authorized = auth_identity[1].lower()
+    return any(m.lower() != authorized for m in _EMAIL.findall(text))
+
+
+def _answer_once(clause: str, lane: str, deps: dict):
+    """Answer one clause through the gated pipeline, buffered. Returns (text, final_event)."""
+    parts, final = [], {}
+    for ev in stream_answer(clause, role_fragment=role_fragment(lane), lane=lane, **deps):
+        if ev.get("type") == "token":
+            parts.append(ev.get("text", ""))
+        elif ev.get("type") == "final":
+            final = ev
+    return ("".join(parts) or final.get("answer", "")), final
+
+
+def _stream_multitask(routed, *, message_id, auth_identity, deps):
+    # a complaint leads (empathy before anything else); the rest keep the order the shopper typed
+    ordered = ([x for x in routed if x[1] == "complaint"]
+               + [x for x in routed if x[1] != "complaint"])
+    reroute_budget = 1
+    answers = []
+    for clause, lane in ordered:
+        text, final = _answer_once(clause, lane, deps)
+        if final.get("tier") == "abstain" and lane != "answers" and reroute_budget > 0:
+            reroute_budget -= 1  # one clause may retry as the answers catch-all
+            text, final = _answer_once(clause, "answers", deps)
+        if text:
+            answers.append(text)
+    stitched = "\n\n".join(answers)
+    if _output_leaks(stitched, auth_identity):
+        stitched = _SAFE_LEAK
+    mid = message_id or uuid.uuid4().hex
+    yield {"type": "token", "text": stitched}
+    yield {"type": "final", "message_id": mid, "answer": stitched, "tier": "auto",
+           "confidence": 0.8, "grounding": 1.0, "citations": [], "lane": "multi"}
 
 
 def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=None,
@@ -47,14 +115,28 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                "confidence": round(decision.confidence, 3), "grounding": 1.0, "citations": []}
         return
 
-    # escalation speaks as the specialist persona; every other lane keeps the caller's persona
-    effective_persona = "agent" if lane_persona(decision.lane) == "agent" else persona
-
-    kwargs = dict(embedder=embedder, store=store, llm=llm, reranker=reranker,
-                  metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
-                  persona=effective_persona, history=history, concise=concise,
-                  auth_identity=auth_identity, notes=notes, message_id=message_id,
-                  role_fragment=role_fragment(decision.lane), lane=decision.lane)
+    deps = dict(embedder=embedder, store=store, llm=llm, reranker=reranker,
+                metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
+                persona=persona, history=history, concise=concise, auth_identity=auth_identity,
+                notes=notes)
     if trace_path is not None:
-        kwargs["trace_path"] = trace_path
-    yield from stream_answer(query, **kwargs)
+        deps["trace_path"] = trace_path
+
+    # Multi-task: split, and only fan out when the clauses hit two or more distinct actionable
+    # lanes (so "a red and blue jacket" stays one shopping turn). Escalation never fans out; a
+    # request for a person takes the whole turn.
+    clauses = _split_clauses(query)
+    if len(clauses) > 1 and decision.lane != "escalation":
+        routed = [(c, route(c).lane) for c in clauses]
+        actionable = [(c, ln) for c, ln in routed if ln in _ACTIONABLE]
+        if len({ln for _, ln in actionable}) >= 2:
+            yield from _stream_multitask(actionable, message_id=message_id,
+                                         auth_identity=auth_identity, deps=deps)
+            return
+
+    # Single-task fast path. Escalation speaks as the specialist persona; every other lane keeps
+    # the caller's persona.
+    effective_persona = "agent" if lane_persona(decision.lane) == "agent" else persona
+    yield from stream_answer(query, persona=effective_persona, message_id=message_id,
+                             role_fragment=role_fragment(decision.lane), lane=decision.lane,
+                             **{k: v for k, v in deps.items() if k != "persona"})

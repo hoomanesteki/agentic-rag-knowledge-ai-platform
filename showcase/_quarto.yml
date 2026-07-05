@@ -23,6 +23,8 @@ website:
         href: decisions.qmd
       - text: "Reliability"
         href: reliability.qmd
+      - text: "The experience"
+        href: experience.qmd
       - text: "Try it"
         href: usage.qmd
     right:

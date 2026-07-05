@@ -1,0 +1,57 @@
+---
+title: "The experience"
+pagetitle: "Skein Lite: voice, text, personalization, and privacy"
+---
+
+::: {.eyebrow}
+Two ways to talk, one honest assistant, and a careful line on data
+:::
+
+The assistant meets a shopper in two modes, text and voice, and they are deliberately not the same. A person reads a screen differently than they listen on a call, so each mode is tuned for how people actually take it in. Underneath, both share the same retrieval, the same governed numbers, and the same safety guards, so the behavior is consistent even when the delivery is not.
+
+## Text and voice are shaped for how people take them in
+
+```{mermaid}
+flowchart LR
+  Q[Shopper] --> R[Same retrieval, metrics, and guards]
+  R --> T[Text reply]
+  R --> V[Voice reply]
+  T --> TT[Scannable bullets, emoji, product cards + inline links]
+  V --> VV[One or two warm sentences, no symbols spoken, fast to interrupt]
+  classDef a fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  class R a;
+```
+
+| | Text chat | Voice |
+|---|---|---|
+| **Length** | As long as it needs, but always scannable | One or two sentences, the rest is on screen |
+| **Format** | Short bulleted or numbered lists, never a wall of text | Natural speech, no bullets or lists read aloud |
+| **Products** | Named, linked inline, and shown as tappable cards with a photo and price | At most two named aloud, the full set shown as cards on screen |
+| **Emoji** | A few, for warmth | Never spoken (stripped before the voice reads it) |
+| **Tone** | Friendly and helpful | Warm and upbeat, reacts like a person ("great choice") |
+| **Interrupting** | Not needed | Barge in any time; it stops the moment you start talking |
+
+The voice mode is built to feel like a real call. It greets by name once at the start, not on every reply, uses the name only now and then after that, and says "nice to meet you" the first time but "welcome back" on a return. It stops talking the instant the shopper speaks over it, keyed on the first real words rather than waiting out its own echo, so it never talks past an interruption.
+
+## Personalization that stays on the shopper's device
+
+The assistant remembers what a shopper tells it so the next conversation picks up where the last one left off, without turning into a surveillance file. When someone says "a gift for my mum" or "something for my boyfriend", the client notes the recipient and their gender; when they mention running, yoga, or a wedding, it notes the interest. That short profile lives in the browser (`localStorage`), and the only thing sent to the server is a one-line summary as trusted context for that turn.
+
+So on a return visit the assistant can say "last time you were shopping for your mum, still looking for her?" and keep asking the one good follow-up a stylist would, while never assuming beyond what the shopper actually said. Clearing the chat forgets all of it.
+
+::: {.callout-note appearance="simple"}
+**Why on-device.** For a portfolio on a hobby budget, keeping personalization on the device is the honest, low-risk choice: it delivers the "remember me" experience with no personal or family data retained on the server. The section below describes how a real CRM would scale this up compliantly.
+:::
+
+## Privacy and compliance, built in rather than bolted on
+
+The data practices are designed to the norms shoppers in Canada and the US expect (PIPEDA, and GDPR-style principles that most North American teams now follow):
+
+- **Data minimization.** The only personalization stored is a short derived note (recipient, gender, interests). No phone number or home address is ever kept, and the demo customer record says so explicitly.
+- **On-device by default.** The personalization memory is the shopper's own, in their browser, and clearing the chat deletes it. Nothing personal is written to a server store.
+- **Purpose-bound order access.** Order and account details sit behind a deterministic gate: a shopper only ever sees their own orders, proven by their signed-in identity or a name-and-email match, never a third party's. "Show me Sarah Miller's orders" is refused before retrieval, not just declined by the model.
+- **A compliant path to scale.** If this became a real CRM, the same shape holds: explicit consent at capture, a stated retention window, a right to export and delete, and per-tenant isolation. The seams are already there; what a production launch adds is the consent ledger and the retention job, not a rewrite.
+
+## Not a mark for fraud
+
+As personalization deepens, the assistant stays hard to misuse. It will not enumerate customers, reveal who bought what, or hand over another person's order on a typed name alone. Harmful, weapon, and prompt-extraction requests are declined deterministically before the model ever sees them, and injected instructions inside retrieved text are treated as data, never commands. Personalization makes the experience warmer; it never lowers the bar on who is allowed to see what.

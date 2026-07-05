@@ -342,10 +342,14 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # to the empathetic problem path, never the cheery buy clarifier
     if _facets == 0 and not _factual and not _problem_intent(query):
         if _gift and _recipient:
+            if concise:  # voice: one short question, not a three-part list read aloud
+                return "Love that. What are they into, and any budget in mind?"
             return ("Love to help you find a great gift. 😊 A few quick things so it's spot on: "
                     "what are they into, a sport like running or yoga, or more everyday and cozy? "
                     "Any colour or style they love? And roughly what budget?")
         if _buy and _category and not _named:
+            if concise:
+                return "Happy to help. What will you use it for, and any budget in mind?"
             return ("Happy to help you find the perfect piece. 😊 A couple of quick questions so "
                     "I get it right: what will you use it for, the gym, running, travel, or "
                     "everyday? Any colour you love? And a budget in mind?")
@@ -354,6 +358,9 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",
                                    "show me everything", "everything you have", "all your products",
                                    "show me all products"}:
+        if concise:  # voice: one spoken sentence, not a read-aloud bullet list
+            return ("We carry over 150 pieces, so tell me a category, a use like running or "
+                    "travel, or a budget and I'll pull the best matches.")
         return ("We carry over 150 pieces, so a full list would be a lot to scroll 😊. Point me in "
                 "a direction and I'll pull the best matches:\n"
                 "- a category (leggings, jackets, tops, bags)\n"

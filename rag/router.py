@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from rag.guards import account_intent, problem_intent, shopping_intent
+from rag.guards import account_intent, shopping_intent
 
 # The service lanes the orchestrator routes among. Smalltalk and refusals never reach here.
 LANES = ("stylist", "care", "complaint", "answers", "escalation")
@@ -63,12 +63,13 @@ _ESCALATE = re.compile(
 # at a clause boundary (end, punctuation, or a help/talk word), so "get me a human please" matches
 # but "get me the manager cut blazer" does not (the noun is followed by a product word).
 _ESCALATE_LOOSE = re.compile(
-    r"\b(get|give) (me )?(a |an |the )?" + _HUMAN + r"\b\s*([.!?,]|please|now|asap|to help|"
-    r"on (this|the)|$)"
+    r"\b(get|give) (me )?(a |an |the )?" + _HUMAN
+    + r"\b\s*([.!?,]|please|now|asap|on (this|the) (chat|line|call)|$)"
     r"|\bi (want|need|wanna)\b[ ,]*(to (speak|talk) to )?(a |an )?" + _HUMAN
-    + r"\b\s*([.!?,]|please|now|to help|to talk|not an ai|on (this|the)|about|$)"
-    r"|\b(hand|refer|put|transfer|connect)\b[ ,]*(me |this |it )?(over |off |through )?"
-    r"(to|with)[ ,]*(a |an |the |your )?" + _HUMAN + r"\b", re.I)
+    + r"\b\s*([.!?,]|please|now|not an ai|on (this|the) (chat|line|call)|$)"
+    r"|\b(hand|refer|put|transfer)\b[ ,]*(me |this |it )?(over |off |through )?"
+    r"(to|with)[ ,]*(a |an |the |your )?" + _HUMAN
+    + r"\b\s*([.!?,]|please|now|right away|asap|agent|rep|representative|$)", re.I)
 
 # Router-only lane cues that supplement the shared intent guards. The linear brain's guards are
 # tuned narrowly for its recommend-versus-abstain logic; routing wants wider coverage so common
@@ -104,9 +105,9 @@ _CARE_CUE = re.compile(
 # complaints. (The shared problem_intent guard still fires on bare damage words for the linear
 # path; that is its long-standing behavior and out of scope here.)
 _COMPLAINT_CUE = re.compile(
-    r"\b(arrived|came|showed up|shipped|is|was|has a|had a|got a|there'?s a|with a)\b[^.?!]{0,18}"
+    r"\b(arrived|came|showed up|shipped|received|has a|had a|got a|there'?s a|with a)\b[^.?!]{0,18}"
     r"\b(hole|torn|ripped|stain(ed)?|scuff\w*|peel\w*|unravel\w*|frayed|defect\w*|damaged|"
-    r"broken|cracked|falling apart)\b"
+    r"broken|cracked|falling apart)\b(?!\s*-?\s*(resistant|proof|repellent))"
     r"|\b(wrong (size|colou?r|item|order)|not what i ordered|someone else'?s (order|package))\b"
     r"|\b(charged|billed)\b[^.?!]{0,24}\b(twice|two times|again|double|duplicate|extra)\b"
     r"|\b(double|duplicate|extra) (charge|charges|payment|billing)\b"
@@ -138,7 +139,11 @@ def _intent_lanes(query: str) -> list[str]:
     """The service lanes whose deterministic intent fires, in resolution priority: a complaint
     leads (empathy before anything else), then an own-account lookup, then a shopping request."""
     lanes = []
-    if problem_intent(query) or _COMPLAINT_CUE.search(query):
+    # complaint uses ONLY the frame-anchored cue, not the shared problem_intent guard, which fires
+    # on bare damage words ("ripped jeans") that are catalog styles as often as complaints. A bare
+    # damage word is genuinely ambiguous, so it is deferred to the small-model tie-break instead of
+    # being decided confidently at layer 1.
+    if _COMPLAINT_CUE.search(query):
         lanes.append("complaint")
     if account_intent(query) or _CARE_CUE.search(query) or _ORDER_ID.search(query):
         lanes.append("care")

@@ -68,8 +68,8 @@ def test_agent_mode_repeated_human_request_does_not_refile(monkeypatch):
 def test_comma_joined_multitask_fans_out(monkeypatch):
     rec = _Recorder()
     monkeypatch.setattr(omni, "stream_answer", rec)
-    list(omni.stream_omni("my jacket ripped, show me a replacement", embedder=None, store=None,
-                          llm=None))
+    list(omni.stream_omni("my order arrived damaged, show me a replacement", embedder=None,
+                          store=None, llm=None))
     lanes = [c["lane"] for c in rec.calls]
     assert "complaint" in lanes and "stylist" in lanes  # comma-joined intents both handled
 

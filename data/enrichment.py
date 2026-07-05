@@ -53,7 +53,14 @@ def keyword_annotator(review_text: str) -> dict | None:
     text = review_text or ""
     for value, rx in _FIT_RULES:
         m = rx.search(text)
-        if m and not _NEG.search(text[max(0, m.start() - 24):m.start()]):
+        if not m:
+            continue
+        # only a negation in the SAME clause flips the meaning, so scope the lookback to the text
+        # since the last clause break ("no complaints, runs small" is not a negated runs_small)
+        before = text[:m.start()]
+        brk = max(before.rfind(c) for c in ",.;:!?")
+        clause = before[brk + 1:] if brk >= 0 else before
+        if not _NEG.search(clause):
             return {"aspect": "fit", "value": value}
     return None
 

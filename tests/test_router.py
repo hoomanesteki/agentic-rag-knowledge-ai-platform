@@ -79,3 +79,15 @@ def test_a_return_or_refund_request_routes_to_care():
 def test_a_lowercase_product_code_is_not_read_as_an_order_id():
     # the order-id cue is case-sensitive, so a lowercase model code is not an account lookup
     assert route("do you have model ab1234 in navy").lane != "care"
+
+
+def test_hardening_round2_no_reintroduced_false_positives():
+    # the confirmation pass found the loose escalation patterns and the complaint frame had
+    # reopened false positives; these must stay fixed
+    for q in ("a scarf to hand to a person as a present",
+              "put this with an agent provocateur bralette",
+              "i want a person on the front of my graphic tee",
+              "i want a manager to help me pick a suit"):
+        assert route(q).lane != "escalation", q
+    for q in ("is this stain-resistant", "ripped jeans in my size", "are these pre-ripped"):
+        assert route(q).lane != "complaint", q

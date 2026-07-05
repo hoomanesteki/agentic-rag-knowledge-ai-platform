@@ -22,7 +22,7 @@ the reason to verify against something the optimization did not touch.
 ## What was fixed
 
 - Escalation false positives: the intercept was rewritten to high precision (a support verb landing
-  on a human noun, or an unambiguous phrase), with the broad "to a <person>" and "want a <person>"
+  on a human noun, or an unambiguous phrase), with the broad "to a person" and "want a person"
   branches removed, a refusal guard added ("I don't want a human" no longer escalates), and the
   ambiguous nouns ("staff", "reps", "operator") dropped. A false positive here files a real case, so
   precision matters more than recall, and the frontend plus the 8B tie-break cover the rest.
@@ -47,13 +47,27 @@ Regenerated from `scripts/run_agent_eval.py` (in `evaluation/reports/routing_eva
 
 | Mode | Accuracy | Note |
 | --- | --- | --- |
-| Deterministic | 81.9% | down from 84.1%: the honest cost of removing the overfit cues |
-| 8B tie-break | 84.7% | the production number, still the best, still beats 70B |
-| 70B tie-break | 83.4% | a bigger model still is not worth it for routing |
+| Deterministic | 80.9% | down from 84.1%: the honest cost of removing the overfit cues |
+| 8B tie-break | 84.1% | the production number, still the best, still beats 70B |
+| 70B tie-break | 83.1% | a bigger model still is not worth it for routing |
 
 The deterministic number dropped because precision went up: the routes it now declines to guess are
 handed to the cheap tie-break, which is why the 8B mode is the strongest. The escalation intercept
-keeps 100% precision on the eval with recall back at 90%.
+keeps 100% precision on the eval with recall at 90%.
+
+## The confirmation round
+
+Because the first hardening added new patterns, a second focused pass (six auditors) re-checked the
+fixed areas and asked the right question: did the fix introduce a new defect? It did. The looser
+escalation recovery patterns had a branch with no clause-boundary guard, so a gift phrase like "a
+scarf to hand to a person as a present" escalated again, and the complaint frame was defeated by the
+bare copula "is", so "is this stain-resistant" read as a complaint. Both were fixed by giving every
+loose branch a clause-boundary guard, dropping the weak "is" frame word plus a negative lookahead
+for "-resistant", and, the deeper fix, routing complaint from the frame-anchored cue ONLY, never the
+shared bare-damage-word guard, so a genuinely ambiguous "ripped jeans" is deferred to the tie-break
+instead of decided wrongly at layer 1. The lesson repeats: each round of heuristics needs its own
+adversarial check, and the durable answer is to defer ambiguity to the model rather than add another
+rule. Sixteen adversarial checks and the regression tests now cover both rounds.
 
 ## Known residuals, documented not hidden
 

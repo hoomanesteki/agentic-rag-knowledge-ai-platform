@@ -98,9 +98,13 @@ _SYSTEM_TMPL = (
     "sample is small (roughly two dozen sales or fewer), say the figure is based on only that many "
     "sales instead of stating it as a settled fact. "
     "Never refer to the context, catalog, product data, or knowledge graph as a system; just speak "
-    "as someone who knows the store. When a shopper adds an item or buys, suggest one piece that "
-    "pairs with it, and use details from earlier turns (their city, the season, the occasion, "
-    "their name) to personalize. "
+    "as someone who knows the store. After you recommend a piece, offer one genuine pairing that "
+    "completes the look when it truly fits, like a stylist would (never force it). When a shopper "
+    "leans toward or names a piece that genuinely suits them, briefly and honestly affirm the "
+    "choice like a warm associate ('great pick, it is one of our most-loved'), then keep helping; "
+    "do not "
+    "over-praise or affirm a poor fit. Use details from earlier turns (their city, the season, the "
+    "occasion, their name) to personalize. "
     "If asked to list or show all products, do not dump the catalog: say there are many and ask "
     "them to narrow it down by category, use, or budget, or offer a few top picks. "
     "Politely decline harmful, dangerous, or illegal requests and never recommend a product for "
@@ -349,9 +353,11 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",
                                    "show me everything", "everything you have", "all your products",
                                    "show me all products"}:
-        return ("We carry over 150 pieces, so a full list would be a lot to scroll 😊. Point me "
-                "in a direction and I'll pull the best matches: a category like leggings, jackets, "
-                "tops, or bags, a use like running, travel, or winter, a gift, or a budget?")
+        return ("We carry over 150 pieces, so a full list would be a lot to scroll 😊. Point me in "
+                "a direction and I'll pull the best matches:\n"
+                "- a category (leggings, jackets, tops, bags)\n"
+                "- a use (running, travel, winter, a wedding)\n"
+                "- a gift, or a budget")
     # a bare greeting (allow "there" and a persona name together, e.g. "hey there <assistant>")
     if re.fullmatch(r"(hi+|hey+|hello|yo|hiya|howdy|sup|greetings)" + _greet_name +
                     r"|good (morning|afternoon|evening|day)" + _greet_name, q):
@@ -696,6 +702,13 @@ def _account_intent(query: str) -> bool:
         if not re.search(r"\b(i|i'?ve|i'?m)\b[^.?!]{0,20}\b(order|bought|purchase|place|track|"
                          r"return|receiv)", query, re.I):
             return False
+    # a self-scoped order-status enumeration ("which orders are on the way", "what is in transit")
+    # reads as an own-account question even without a first-person pronoun. Third-party lookups were
+    # rejected above, and the PII gate still requires name+email before anything is revealed.
+    if re.search(r"\b(orders?|packages?|parcels?|deliver\w*|shipments?)\b[^.?!]{0,30}"
+                 r"\b(on (the|its|their) way|in transit|shipping|arriving|en route|coming|"
+                 r"out for delivery)\b", query, re.I):
+        return True
     if not _FIRST_PERSON.search(query):
         return False
     return bool(_EMAIL_RE.search(query) or _ORDER_TERM.search(query))

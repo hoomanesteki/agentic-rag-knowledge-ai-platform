@@ -442,7 +442,11 @@ _VOICE_BREVITY = (
     "Name ONE product, two at the very most, and do not list their alternates ('or the X, or the "
     "Y') out loud. Even for a full-outfit or 'head to toe' request, still name at most two pieces "
     "aloud and say the rest of the look is on the screen. If there is more to show, say you have "
-    "put a few options on the screen to tap."
+    "put a few options on the screen to tap. "
+    "Talk like a real person on a call: warm, upbeat, and encouraging. React naturally to what "
+    "they share ('oh, a gift for your mum, lovely', 'great choice') to give a little positive "
+    "energy, then help. Do not read emoji or symbols aloud. Keep every reply to one or two "
+    "sentences."
 )
 
 # Approximate Groq prices per 1M tokens (input, output). Update as pricing changes.
@@ -792,9 +796,10 @@ _PROFILE_CACHE: dict[tuple[int, str], str | None] = {}
 
 
 def _identity_note(auth_identity: tuple[str, str] | None) -> str | None:
-    """A trusted note that the shopper is signed in and identity-verified, so the model greets them
-    by first name and never asks them to re-verify their own name, email, or order. Returned on
-    every logged-in turn; the taste profile is added on top for shopping turns."""
+    """A trusted note that the shopper is signed in and identity-verified, so the model uses their
+    first name (greeting them once at the start, not every turn) and never asks them to re-verify
+    their own name, email, or order. Returned on every logged-in turn; the taste profile is added
+    on top for shopping turns."""
     if not (auth_identity and len(auth_identity) == 2):
         return None
     name, email = (auth_identity[0] or "").strip(), (auth_identity[1] or "").strip()
@@ -805,8 +810,10 @@ def _identity_note(auth_identity: tuple[str, str] | None) -> str | None:
         "The shopper is signed in and identity-verified as {} ({}). Their own orders and account "
         "are already unlocked, so NEVER ask them to verify, confirm, or share their name, email, "
         "or order number, and never say you cannot find them: answer their order and account "
-        "questions directly from the context. Greet and refer to them by their first name, "
-        "{}.".format(name, email, first))
+        "questions directly from the context. Their first name is {}: greet them by name only on "
+        "the very first turn of the conversation (a warm hello), and after that use their name "
+        "only occasionally and naturally, never opening every reply with 'Hi {}'.".format(
+            name, email, first, first))
 
 
 def _format_profile(name: str, membership: str | None, products: list[str],

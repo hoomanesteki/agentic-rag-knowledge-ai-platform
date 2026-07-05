@@ -1041,11 +1041,15 @@ function Conversation({
       if (interim.trim()) netErr = 0; // the service is working again; clear the error streak
       // barge-in the instant the shopper starts speaking: if the assistant is talking and this is
       // not just the mic hearing its own voice, stop speaking so they can talk
-      if (speakingRef.current && micOnRef.current && interim.trim()) {
+      if (speakingRef.current && micOnRef.current && interim.trim() && typeof window !== "undefined") {
         const spoken = new Set(normWords(lastSpokenRef.current));
         const words = normWords(interim);
-        const overlap = words.length ? words.filter((w) => spoken.has(w)).length / words.length : 0;
-        if (words.length >= 1 && overlap < 0.5 && typeof window !== "undefined") {
+        // barge in as soon as there is real new speech (words the assistant is NOT saying) rather
+        // than waiting for the overlap ratio to fall, which lingers while the mic still hears the
+        // assistant's own voice. An explicit interrupt word cuts in instantly.
+        const newWords = words.filter((w) => !spoken.has(w));
+        const interrupt = /\b(stop|wait|hold on|hang on|actually|no|nope|pause|never ?mind)\b/i.test(interim);
+        if (newWords.length >= 2 || interrupt) {
           stopSpeaking();
           bargedRef.current = true; // so the final transcript ("stop"/"wait") is not dropped later
         }
@@ -1121,10 +1125,20 @@ function Conversation({
     setVoiceState("greeting");
     speakingRef.current = true;
     // greet in the right voice: if the shopper was already handed to the human specialist, keep
-    // it Sara, not Aria
+    // it Sara, not Aria. First visit gets a "nice to meet you"; a return visit gets "welcome back".
+    let firstTime = false;
+    try {
+      firstTime = !localStorage.getItem("aster_visited");
+      localStorage.setItem("aster_visited", "1");
+    } catch {
+      /* ignore */
+    }
+    const who = name ? " " + name : "";
     const greeting = agentModeRef.current
-      ? `Hi${name ? " " + name : ""}, Sara here. How can I help?`
-      : `Hi${name ? " " + name : ""}, I'm Aria. What can I help you find?`;
+      ? `Hi${who}, Sara here. How can I help?`
+      : firstTime
+        ? `Hi${who}, I'm Aria, lovely to meet you. What can I help you find?`
+        : `Welcome back${who}. What can I help you find today?`;
     lastSpokenRef.current = greeting;
     await speak(greeting, agentModeRef.current ? "agent" : undefined);
     speakingRef.current = false;

@@ -33,11 +33,11 @@ type Message = {
   feedback?: "up" | "down";
   recs?: Product[];
   followups?: string[];
-  agent?: boolean; // from Sara, the human agent, after an escalation
+  agent?: boolean; // from Tiffany, the AI care specialist, after an escalation
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Sara, Aster's AI care specialist. 👋 I've got you from here. Tell me what's going on, " +
+  "Hi, I'm Tiffany, Aster's AI care specialist. 👋 I've got you from here. Tell me what's going on, " +
   "and if it's about an order I'll pull it up right away.";
 
 function cap(s: string): string {
@@ -672,7 +672,7 @@ function Conversation({
       setInput("");
       setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", agent: true, text: AGENT_INTRO }]);
       setAgentMode(true);
-      agentModeRef.current = true; // sync now so the intro is spoken in Sara's voice, not Aria's
+      agentModeRef.current = true; // sync now so the intro is spoken in Tiffany's voice, not Sara's
       return AGENT_INTRO; // return the intro so voice mode speaks it
     }
     setInput("");
@@ -852,7 +852,7 @@ function Conversation({
     agentModeRef.current = false;
     setMessages((m) => [
       ...m,
-      { role: "bot", text: "You're back with Aria, your shopping assistant. 😊 What else can I help you find?" },
+      { role: "bot", text: "You're back with Sara, your shopping assistant. 😊 What else can I help you find?" },
     ]);
   }
 
@@ -1180,7 +1180,7 @@ function Conversation({
     setVoiceState("greeting");
     speakingRef.current = true;
     // greet in the right voice: if the shopper was already handed to the human specialist, keep
-    // it Sara, not Aria. First visit gets a "nice to meet you"; a return visit gets "welcome back".
+    // it Tiffany, not Sara. First visit gets a "nice to meet you"; a return visit gets "welcome back".
     let firstTime = false;
     try {
       firstTime = !localStorage.getItem("aster_visited");
@@ -1189,16 +1189,16 @@ function Conversation({
     }
     const who = name ? " " + name : "";
     const greeting = agentModeRef.current
-      ? `Hi${who}, Sara here. How can I help?`
+      ? `Hi${who}, Tiffany here. How can I help?`
       : firstTime
-        ? `Hi${who}, I'm Aria, lovely to meet you. What can I help you find?`
+        ? `Hi${who}, I'm Sara, lovely to meet you. What can I help you find?`
         : `Welcome back${who}. What can I help you find today?`;
     lastSpokenRef.current = greeting;
     await speak(greeting, agentModeRef.current ? "agent" : undefined);
     speakingRef.current = false;
     spokeEndRef.current = Date.now();
-    // record the visit only after Aria actually introduced herself (not in Sara mode, not if the
-    // session ended before the greeting), so a return visitor is one Aria has really met before
+    // record the visit only after Sara actually introduced herself (not in Tiffany mode, not if the
+    // session ended before the greeting), so a return visitor is one Sara has really met before
     if (firstTime && !agentModeRef.current && voiceLiveRef.current) {
       try {
         localStorage.setItem("aster_visited", "1");
@@ -1265,7 +1265,7 @@ function Conversation({
       <div className="voice">
         <div style={{ width: "100%" }}>
           <div className={`voice-ring ${voiceState}`}>
-            <Avatar state={avatarState} size={104} level={speakLevel} />
+            <Avatar state={avatarState} size={104} level={speakLevel} persona={agentMode ? "tiffany" : "sara"} />
           </div>
           <div className="state">
             {!micOn && voiceState !== "speaking" ? "Your mic is muted" : voiceLabel}
@@ -1337,9 +1337,9 @@ function Conversation({
       {agentMode && (
         <div className="agent-banner">
           <span>
-            <b>Sara</b> · Aster care specialist
+            <b>Tiffany</b> · Aster care specialist
           </span>
-          <button onClick={endAgent}>Back to Aria</button>
+          <button onClick={endAgent}>Back to Sara</button>
         </div>
       )}
       {!agentMode && messages.length > 0 && (
@@ -1361,7 +1361,7 @@ function Conversation({
           <div className="greet">
             {ctxLabel && <div className="ctx-chip">{ctxLabel}</div>}
             <div className="big">
-              {name ? `Welcome back, ${name}! ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
+              {name ? `Welcome back, ${name}! ` : "Hi, "}I&apos;m {brand ? "Sara" : "your assistant"}. 😊
             </div>
             {context?.kind === "product"
               ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears.`
@@ -1384,14 +1384,14 @@ function Conversation({
           <div key={i} style={{ display: "contents" }}>
             {m.role === "bot" && !m.text && loading ? (
               <div className="msg bot think typing">
-                <Avatar state="thinking" size={22} />
+                <Avatar state="thinking" size={22} persona={agentMode ? "tiffany" : "sara"} />
                 <span className="dots">
                   <i /><i /><i />
                 </span>
               </div>
             ) : (
               <>
-                {m.agent && <div className="agent-tag">Sara · care specialist</div>}
+                {m.agent && <div className="agent-tag">Tiffany · care specialist</div>}
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
                   {/* once recs are known (on final), link only the carded products so links == cards */}
                   {m.role === "bot" ? <Markdown text={m.text} products={m.recs ?? products} /> : m.text}

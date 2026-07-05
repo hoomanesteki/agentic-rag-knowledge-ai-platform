@@ -150,3 +150,69 @@ Cost-efficient: this is a demo, so size everything to make the point without bur
 
 A lean 10 Opus + 10 Fable pass on routing correctness, each lane's mastery, the Tiffany contract,
 PII parity, and multi-task turns. Report honestly, including anything that did not improve.
+
+## 9. Full scope and the 5-branch delivery stack
+
+The epic grew past the agent brain into a portfolio that shows range across Data Scientist, ML
+software engineer, MLOps, and Data Architect. It ships as five well-named branches, none pushed or
+merged to main. The owner reviews and merges them manually, in order. Each branch is stacked on
+the previous so the PRs stay incremental and reviewable, and each gets an adversarial self-review
+pass before it is marked ready.
+
+1. **feat/omni-agent**: the master-orchestrator multi-agent brain (Sara lanes + Tiffany
+   escalation, Groq-only). Phases omni.0 (done) through the heavy path.
+2. **feat/mlops-eval**: the ground-truth eval set, the agent-eval harness, MLflow experiments
+   (single vs multi, model-tier A/B for the frontier decision), the MLOps dev-to-prod lifecycle
+   doc, and the drift design and monitors (section 11).
+3. **feat/prompt-optimization**: the lightweight OPRO/APE prompt-optimization loop (section 4).
+4. **feat/data-enrichment**: the batch AI-annotation and feature-engineering slice with a
+   containerized worker and its ADR (section 10).
+5. **docs/insights-architecture**: the future behavioral-insights RFC and the system-design and
+   services ADR, design only (sections 10 and 12).
+
+## 10. Data enrichment and the services and containers architecture
+
+Enrichment (build a lightweight slice, plus an ADR): descriptions are authored, stable, trusted,
+low-churn, so enrich once at ingest and re-run only on a content-hash change; their features can
+feed retrieval filters directly. Reviews and comments are user-generated, high-churn, and
+untrusted, so never trust one alone. Compute their features in a periodic batch with an
+AI voting and consensus rule (a signal is promoted only when several sources agree, with a
+confidence score), a live-at-submit moderation, PII, and injection gate, and embedding plus
+clustering to surface themes and defect spikes. Derived features land in the DuckDB lakehouse as a
+feature table with provenance (source, model, date, confidence). Why batch, not live: a single new
+review must not flip a product feature, consensus needs a window, drift is a windowed comparison,
+and amortized batch is cheaper and more governable. It gets faster and cheaper at scale by
+content-hash skipping and serving precomputed features.
+
+Services and containers: the app stays a modular monolith. The one piece that becomes its own
+containerized, schedulable worker is the batch enrichment job. Services talk over HTTP now; the
+ADR marks where a queue or event bus goes at scale, and gives docker-compose dev and prod profiles
+and the k8s scale-up path. No shattering into many microservices for a demo.
+
+## 11. Drift monitoring and the action policy
+
+Four drift types, one monitor to detect to decide to act policy. Input and data drift (the intent
+mix shifts): PSI plus embedding-space distance on rolling windows. Semantic and embedding drift
+(new meaning or vocabulary): surfaced by the enrichment clustering. Prompt and quality drift (eval
+scores regress, or a provider silently changes a model): the CI eval gate plus a scheduled
+re-eval on the ground-truth set. Model drift: pin the Groq model version, detect with a canary
+eval. Detection is automated and scheduled. Acting is tiered: safe reversible steps run
+automatically (open a review-queue item, re-run eval, mark features low-confidence, refresh
+embeddings for changed content); anything that changes served behavior (promote a prompt, update
+the Neo4j graph, act on a merchandising signal) is human-gated, and an agent may draft the
+diagnosis and proposed action but never self-deploys. This extends the existing mlops/drift.py
+monitors rather than replacing them.
+
+## 12. Documentation, reproducibility, and the writing bar
+
+Deliverables: Quarto pages with real visualizations, README sections, and reports or notebooks
+where they fit. Every figure and number is reproducible: pinned seeds, versioned fixtures and eval
+sets, and a make target or script that regenerates them, with no hand-typed metrics. All prose
+reads as human-written, with no AI tells and no em dashes (see the docs-writing-standard memory).
+
+## 13. Final integration and CI/CD gate
+
+Beyond per-commit `make check`, the epic ends with a full integration pass: the whole test suite,
+the leak linter, the eval gate, and the CI/CD checks all green across the stacked branches, with
+the services wired together and exercised in the common, uncommon, and edge cases. If anything
+fails, fix and re-run until it passes. Nothing is called done until this is green.

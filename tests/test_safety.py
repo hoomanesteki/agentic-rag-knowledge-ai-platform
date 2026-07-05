@@ -119,7 +119,8 @@ def test_first_person_account_questions_are_allowed(query):
 
 def test_multi_turn_verification_carries_account_intent():
     # email on one turn, name on the next: the expanded follow-up query must still read as the
-    # shopper's own account so verification can complete (regression guard for the Sara flow)
+    # shopper's own account so verification can complete (regression guard for the account-
+    # verification flow)
     history = [
         {"role": "user", "content": "where is my order?"},
         {"role": "assistant", "content": "Sure, what's the email on the order?"},

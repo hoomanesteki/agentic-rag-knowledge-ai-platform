@@ -92,7 +92,10 @@ metrics:
           row_number() over (partition by p.category order by p.price asc, p.name) as lo,
           row_number() over (partition by p.category order by p.price desc, p.name) as hi
         from (select distinct category, name, price from products) p
-        where ($category is null or lower(p.category) = lower($category))
+        where ($category is null
+               or lower(p.category) = lower($category)
+               or lower(p.category) = lower($category) || 's'
+               or lower(p.category) || 's' = lower($category))
       )
       select
         category,

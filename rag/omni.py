@@ -32,7 +32,7 @@ _MAX_CLAUSES = 3  # cap the fan-out so a run-on sentence cannot spawn unbounded 
 
 # split on a coordinating conjunction between clauses. Kept conservative, and a split only counts
 # as multi-task when the clauses route to two or more different actionable lanes (checked below).
-_CONJ = re.compile(r"\s*(?:\band then\b|\band also\b|\balso\b|\bthen\b|;|\band\b)\s*", re.I)
+_CONJ = re.compile(r"\s*(?:\band then\b|\band also\b|\balso\b|\bthen\b|;|,|\band\b)\s*", re.I)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 _SAFE_LEAK = ("I want to be careful with personal details here. Could you confirm the order number "
@@ -47,19 +47,20 @@ def _clarify_text(clarify: dict) -> str:
 
 
 def _split_clauses(query: str) -> list[str]:
-    parts = [p.strip(" ,.;:") for p in _CONJ.split(query)]
+    parts = [p.strip(" ,.;:") for p in _CONJ.split(query or "")]
     parts = [p for p in parts if len(p.split()) >= 2]  # drop fragments like "a red"
     return parts[:_MAX_CLAUSES] if len(parts) > 1 else [query]
 
 
 def _output_leaks(text: str, auth_identity) -> bool:
-    """A stitched reply is the one new surface the per-clause gate did not see as a whole, so scan
-    it for an email that is not the authorized shopper's. Each clause is already gated, so this is
-    defense in depth, not the primary control."""
-    authorized = ""
-    if auth_identity and len(auth_identity) > 1 and auth_identity[1]:
-        authorized = auth_identity[1].lower()
-    return any(m.lower() != authorized for m in _EMAIL.findall(text))
+    """A stitched reply is the one new surface the per-clause gate did not see as a whole. Each
+    clause is already gated to the signed-in shopper's own data, so for a signed-in shopper this
+    tripwire stands down: their own reply may legitimately contain their own or a gift recipient's
+    email, and replacing it would be a false positive. For an ANONYMOUS turn, gated retrieval must
+    never surface an order email, so any email in the stitched reply is unexpected and trips it."""
+    if auth_identity and auth_identity[0]:
+        return False
+    return bool(_EMAIL.search(text))
 
 
 def _answer_once(clause: str, lane: str, deps: dict):
@@ -169,14 +170,6 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                "confidence": round(decision.confidence, 3), "grounding": 1.0, "citations": []}
         return
 
-    # A request to reach a person: the escalation specialist files a ready case brief and confirms.
-    # This takes the whole turn, whatever the persona; a human request never fans out.
-    if decision.lane == "escalation":
-        yield from _escalate_handoff(query, message_id=message_id, auth_identity=auth_identity,
-                                     history=history, lang=lang, review_queue=review_queue,
-                                     domain=domain, trace_path=trace_path)
-        return
-
     deps = dict(embedder=embedder, store=store, llm=llm, reranker=reranker,
                 metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
                 persona=persona, history=history, concise=concise, auth_identity=auth_identity,
@@ -185,23 +178,35 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
         deps["trace_path"] = trace_path
 
     # Already with the specialist after an earlier handoff: keep the specialist persona and answer
-    # the routed lane's focus, rather than restarting the shopper with the assistant.
+    # the routed lane's focus. Even a repeated "get me a human" here just reassures them and does
+    # NOT file a second case, rather than restarting the shopper with the assistant.
     if persona == "agent":
         yield from stream_answer(query, message_id=message_id,
                                  role_fragment=role_fragment(decision.lane), lane=decision.lane,
                                  **deps)
         return
 
-    # Multi-task: split, and only fan out when the clauses hit two or more distinct actionable
-    # lanes (so "a red and blue jacket" stays one shopping turn).
-    clauses = _split_clauses(query)
-    if len(clauses) > 1:
-        routed = [(c, route(c).lane) for c in clauses]
-        actionable = [(c, ln) for c, ln in routed if ln in _ACTIONABLE]
-        if len({ln for _, ln in actionable}) >= 2:
-            yield from _stream_multitask(actionable, message_id=message_id,
-                                         auth_identity=auth_identity, deps=deps)
-            return
+    # A first request to reach a person: file exactly one ready case brief and confirm. This takes
+    # the whole turn; a human request never fans out. Reached only when not already handed off.
+    if decision.lane == "escalation":
+        yield from _escalate_handoff(query, message_id=message_id, auth_identity=auth_identity,
+                                     history=history, lang=lang, review_queue=review_queue,
+                                     domain=domain, trace_path=trace_path)
+        return
+
+    # Multi-task: split (on conjunctions or commas) and fan out only when the clauses hit two or
+    # more distinct actionable lanes, so "a red and blue jacket" stays one shopping turn. A turn
+    # carrying an email is a verification turn: keep it whole so the name-plus-email gate still sees
+    # both halves in one auth_text instead of losing one to a clause boundary.
+    if not _EMAIL.search(query or ""):
+        clauses = _split_clauses(query)
+        if len(clauses) > 1:
+            routed = [(c, route(c).lane) for c in clauses]
+            actionable = [(c, ln) for c, ln in routed if ln in _ACTIONABLE]
+            if len({ln for _, ln in actionable}) >= 2:
+                yield from _stream_multitask(actionable, message_id=message_id,
+                                             auth_identity=auth_identity, deps=deps)
+                return
 
     # Single-task fast path.
     yield from stream_answer(query, message_id=message_id,

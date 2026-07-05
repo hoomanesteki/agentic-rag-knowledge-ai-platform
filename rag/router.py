@@ -26,14 +26,72 @@ from rag.guards import account_intent, problem_intent, shopping_intent
 # The service lanes the orchestrator routes among. Smalltalk and refusals never reach here.
 LANES = ("stylist", "care", "complaint", "answers", "escalation")
 
-# An explicit ask to reach a person. It needs an escalation verb near a human noun, or an
-# unambiguous phrase, so "a jacket for a tall person" or "in-person pickup" do not trip it.
+# An explicit ask to reach a person. It needs an escalation verb near a human noun, an
+# unambiguous phrase, or a bare human-noun message, so "a jacket for a tall person" or "in-person
+# pickup" do not trip it while "human please" and a lone "representative" do.
+# Human-support nouns. "someone" and "team" are deliberately excluded from the loose verb-to-noun
+# match because they are core stylist vocabulary ("a gift for someone", "the team jacket"); they
+# escalate only in the explicit phrases below.
+_HUMAN = (r"(human|person|agent|representative|rep|reps|manager|supervisor|advisor|operator|"
+          r"employee|staff)")
 _ESCALATE = re.compile(
-    r"\b(speak|talk|chat|connect|transfer|escalate|put me|get me|refer me)\b[^.?!]{0,24}"
-    r"\b(human|person|someone|agent|representative|rep|reps|manager|supervisor|advisor|team|"
-    r"staff)\b"
-    r"|\breal (person|human|agent)\b|\bhuman (being|agent|help|support)\b"
-    r"|\bcustomer (service|care|support) (rep|agent|team|person)\b", re.I)
+    # a verb landing directly on a human noun with only connective words between, so "get me an
+    # agent" matches while "get me a gift for a travel agent" does not (product content breaks it)
+    r"\b(speak|talk|chat|connect|transfer\w*|escalate|refer|put me|hand( me)? off|get( me)?|"
+    r"give me)\b[ ,]*(to|with|me to|me with)?[ ,]*(a |an |the |your )?" + _HUMAN + r"\b"
+    r"|\b(i (?:want|need)|need)\b[ ,]*(a |an |to (?:speak|talk) to (?:a |an )?)?" + _HUMAN + r"\b"
+    r"|\b(real|actual|live)\s+" + _HUMAN + r"\b"
+    r"|\bto (a |an )(real |actual |live )?" + _HUMAN + r"\b"
+    r"|\b" + _HUMAN + r"[ ,]*(please|now|asap|pls)\b"
+    r"|\bhuman (being|help|support)\b"
+    r"|\bcustomer (service|care|support) (rep|agent|team|person)\b"
+    r"|\bsomeone (real|from your team|on (?:this|the) (?:chat|line))\b"
+    r"|\bto (?:speak|talk|chat) (?:to|with) someone\b"
+    r"|\b(no more|stop with the|done with the) (bot|chatbot|robot)\b"
+    r"|\byour (supervisor|manager)\b"
+    r"|^\s*" + _HUMAN + r"\s*[.!?]*\s*$", re.I)
+
+# Router-only lane cues that supplement the shared intent guards. The linear brain's guards are
+# tuned narrowly for its recommend-versus-abstain logic; routing wants wider coverage so common
+# phrasings land deterministically instead of paying for the small-model tie-break. Kept here, not
+# in rag.guards, so the linear path is untouched. Domain-neutral (no product nouns or brand words).
+_STYLIST_CUE = re.compile(
+    r"\b(style|styling|outfit|wardrobe|capsule)\b"
+    r"|\b(go|goes|pair|pairs|match)\b\s+(with|together)\b"
+    r"|\bwhat\b[^.?!]{0,30}\bgo(es)?\s+with\b"
+    r"|\bwhat (shoes|pants|top|tops|shirt|shirts|colou?rs?|accessor\w+|to wear)\b"
+    r"|\bhow (do i|to|would you|should i)\b[^.?!]{0,24}\b(style|wear|dress|pair)\b"
+    r"|\b(any ideas|ideas for|smart casual|black tie|dressed up|trending|which of your|"
+    r"petite)\b", re.I)
+
+_CARE_CUE = re.compile(
+    r"\b[A-Z]{2}\d{4,}\b"  # an order id like OD100219
+    r"|\bmy (order|orders|package|parcel|deliver\w*|shipment|tracking|return|returns|account|"
+    r"subscription|purchase|purchases|stuff|refund|store credit|loyalty)\b"
+    r"|\bwhen(?:'?s| is| will| does)?\b[^.?!]{0,30}\b(arrive|arriving|ship|shipped|shipping|"
+    r"deliver\w*|get(ting)? here|come|here)\b"
+    r"|\b(eta|tracking|loyalty points|store credit|order status)\b"
+    r"|\bleft the warehouse\b|\b(did|has|have) my (return|order|package|parcel|refund)\b"
+    r"|\bmy (last|recent|previous) (purchase|order)\b"
+    r"|\b(what did i buy|what i bought|total on my|total of my)\b"
+    r"|\bbought (in|last|from you|the)\b", re.I)
+
+_COMPLAINT_CUE = re.compile(
+    r"\b(hole|holes|torn|tear|ripped|rip|stain|stained|scuff\w*|peel\w*|unravel\w*|frayed|"
+    r"defect\w*|damaged|broken|cracked)\b"
+    r"|\b(wrong (size|colou?r|item|order|thing)|not what i ordered|someone else'?s|mislabel\w*)\b"
+    r"|\b(charged|billed|charge|bill)\b[^.?!]{0,30}\b(twice|two times|again|double|duplicate|"
+    r"extra)\b"
+    r"|\b(two|double|extra|duplicate|second) (charge|charges|payment|billing)\b"
+    r"|\bnever (authorized|authorised|signed up|ordered)\b"
+    r"|\b(says|marked) (delivered|shipped)\b[^.?!]{0,30}\b(but|nothing|missing|empty|not here)\b"
+    r"|\btracking\b[^.?!]{0,20}\b(hasn'?t|not|stopped)\b[^.?!]{0,12}\b(moved|updated|update)\b"
+    r"|\b(still (no|waiting|processing|nothing)|no (package|jacket|update|sign|refund))\b"
+    r"|\brefund\b[^.?!]{0,40}\b(nothing|still|hasn'?t|weeks|not (here|received))\b"
+    r"|\bcancel\w*\b[^.?!]{0,30}\b(without|no (reason|explanation|warning))\b"
+    r"|\b(ridiculous|unacceptable|frustrat\w*|ruined|useless|fed up|not ok(ay)?|cheap quality|"
+    r"worst)\b"
+    r"|\bfell (off|apart)\b|\bwrong address\b|\bcourier left it\b", re.I)
 
 # Confidence per single-intent lane. Complaint is most certain (its cues are specific), a shopping
 # request least (its cues are broad), so a low-confidence stylist route is re-checked first.
@@ -54,11 +112,11 @@ def _intent_lanes(query: str) -> list[str]:
     """The service lanes whose deterministic intent fires, in resolution priority: a complaint
     leads (empathy before anything else), then an own-account lookup, then a shopping request."""
     lanes = []
-    if problem_intent(query):
+    if problem_intent(query) or _COMPLAINT_CUE.search(query):
         lanes.append("complaint")
-    if account_intent(query):
+    if account_intent(query) or _CARE_CUE.search(query):
         lanes.append("care")
-    if shopping_intent(query):
+    if shopping_intent(query) or _STYLIST_CUE.search(query):
         lanes.append("stylist")
     return lanes
 

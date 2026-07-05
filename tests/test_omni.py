@@ -55,6 +55,33 @@ def test_escalation_without_a_queue_still_confirms(tmp_path):
     assert events[-1]["tier"] == "escalate"  # degrades gracefully with no queue wired
 
 
+def test_agent_mode_repeated_human_request_does_not_refile(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    rq = _Queue()
+    list(omni.stream_omni("seriously get me a human now", persona="agent", embedder=None,
+                          store=None, llm=None, review_queue=rq))
+    assert not rq.filed  # already with the specialist: no duplicate case
+    assert rec.calls and rec.calls[-1]["persona"] == "agent"
+
+
+def test_comma_joined_multitask_fans_out(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("my jacket ripped, show me a replacement", embedder=None, store=None,
+                          llm=None))
+    lanes = [c["lane"] for c in rec.calls]
+    assert "complaint" in lanes and "stylist" in lanes  # comma-joined intents both handled
+
+
+def test_verification_turn_with_an_email_is_kept_whole(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("check my order and my email is jo@example.com", embedder=None,
+                          store=None, llm=None))
+    assert len(rec.calls) == 1  # not split, so the name-plus-email gate sees the whole turn
+
+
 def test_ambiguous_turn_asks_instead_of_answering(monkeypatch, tmp_path):
     rec = _Recorder()
     monkeypatch.setattr(omni, "stream_answer", rec)

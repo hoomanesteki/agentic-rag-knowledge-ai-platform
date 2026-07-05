@@ -668,6 +668,14 @@ _THIRD_PARTY = re.compile(
     r"\b(orders?|purchases?|account|history)\b[^.?!]{0,30}\b(placed |made )?"
     r"(by|for|of|belonging to)\s+[\w.+-]+@"
     r"|[\w.+-]+@[\w-]+\.[\w.-]+\s*('s\b|\s+(order|account|purchase|history))", re.I)
+# Third-party lookups keyed on a NAME rather than an email ("orders placed by Bob Jones", "Sarah
+# Miller's account"). Case-sensitive on purpose so it matches real capitalized names, not lowercase
+# phrases like "orders for the winter jacket" (which would otherwise strip a signed-in shopper's own
+# orders). The disclosure gate still requires name+email regardless; this just keeps the docs out of
+# the retrieval pool for a clearly third-person lookup.
+_THIRD_PARTY_NAME = re.compile(
+    r"\b(orders?|purchases?|account|history)\b[^.?!]{0,20}\b(placed |made )by\s+[A-Z][a-z]+"
+    r"|\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?'s\s+(orders?|account|purchases?|history)\b")
 
 
 def _account_intent(query: str) -> bool:
@@ -676,7 +684,7 @@ def _account_intent(query: str) -> bool:
     # <email>", even "can I see orders for <email>"), a "who is X", or "has anyone bought X" never
     # qualifies, so a stranger's email can't dump a purchase history. The prompt still requires a
     # name+email match before revealing anything.
-    if _THIRD_PARTY.search(query):
+    if _THIRD_PARTY.search(query) or _THIRD_PARTY_NAME.search(query):
         return False
     # when an email is present it must be claimed possessively ("my email is ...", "my order"),
     # never just referenced with a bare "I", which polite third-party lookups ("can I see ...") use

@@ -99,6 +99,8 @@ def test_ordinary_shopping_is_not_flagged_as_harm(query):
     "what is Aaron Esteki's phone number",
     "has anyone bought the Aurora Jacket recently",
     "show me every order in the system",
+    "the orders placed by Bob Jones",                    # name-keyed third-party lookup
+    "Sarah Miller's account",                            # possessive third-party lookup
 ])
 def test_third_party_or_generic_queries_do_not_surface_orders(query):
     assert _account_intent(query) is False, "must not surface order/PII docs for: " + query

@@ -66,6 +66,25 @@ services:
       postgres:
         condition: service_healthy
 
+  # Batch enrichment worker (see docs/adr-enrichment.md). It reuses the app image with a different
+  # command and runs ON DEMAND, not as a long-lived service, so its embedding and annotation bursts
+  # never compete with request latency. It is behind the "batch" profile, so `make up` does not
+  # start it; run it explicitly:
+  #   docker compose --profile batch run --rm worker
+  # This is the one service carved out of the modular monolith, because its lifecycle (scheduled or
+  # one-shot) and resource profile differ from serving. At scale it becomes a k8s CronJob.
+  worker:
+    build: .
+    profiles: ["batch"]
+    working_dir: /app
+    environment:
+      PYTHONPATH: /app
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+    command: ["python", "scripts/run_enrichment.py"]
+    volumes:
+      - ./data:/app/data
+
 volumes:
   qdrant_data:
   postgres_data:

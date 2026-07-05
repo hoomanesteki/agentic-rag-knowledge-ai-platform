@@ -42,6 +42,7 @@ from pipeline.answer import (
 )
 from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
+from rag.omni import stream_omni
 
 _FEEDBACK_PATH = os.getenv("FEEDBACK_PATH", "traces/feedback.jsonl")
 _MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB decoded: a short voice clip, not a file upload
@@ -453,6 +454,22 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                 "grounding": round(result.grounding, 3),
                                 "citations": result.citations,
                                 "escalation_id": result.trace.get("escalation_id")})
+                    return
+                if brain == "omni":
+                    # The master orchestrator: route the turn, then answer through the SAME gated
+                    # streaming pipeline with the chosen lane's focus, so the order-PII gate, safety
+                    # intercepts, and grounding are identical to the linear path. The 8B classifier
+                    # (the resilient client's small fallback) tie-breaks only ambiguous turns.
+                    for event in stream_omni(req.query, message_id=message_id,
+                                             embedder=comp["embedder"], store=comp["store"],
+                                             llm=comp["llm"], reranker=comp["reranker"],
+                                             metric_resolver=comp.get("metric_resolver"),
+                                             graph_retriever=comp.get("graph_retriever"),
+                                             lang=req.lang, persona=req.persona,
+                                             history=req.history, concise=req.concise,
+                                             auth_identity=auth_identity, notes=req.notes,
+                                             small_llm=getattr(comp["llm"], "fallback", None)):
+                        yield _sse(event)
                     return
                 # Linear path: tokens stream across threadpool resumes, so we do not open a span
                 # around the generator (its OTel context would not survive the hops). The individual

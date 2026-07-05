@@ -1344,13 +1344,17 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None,
                   lang: str | None = None, persona: str | None = None,
                   history: list[dict] | None = None, concise: bool = False,
-                  auth_identity: tuple[str, str] | None = None, notes: str | None = None):
+                  auth_identity: tuple[str, str] | None = None, notes: str | None = None,
+                  role_fragment: str = "", lane: str | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
     persona="agent" answers in the human specialist's voice after an escalation.
     history (prior turns) lets the model resolve follow-ups and multi-turn verification.
     concise=True keeps the reply short and speakable for voice.
+    role_fragment is an optional lane focus the omni orchestrator appends to the system prompt;
+    it sharpens tone and focus only, never the safety or grounding rules, and defaults to empty so
+    the linear path is unchanged. lane is recorded in the trace for observability.
     Streaming responses do not report token usage (the trace omits it)."""
     started = time.perf_counter()
     message_id = message_id or uuid.uuid4().hex
@@ -1359,6 +1363,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     system = _agent_system(domain) if persona == "agent" else _system(domain)
     if concise:
         system = system + _VOICE_BREVITY
+    if role_fragment:
+        # a lane focus appended by the omni orchestrator; the safety and grounding rules in the
+        # base prompt still apply, a lane only sharpens tone and focus
+        system = system + " " + role_fragment
     _first = auth_identity[0].split(" ")[0] if (auth_identity and auth_identity[0]) else None
     chat = _smalltalk(query, persona, domain, first_name=_first, history=history, concise=concise)
     if chat is not None:  # greetings / who-are-you: answer like a person, skip retrieval
@@ -1414,6 +1422,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         "reranked": reranker is not None,
         "metric": has_metric,
         "graph": has_graph,
+        "lane": lane,  # the omni lane that produced this turn (None on the linear path)
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }

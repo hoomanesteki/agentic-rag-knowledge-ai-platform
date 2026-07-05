@@ -238,7 +238,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # "explosive sprint" must NOT trip it, only real weapon/violence phrasings.
     _victim = r"(someone|somebody|people|him|her|myself|them|a person)"
     if re.search(r"\b(bomb|detonat\w*|grenade|weapon|explos\w+ (device|belt|vest)|"
-                 r"make a (knife|weapon|bomb)|self[ -]?harm|suicide|"
+                 r"make a (knife|weapon|bomb|gun|firearm)|firearm|pistol|rifle|shotgun|ammunition|"
+                 r"gunpowder|self[ -]?harm|suicide|"
                  r"(kill|shoot|stab|poison|hurt|attack|harm)\s+" + _victim + r")\b", q):
         return ("I can't help with that, but I'm happy to help you shop 😊. Looking for something "
                 "for the gym, a gift, or the weather where you are?")
@@ -248,7 +249,7 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     if (re.search(r"\b(system prompt|your (system )?(prompt|instructions)|"
                   r"initial instructions|override for this reply)\b", q)
             or re.search(r"\b(ignore|disregard|forget|bypass|override)\b[^.?!]{0,30}"
-                         r"\b(instruction|rule|prompt|previous|above|guardrail)s?\b", q)
+                         r"\b(instruction|rule|prompt|guardrail)s?\b", q)
             or re.search(r"\b(print|reveal|repeat|show|output|reproduce|display|dump|tell me)\b"
                          r"[^.?!]{0,40}\b(system prompt|your (prompt|instructions)|"
                          r"verbatim)\b", q)):
@@ -257,7 +258,7 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # customer enumeration: never volunteer who shops here or who bought what, not even a reviewer's
     # first name. Refuse before retrieval so no name (review author, order holder) can slip out.
     if (re.search(r"\b(list|show|name|who are|give me|tell me)\b[^.?!]{0,30}"
-                  r"\b(customers?|shoppers?|buyers?|clients?|people who)\b", q)
+                  r"\b(customers?|shoppers?|buyers?|clients?)\b", q)
             or re.search(r"\bwho\b[^.?!]{0,20}\b(bought|ordered|purchased)\b", q)
             or re.search(r"\b(names?|list)\b[^.?!]{0,20}\b(of )?(your )?"
                          r"(customers?|shoppers?|reviewers?|buyers?)\b", q)):
@@ -299,8 +300,9 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
                        r"charcoal|cream|orange|yellow|maroon|colou?r)\b", q)
     _style = re.search(r"\b(cozy|cosy|warm|compress\w*|high.?rise|oversized|lightweight|breathable|"
                        r"fitted|loose|slim|support(ive)?)\b", q)
-    _pref = re.search(r"\b(she|he|they|who)\b[^.?!]{0,20}\b(likes?|loves?|prefers?|enjoys?|wears?|"
-                      r"into|does|plays?)\b", q)
+    # third-person -s verbs only, so "would like" (no s) is not miscounted as a stated preference
+    _pref = re.search(r"\b(she|he|they)\b[^.?!]{0,15}\b(likes|loves|prefers|enjoys|wears|plays|"
+                      r"is into)\b", q)
     _budget = (re.search(r"\$\s*\d|\b\d+\s*(dollars?|bucks?|cad|usd)\b", query.lower())
                or re.search(r"\b(under|below|less than|budget|cheap|affordable)\b", q))
     _facets = sum(bool(x) for x in (_use, _color, _style, _pref, _budget))
@@ -313,8 +315,14 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     _category = re.search(r"\b(leggings?|legings?|jackets?|hoodies?|bras?|shorts?|tops?|tees?|"
                           r"shirts?|bags?|caps?|hats?|beanies?|socks?|pants?|trousers?|outfits?|"
                           r"gear|joggers?|pullovers?|sweaters?|crops?|tanks?|accessor\w*)\b", q)
-    _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|shipping|"
-                         r"tracking|does it|do you have the|is the|what colou?r)\b", q)
+    _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|exchange|swap|"
+                         r"replace|shipping|tracking|does it|do you have the|is the|"
+                         r"what colou?r)\b", q)
+    # a specific catalog product is named (a determiner plus a model word plus a category), so just
+    # show it rather than asking generic use/colour/budget questions
+    _named = re.search(r"\bthe \w+ (leggings?|jackets?|hoodies?|bras?|shorts?|tops?|tees?|shirts?|"
+                       r"bags?|caps?|hats?|beanies?|socks?|pants?|joggers?|pullovers?|sweaters?|"
+                       r"crops?|tanks?)\b", q)
     # a complaint ("my leggings arrived damaged", "I need a replacement for my torn jacket") must go
     # to the empathetic problem path, never the cheery buy clarifier
     if _facets == 0 and not _factual and not _problem_intent(query):
@@ -322,7 +330,7 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
             return ("Love to help you find a great gift 😊 A few quick things so it's spot on: "
                     "what are they into, a sport like running or yoga, or more everyday and cozy? "
                     "Any colour or style they love? And roughly what budget?")
-        if _buy and _category:
+        if _buy and _category and not _named:
             return ("Happy to help you find the perfect piece 😊 Quick so I get it right: "
                     "what will you use it for, the gym, running, travel, or everyday? "
                     "Any colour preference? And a budget in mind?")
@@ -835,14 +843,16 @@ def _personal_profile_note(auth_identity, embedder, store) -> str | None:
 #   4. SELF gender  -- the shopper's own stated gender ("I am a man"). Weakest, since the RECIPIENT,
 #                      not the shopper, decides the section: "I'm a woman, get something for my
 #                      husband" must read as men. Only used when nothing else names a gender.
+# "guys"/"guy" is left out on purpose: it is a colloquial address ("hey guys", "thanks guys"), not a
+# reliable men's cue; "for a man"/"men's"/"male"/"gentlemen" carry the men's section instead.
 _MALE_PRODUCT = re.compile(r"\b(men'?s|mens|for men|for a man|male|"
-                           r"guy'?s?|gentlem[ae]n)\b", re.I)
+                           r"gentlem[ae]n)\b", re.I)
 _FEMALE_PRODUCT = re.compile(r"\b(women'?s|womens|for women|for a woman|"
                              r"female|lad(y|ies)'?s?)\b", re.I)
-_MALE_REL = re.compile(r"\b(boyfriend|husband|dad|father|son|brother|grandpa|grandfather|uncle|"
-                       r"nephew|groom)s?\b", re.I)
-_FEMALE_REL = re.compile(r"\b(girlfriend|wife|mom|mum|mother|daughter|sister|grandma|grandmother|"
-                         r"aunt|niece|bride)s?\b", re.I)
+_MALE_REL = re.compile(r"\b(boyfriend|husband|dad|father|son|brother|grandpa|grandfather|grandson|"
+                       r"stepson|uncle|nephew|groom)s?\b", re.I)
+_FEMALE_REL = re.compile(r"\b(girlfriend|wife|mom|mum|mother|daughter|granddaughter|stepdaughter|"
+                         r"sister|grandma|grandmother|aunt|niece|bride)s?\b", re.I)
 _MALE_PRON = re.compile(r"\bfor him\b", re.I)
 _FEMALE_PRON = re.compile(r"\bfor her\b", re.I)
 _MALE_SELF = re.compile(r"\b(i am|i'?m|as) a man\b", re.I)

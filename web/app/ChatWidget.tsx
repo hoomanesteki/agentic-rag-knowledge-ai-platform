@@ -1308,6 +1308,21 @@ function Conversation({
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
                   {m.role === "bot" ? <Markdown text={m.text} products={products} /> : m.text}
                 </div>
+                {/* product cards with a photo under the answer, so a shopper can tap a pick, the
+                    same experience voice mode gives, on top of the inline name links */}
+                {m.role === "bot" && m.recs && m.recs.length > 0 && (
+                  <div className="recs">
+                    {m.recs.map((p) => (
+                      <Link key={p.id} className="rec" href={`/product/${p.id}`}>
+                        <ImageTile category={p.category} color={p.color} name={p.name} className="rec-img" />
+                        <div className="rb">
+                          <div className="rn">{p.name.replace(/^Aster /, "")}</div>
+                          <div className="rp">{p.price != null ? `$${p.price.toFixed(0)}` : ""}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </>
             )}
             {m.final && (

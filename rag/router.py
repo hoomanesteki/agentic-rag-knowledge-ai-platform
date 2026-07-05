@@ -1,0 +1,123 @@
+"""The master orchestrator's routing decision.
+
+Every turn is routed by a cheap-first cascade, so the common case costs nothing and only genuine
+ambiguity pays for a model call:
+
+  Layer 0  deterministic intercept: an explicit request to reach a person. $0.
+  Layer 1  the deterministic intent guards (complaint / account / shopping). $0, the majority.
+  Layer 2  a small-model tie-break, only when the layers above do not decide. One cheap 8B call.
+
+`route()` returns a RouteDecision naming the lane, a confidence, and which layer decided. When two
+intent guards fire it returns a multi-task plan (complaint first) for the heavy path to fan out.
+When even the small model cannot separate two lanes it returns a strict two-option clarify, so the
+brain asks instead of guessing.
+
+Safety and smalltalk are handled by the guards that run BEFORE routing (the input guard in the
+graph, the smalltalk intercept in the fast path), so `route()` only chooses among service lanes and
+assumes the query is already a standalone, non-malicious turn. Rewrite a follow-up before calling.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+from rag.guards import account_intent, problem_intent, shopping_intent
+
+# The service lanes the orchestrator routes among. Smalltalk and refusals never reach here.
+LANES = ("stylist", "care", "complaint", "answers", "escalation")
+
+# An explicit ask to reach a person. It needs an escalation verb near a human noun, or an
+# unambiguous phrase, so "a jacket for a tall person" or "in-person pickup" do not trip it.
+_ESCALATE = re.compile(
+    r"\b(speak|talk|chat|connect|transfer|escalate|put me|get me|refer me)\b[^.?!]{0,24}"
+    r"\b(human|person|someone|agent|representative|rep|reps|manager|supervisor|advisor|team|"
+    r"staff)\b"
+    r"|\breal (person|human|agent)\b|\bhuman (being|agent|help|support)\b"
+    r"|\bcustomer (service|care|support) (rep|agent|team|person)\b", re.I)
+
+# Confidence per single-intent lane. Complaint is most certain (its cues are specific), a shopping
+# request least (its cues are broad), so a low-confidence stylist route is re-checked first.
+_INTENT_CONF = {"complaint": 0.85, "care": 0.8, "stylist": 0.75}
+
+
+@dataclass
+class RouteDecision:
+    lane: str
+    confidence: float
+    layer: int  # 0 deterministic intercept, 1 intent guard, 2 small-model tie-break
+    reason: str
+    tasks: list[str] = field(default_factory=list)  # more than one when the turn needs a plan
+    clarify: dict | None = None  # {"axis","a","b"} when asking beats guessing
+
+
+def _intent_lanes(query: str) -> list[str]:
+    """The service lanes whose deterministic intent fires, in resolution priority: a complaint
+    leads (empathy before anything else), then an own-account lookup, then a shopping request."""
+    lanes = []
+    if problem_intent(query):
+        lanes.append("complaint")
+    if account_intent(query):
+        lanes.append("care")
+    if shopping_intent(query):
+        lanes.append("stylist")
+    return lanes
+
+
+def route(query: str, *, history: list | None = None, signed_in: bool = False,
+          small_llm=None) -> RouteDecision:
+    q = (query or "").strip()
+    if not q:
+        return RouteDecision("answers", 0.3, 0, "empty query")
+
+    # Layer 0: an explicit request to reach a person outranks every other signal.
+    if _ESCALATE.search(q):
+        return RouteDecision("escalation", 0.95, 0, "explicit request for a person")
+
+    # Layer 1: the deterministic intent guards. One match decides. Two competing matches become a
+    # multi-task plan (complaint first) that the heavy path fans out and stitches back together.
+    lanes = _intent_lanes(q)
+    if len(lanes) == 1:
+        return RouteDecision(lanes[0], _INTENT_CONF[lanes[0]], 1, "intent guard: " + lanes[0])
+    if len(lanes) > 1:
+        return RouteDecision(lanes[0], 0.7, 1, "multiple intents, complaint-first plan",
+                             tasks=lanes)
+
+    # Layer 2: nothing fired. A cheap model tie-breaks into a lane or asks; with no model available
+    # (offline, tests) fall back to the answers lane, which self-gates on facts, policy, and
+    # catch-all and never fabricates.
+    if small_llm is not None:
+        decided = _model_tiebreak(q, small_llm)
+        if decided is not None:
+            return decided
+    return RouteDecision("answers", 0.5, 1, "no intent fired, answers catch-all")
+
+
+_TIEBREAK_SYSTEM = (
+    "You are a strict router for a shopping assistant. Read the shopper's message and reply "
+    "with ONLY a JSON object {\"lane\": L} where L is one of: stylist (product ideas, gifts, what "
+    "goes together), care (their own order or account), complaint (a problem, delay, or billing "
+    "issue), answers (a general or policy question), unclear (it could be two different things). "
+    "No prose, only the JSON."
+)
+
+
+def _model_tiebreak(query: str, small_llm) -> RouteDecision | None:
+    """One cheap classification call for the minority of turns the deterministic layers cannot
+    place. On 'unclear' it returns a two-option clarify rather than a guess. Any parse or model
+    failure returns None so the caller falls back to the answers catch-all."""
+    try:
+        raw = small_llm.generate(query, system=_TIEBREAK_SYSTEM, max_tokens=40).text
+    except Exception:
+        return None
+    match = re.search(r'"lane"\s*:\s*"([a-z]+)"', raw or "")
+    lane = match.group(1) if match else ""
+    if lane in ("stylist", "care", "complaint", "answers"):
+        return RouteDecision(lane, 0.65, 2, "small-model tie-break")
+    if lane == "unclear":
+        # the most common genuine ambiguity: a gift idea versus a problem with an order. Ask the
+        # one question that splits them instead of guessing and risking the wrong tone.
+        return RouteDecision("answers", 0.4, 2, "ambiguous, clarify",
+                             clarify={"axis": "intent",
+                                      "a": "a product or gift suggestion",
+                                      "b": "help with an existing order"})
+    return None

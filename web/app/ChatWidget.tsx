@@ -93,16 +93,19 @@ function recsFromAnswer(text: string, products: Product[]): Product[] {
   if (!text) return [];
   const low = text.toLowerCase();
   const seen = new Set<string>();
-  const hits: Product[] = [];
+  const hits: { p: Product; at: number }[] = [];
   for (const p of products) {
     const full = p.name.toLowerCase();
     const short = full.replace(/^aster\s+/, "");
-    if ((low.includes(full) || low.includes(short)) && !seen.has(p.id)) {
+    const idxs = [low.indexOf(full), low.indexOf(short)].filter((x) => x >= 0);
+    if (idxs.length && !seen.has(p.id)) {
       seen.add(p.id);
-      hits.push(p);
+      hits.push({ p, at: Math.min(...idxs) });
     }
   }
-  return hits.slice(0, 4);
+  // order the cards by where each product first appears in the answer, so the card row matches the
+  // order of the bulleted recommendations rather than catalog order
+  return hits.sort((a, b) => a.at - b.at).slice(0, 4).map((h) => h.p);
 }
 
 // Topic-narrowing follow-ups: after a policy answer, drill into that same topic rather than

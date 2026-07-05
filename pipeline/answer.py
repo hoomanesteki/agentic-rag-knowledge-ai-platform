@@ -319,7 +319,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
                      r"recommend|suggest|help me (find|pick|choose))\b", q)
     _category = re.search(r"\b(leggings?|legings?|jackets?|hoodies?|bras?|shorts?|tops?|tees?|"
                           r"shirts?|bags?|caps?|hats?|beanies?|socks?|pants?|trousers?|outfits?|"
-                          r"gear|joggers?|pullovers?|sweaters?|crops?|tanks?|accessor\w*)\b", q)
+                          r"tights?|parkas?|gloves?|vests?|windbreakers?|joggers?|pullovers?|"
+                          r"sweaters?|crops?|tanks?|gear|accessor\w*)\b", q)
     _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|exchange|swap|"
                          r"replace|shipping|tracking|does it|do you have the|is the|"
                          r"what colou?r)\b", q)

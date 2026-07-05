@@ -1303,6 +1303,14 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # below stays reachable. Both intents read the expanded query so complaint follow-ups classify.
     if abstained and hits and _shopping_intent(rquery) and not _problem_intent(rquery):
         abstained = False  # shopping request + any retrieved product -> recommend, don't abstain
+    # a signed-in shopper's OWN order surfaced but the query words barely overlap the record text
+    # (natural phrasings like "did my package arrive"): answer from the authorized order rather than
+    # abstaining into a generic clarifier. Fires only for a proven identity's own account question
+    # with an order doc already retrieved, so anonymous and third-party lookups still abstain.
+    if (abstained and auth_identity and _account_intent(rquery)
+            and not _problem_intent(rquery)
+            and any(c.get("doc_type") == "order" for c in contexts)):
+        abstained = False
     trace = {
         "ts": time.time(),
         "message_id": message_id,
@@ -1339,7 +1347,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # their purchase history is folded in as a taste profile too, so recommendations are personal.
     # Anonymous shoppers get neither (no proven identity), so the name+email gate still applies.
     profile = _identity_note(auth_identity)
-    if auth_identity and _shopping_intent(rquery) and not _account_intent(rquery):
+    if (auth_identity and _shopping_intent(rquery) and not _account_intent(rquery)
+            and not _problem_intent(rquery)):
         taste = _personal_profile_note(auth_identity, embedder, store)
         if taste:
             profile = (profile + " " + taste) if profile else taste

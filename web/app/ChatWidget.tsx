@@ -259,15 +259,15 @@ type Recognizer = {
 function plainSpeak(text: string): string {
   return text
     .replace(/\s*\[\d+(?:\s*,\s*\d+)*\](?:\s*(?:,\s*)?(?:and\s+|&\s+)?\[\d+(?:\s*,\s*\d+)*\])*/g, "")
+    .replace(/https?:\/\/\S+/gi, "") // never read a URL aloud character by character
+    .replace(/\b\d{10,}\b/g, "") // never spell out a long tracking number
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^\s*[*-]\s+/gm, "")
     .replace(/^\s*\d+[.)]\s+/gm, "")
-    .replace(
-      /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{200D}]/gu,
-      "",
-    )
+    // strip every emoji/pictograph plus the joiners and keycap marks, so none reaches the voice
+    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{20E3}\u{200D}]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -279,6 +279,13 @@ function normWords(text: string): string[] {
     .split(/\s+/)
     .filter((w) => w.length > 2);
 }
+// Spoken-number words: TTS says "$79" as "seventy nine", which is not in the digit-form answer, so
+// these would look like new (shopper) words and falsely trigger a barge-in from the assistant's echo.
+const NUM_ECHO = new Set(
+  ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen " +
+    "sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety " +
+    "hundred thousand dollar dollars dollars cent cents percent size small medium large").split(" "),
+);
 function makeRecognizer(): Recognizer | null {
   if (typeof window === "undefined") return null;
   const SR =
@@ -1089,12 +1096,15 @@ function Conversation({
       if (speakingRef.current && micOnRef.current && interim.trim() && typeof window !== "undefined") {
         const spoken = new Set(normWords(lastSpokenRef.current));
         const words = normWords(interim);
-        // barge in as soon as there is real new speech (words the assistant is NOT saying) rather
-        // than waiting for the overlap ratio to fall, which lingers while the mic still hears the
-        // assistant's own voice. An explicit interrupt word cuts in instantly.
-        const newWords = words.filter((w) => !spoken.has(w));
-        const interrupt = /\b(stop|wait|hold on|hang on|actually|no|nope|pause|never ?mind)\b/i.test(interim);
-        if (newWords.length >= 2 || interrupt) {
+        // barge in as soon as there is real new speech (words the assistant is NOT saying, and not a
+        // spoken-out number like "seventy nine") rather than waiting for the overlap ratio to fall.
+        const newWords = words.filter((w) => !spoken.has(w) && !NUM_ECHO.has(w));
+        // an explicit interrupt word cuts in instantly, but ONLY if the assistant is not itself
+        // saying it right now (otherwise the mic hearing the assistant's own "no"/"wait" self-barges)
+        const spokenRaw = " " + lastSpokenRef.current.toLowerCase() + " ";
+        const hit = /\b(stop|wait|hold on|hang on|actually|no|nope|pause|never ?mind)\b/i.exec(interim);
+        const realInterrupt = !!hit && !spokenRaw.includes(" " + hit[0].toLowerCase() + " ");
+        if (newWords.length >= 2 || realInterrupt) {
           stopSpeaking();
           bargedRef.current = true; // so the final transcript ("stop"/"wait") is not dropped later
         }
@@ -1174,7 +1184,6 @@ function Conversation({
     let firstTime = false;
     try {
       firstTime = !localStorage.getItem("aster_visited");
-      localStorage.setItem("aster_visited", "1");
     } catch {
       /* ignore */
     }
@@ -1188,6 +1197,15 @@ function Conversation({
     await speak(greeting, agentModeRef.current ? "agent" : undefined);
     speakingRef.current = false;
     spokeEndRef.current = Date.now();
+    // record the visit only after Aria actually introduced herself (not in Sara mode, not if the
+    // session ended before the greeting), so a return visitor is one Aria has really met before
+    if (firstTime && !agentModeRef.current && voiceLiveRef.current) {
+      try {
+        localStorage.setItem("aster_visited", "1");
+      } catch {
+        /* ignore */
+      }
+    }
     if (!voiceLiveRef.current) return;
     setVoiceState("listening");
     startListening();

@@ -247,8 +247,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
                  r"make a (knife|weapon|bomb|gun|firearm)|firearm|pistol|rifle|shotgun|ammunition|"
                  r"gunpowder|self[ -]?harm|suicide|"
                  r"(kill|shoot|stab|poison|hurt|attack|harm)\s+" + _victim + r")\b", q):
-        return ("I can't help with that, but I'm happy to help you shop 😊. Looking for something "
-                "for the gym, a gift, or the weather where you are?")
+        return ("I can't help with that. Happy to help you shop, though: something for the gym, "
+                "a gift, or a layer for the weather where you are?")
     # prompt-injection / instruction-exfiltration: refuse to reveal or override the system prompt,
     # even when wrapped around a real shopping request. Deterministic, so it does not depend on the
     # model resisting its own in-band conventions (e.g. an attacker echoing an override phrase).
@@ -269,8 +269,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
             or re.search(r"\b(names?|list)\b[^.?!]{0,20}\b(of )?(your )?"
                          r"(customers?|shoppers?|reviewers?|buyers?)\b", q)):
         return ("I keep shoppers' information private, so I can't share who shops with us or what "
-                "anyone bought 🙏. I can help you find something for yourself though. What are you "
-                "after?")
+                "anyone bought 🙏. I'd love to help you find something for yourself, though. What "
+                "are you after?")
     # a light joke / chit-chat, so it never cites sources for a joke
     if re.fullmatch(r"(tell me|got|know|say|any)( me)?( a| any)? ?(joke|jokes|something funny)"
                     r"( please)?|make me laugh|be funny", q):
@@ -287,12 +287,12 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
         r"|i'?m not sure what i (want|need)|i don'?t know what i (want|need|am looking for)"
         r"|no idea what to (get|buy|wear)|help me (choose|decide|pick)", q):
         if agent:
-            return ("Happy to help you find the perfect thing! Quick question so I get it right: "
-                    "who is it for, and what kind of piece, something for workouts, something "
-                    "cozy, a bag, or an accessory? Any color or budget in mind?")
-        return ("Love to help you find the perfect thing 😊! Quick question so I nail it: who's it "
-                "for, and what kind of piece, something for workouts, something cozy, a bag, or an "
-                "accessory? Any color or budget in mind?")
+            return ("Happy to help you find the right thing! Who is it for, and what kind of "
+                    "piece are you after: something for workouts, something cozy, a bag, or an "
+                    "accessory? Any color or budget in mind?")
+        return ("I'd love to help you find just the right thing 😊. Who's it for, and what kind "
+                "of piece are you picturing: something for workouts, something cozy, a bag, or "
+                "an accessory? Any color or budget in mind?")
     # SHOPPING CLARIFIER: for a gift (recipient known) or an explicit "buy X" with no useful detail,
     # ask up to three short questions in ONE message to narrow down (use, colour, budget), like a
     # good stylist, instead of guessing. It falls through as soon as the shopper has given any real
@@ -338,16 +338,16 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
                     "what are they into, a sport like running or yoga, or more everyday and cozy? "
                     "Any colour or style they love? And roughly what budget?")
         if _buy and _category and not _named:
-            return ("Happy to help you find the perfect piece 😊 Quick so I get it right: "
-                    "what will you use it for, the gym, running, travel, or everyday? "
-                    "Any colour preference? And a budget in mind?")
+            return ("Happy to help you find the perfect piece 😊 A couple of quick questions so "
+                    "I get it right: what will you use it for, the gym, running, travel, or "
+                    "everyday? Any colour you love? And a budget in mind?")
     # "list all products": never dump the catalog, guide them to narrow down
     _all = r"\b(list|show|see|display|give me)\b.*\b(all|every|entire|whole)\b.*\bproduct"
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",
                                    "show me everything", "everything you have", "all your products",
                                    "show me all products"}:
-        return ("We carry over 150 pieces, so I can't list them all here 😊, but I'd love to help "
-                "you find the right one. What are you after: a category like leggings, jackets, "
+        return ("We carry over 150 pieces, so a full list would be a lot to scroll 😊. Point me "
+                "in a direction and I'll pull the best matches: a category like leggings, jackets, "
                 "tops, or bags, a use like running, travel, or winter, a gift, or a budget?")
     # a bare greeting (allow "there" and a persona name together, e.g. "hey there <assistant>")
     if re.fullmatch(r"(hi+|hey+|hello|yo|hiya|howdy|sup|greetings)" + _greet_name +
@@ -355,12 +355,12 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
         hi = ", " + first_name if first_name else ""
         if agent:
             if first_name:  # signed in: greet by name and never ask them to re-share anything
-                return ("Hey{hi}, {s} here from the {b} team. 👋 I've got your account, so no need "
-                        "to re-share anything. What's going on?").format(
+                return ("Hey{hi}, {s} here from the {b} team. 👋 I've got your account pulled up, "
+                        "so no need to repeat any details. What's going on?").format(
                             hi=hi, s=specialist, b=brand)
-            return ("Hey, {s} here from the {b} team. 👋 Happy to help you in person. If it's "
-                    "about an order, send me the email on it and I'll pull it up. What's going on?"
-                    ).format(s=specialist, b=brand)
+            return ("Hey, {s} here from the {b} team. 👋 Happy to sort things out with you. If "
+                    "it's about an order, send me the email on it and I'll pull it up. What's "
+                    "going on?").format(s=specialist, b=brand)
         return ("Hi{hi}! I'm {n}, your {b} shopping assistant. 😊 I can help you find the right "
                 "piece, check sizing and stock, explain shipping and returns, or suggest a gift. "
                 "What are you shopping for today?").format(hi=hi, n=assistant, b=brand)
@@ -410,9 +410,9 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     return None
 
 _ABSTAIN = (
-    "I couldn't find an exact match for that 😊. Tell me a bit more, a category, a use, a color, "
-    "or a budget, and I'll pull up the closest options, or I can connect you with a human "
-    "specialist. What matters most to you?"
+    "Hmm, I couldn't find an exact match for that 😊. Give me a little more to go on, like the "
+    "category, what it's for, a color, or a budget, and I'll pull up the closest options. Or I "
+    "can connect you with a human specialist if you'd prefer. What matters most to you?"
 )
 
 # The human specialist owns it: she offers the closest options or loops in a teammate, and never
@@ -420,7 +420,7 @@ _ABSTAIN = (
 _AGENT_ABSTAIN = (
     "I don't have an exact match for that, but I can show you the closest options we do carry, or "
     "loop in a teammate if you'd rather 🙂. Want me to pull up a few picks? Just tell me the "
-    "category, use, color, or budget."
+    "category, what it's for, a color, or a budget."
 )
 
 # Appended to the system prompt for a spoken (voice) turn: a long bulleted answer is miserable to
@@ -503,9 +503,9 @@ def _problem_abstain_verified(first: str, agent: bool) -> str:
         return ("I'm so sorry about that{}, and I've got you. You're signed in, so I can see your "
                 "account, no need to look anything up. Tell me a bit more about what went wrong "
                 "and I'll sort it out right away.".format(hi))
-    return ("I'm really sorry about that{} 🙏. You're signed in, so a specialist can pick this up "
-            "on your order right away, nothing to re-share. Can you tell me what went wrong?"
-            .format(hi))
+    return ("I'm really sorry about that{} 🙏. You're signed in, so a specialist can pull up your "
+            "order and get started right away, no need to repeat any details. Can you tell me "
+            "what went wrong?".format(hi))
 DEFAULT_TRACE_PATH = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 
 

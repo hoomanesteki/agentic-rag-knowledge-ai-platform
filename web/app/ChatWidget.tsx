@@ -37,8 +37,8 @@ type Message = {
 };
 
 const AGENT_INTRO =
-  "Hi, I'm Sara from the Aster care team. 👋 I've got you from here. Tell me what's going on, and " +
-  "if it's about an order I'll pull it up right away.";
+  "Hi, I'm Sara, Aster's AI care specialist. 👋 I've got you from here. Tell me what's going on, " +
+  "and if it's about an order I'll pull it up right away.";
 
 function cap(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -1277,7 +1277,7 @@ function Conversation({
               {name ? `Welcome back, ${name}! ` : "Hi, "}I&apos;m {brand ? "Aria" : "your assistant"}. 😊
             </div>
             {context?.kind === "product"
-              ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears. Happy to help!`
+              ? `Any questions about the ${short2(context.name)}? I can help with the fit, colors, sizing, stock, or how it wears.`
               : context?.kind === "category"
                 ? `Looking at ${cap(context.category)}? I can help you find the right one, compare options, or check sizing. What matters most to you?`
                 : "How can I help you today? Ask about a product, sizing, shipping, gifts, or what to wear, or tap the mic to talk."}

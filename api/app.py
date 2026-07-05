@@ -48,9 +48,9 @@ _MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB decoded: a short voice clip, not a 
 _MAX_BODY_BYTES = 15 * 1024 * 1024   # reject an oversized body before parsing it
 _ALLOWED_AUDIO_MIME = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/mp3",
                        "audio/wav", "audio/x-wav", "audio/flac"}
-_DEGRADED = "The assistant is busy right now. Please try again in a moment."
-_RATE_LIMITED = ("I'm getting more questions than the demo's free API tier allows right now. "
-                 "Please wait about 20 seconds and ask again.")
+_DEGRADED = "Sorry, I hit a brief snag on my end. Give it a moment and ask me again."
+_RATE_LIMITED = ("You caught me at a busy moment: this demo runs on a free API tier and I just hit "
+                 "its limit. Give it about 20 seconds, then ask me again.")
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 # Placeholders that must never sign real tokens. The length check below catches anything else
 # too short, but the shipped .env.example value is 33 chars, so it has to be named explicitly.

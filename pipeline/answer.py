@@ -223,7 +223,8 @@ def _agent_system(domain: str) -> str:
 
 
 def _smalltalk(query: str, persona: str | None = None, domain: str | None = None,
-               first_name: str | None = None) -> str | None:
+               first_name: str | None = None, history: list[dict] | None = None,
+               concise: bool = False) -> str | None:
     """Greetings and 'who are you' should feel human, not abstain. Handle them conversationally
     before retrieval so the assistant always answers a hello. When persona is 'agent', the human
     specialist answers in their own voice instead of the assistant's."""
@@ -341,11 +342,11 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # to the empathetic problem path, never the cheery buy clarifier
     if _facets == 0 and not _factual and not _problem_intent(query):
         if _gift and _recipient:
-            return ("Love to help you find a great gift 😊 A few quick things so it's spot on: "
+            return ("Love to help you find a great gift. 😊 A few quick things so it's spot on: "
                     "what are they into, a sport like running or yoga, or more everyday and cozy? "
                     "Any colour or style they love? And roughly what budget?")
         if _buy and _category and not _named:
-            return ("Happy to help you find the perfect piece 😊 A couple of quick questions so "
+            return ("Happy to help you find the perfect piece. 😊 A couple of quick questions so "
                     "I get it right: what will you use it for, the gym, running, travel, or "
                     "everyday? Any colour you love? And a budget in mind?")
     # "list all products": never dump the catalog, guide them to narrow down
@@ -361,8 +362,13 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # a bare greeting (allow "there" and a persona name together, e.g. "hey there <assistant>")
     if re.fullmatch(r"(hi+|hey+|hello|yo|hiya|howdy|sup|greetings)" + _greet_name +
                     r"|good (morning|afternoon|evening|day)" + _greet_name, q):
-        hi = ", " + first_name if first_name else ""
+        # greet by name and introduce ONLY on the first turn; a later "hello?" gets a short, warm
+        # reply with no name and no re-introduction, so voice never re-greets mid-conversation
+        first_turn = not history
+        hi = ", " + first_name if (first_name and first_turn) else ""
         if agent:
+            if not first_turn:
+                return "Hey! 👋 What's going on?"
             if first_name:  # signed in: greet by name and never ask them to re-share anything
                 return ("Hey{hi}, {s} here from the {b} team. 👋 I've got your account pulled up, "
                         "so no need to repeat any details. What's going on?").format(
@@ -370,6 +376,8 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
             return ("Hey, {s} here from the {b} team. 👋 Happy to sort things out with you. If "
                     "it's about an order, send me the email on it and I'll pull it up. What's "
                     "going on?").format(s=specialist, b=brand)
+        if not first_turn:
+            return "Hi there! 😊 What can I help you find?"
         return ("Hi{hi}! I'm {n}, your {b} shopping assistant. 😊 I can help you find the right "
                 "piece, check sizing and stock, explain shipping and returns, or suggest a gift. "
                 "What are you shopping for today?").format(hi=hi, n=assistant, b=brand)
@@ -445,8 +453,9 @@ _VOICE_BREVITY = (
     "put a few options on the screen to tap. "
     "Talk like a real person on a call: warm, upbeat, and encouraging. React naturally to what "
     "they share ('oh, a gift for your mum, lovely', 'great choice') to give a little positive "
-    "energy, then help. Do not read emoji or symbols aloud. Keep every reply to one or two "
-    "sentences."
+    "energy, then help. Do not read emoji or symbols aloud. Never read a URL, web link, or long "
+    "tracking number out loud; say the tracking link is on their order page. Keep every reply to "
+    "one or two sentences."
 )
 
 # Approximate Groq prices per 1M tokens (input, output). Update as pricing changes.
@@ -1316,7 +1325,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     if concise:
         system = system + _VOICE_BREVITY
     _first = auth_identity[0].split(" ")[0] if (auth_identity and auth_identity[0]) else None
-    chat = _smalltalk(query, persona, domain, first_name=_first)
+    chat = _smalltalk(query, persona, domain, first_name=_first, history=history, concise=concise)
     if chat is not None:  # greetings / who-are-you: answer like a person, skip retrieval
         write_trace({"ts": time.time(), "message_id": message_id, "query": query, "lang": lang,
                      "tier": "chat", "streamed": True,

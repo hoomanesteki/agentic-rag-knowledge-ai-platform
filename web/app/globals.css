@@ -617,6 +617,11 @@ th .ax-hint { text-transform: none; }
   border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer; }
 .agent-banner button:hover { background: var(--accent); color: #fff; }
 .agent-tag { font-size: 11px; color: var(--accent); font-weight: 700; margin: 4px 0 -2px 2px; }
+/* product names linked inline in an answer, so the shopper can tap the name in the sentence */
+.prod-link { color: var(--accent); font-weight: 600; text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.msg.me .prod-link { color: #fff; }
+.prod-link:hover { text-decoration-thickness: 2px; }
 .chat-toolbar { display: flex; justify-content: flex-end; padding: 6px 14px 0; }
 .chat-clear { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer;
   padding: 2px 4px; text-decoration: underline; }

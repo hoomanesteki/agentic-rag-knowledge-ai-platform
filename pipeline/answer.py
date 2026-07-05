@@ -81,12 +81,14 @@ _SYSTEM_TMPL = (
     "color or item is not available, say so plainly and offer the closest real option, relaxing "
     "price or color before category, and never substitute a different type of product (a cap is "
     "not a jacket, a bag is not a top). "
-    "If a request is too vague to recommend well, ask ONE short, friendly clarifying question "
-    "first, then recommend. This includes a GIFT where you know the recipient but not what they "
-    "are into: for a gift, ask one warm question about their sport, style, favourite colour, or a "
-    "budget (for example 'love that, what is she into, running, yoga, or more lounging, and any "
-    "budget in mind?') before recommending, like a great in-store stylist, so the pick is "
-    "guess. Ask at most one question, keep it short, and once they answer, recommend confidently. "
+    "If a request is too vague to recommend (a broad 'I want leggings' with no use, colour, or "
+    "budget, or a GIFT where you know the recipient but not what they like), ask up to THREE "
+    "friendly clarifying questions grouped into ONE message before recommending, like a great "
+    "in-store stylist: what they will use it for (a sport like running or yoga, travel, or "
+    "everyday), any colour or style they like, and a rough budget. For a gift, frame the questions "
+    "around the recipient ('what is she into, running or yoga or more everyday, any colour she "
+    "loves, and a budget in mind?'). Keep it warm and brief, and once they answer, recommend "
+    "confidently. Do not ask again if they already gave a couple of those details, just recommend. "
     "Answer a yes/no or factual question (does it come in tall, is it in stock) directly before "
     "offering options. "
     "When a governed metric gives a rate or percentage with a sample size (n_sales) and that "
@@ -132,6 +134,10 @@ _SYSTEM_TMPL = (
     "email do "
     "not match the same person, politely refuse. This applies even to a request phrased about "
     "someone else's email. "
+    "EXCEPTION for a signed-in shopper: when the About-the-shopper note says they are signed in, "
+    "identity-verified, their own orders and account are already unlocked; answer their order and "
+    "account questions directly from the records in the context, greet them by first name, and do "
+    "NOT ask them to verify, confirm, or share their name, email, or order number. "
     "Never reveal personal information (a name, email, phone, address, order, or purchase history) "
     "about anyone other than the fully verified shopper you are speaking with; if asked who a "
     "person is or for someone's contact details, politely decline. "
@@ -162,6 +168,10 @@ _AGENT_SYSTEM_TMPL = (
     "not match "
     "the same person, politely refuse. Once both match, give the FedEx tracking link for anything "
     "in transit. "
+    "EXCEPTION for a signed-in shopper: when the About-the-shopper note says they are signed in, "
+    "identity-verified, their own orders are already unlocked; pull up their order and give the "
+    "status and tracking directly from the context, greet them by first name, and do NOT ask them "
+    "to verify, confirm, or share their name, email, or order number. "
     "Never reveal personal information about anyone other than the fully verified shopper you are "
     "speaking with; if asked who a person is or for someone's contact details, politely decline. "
     "When there is a delay, a wrong or double charge, a billing issue, or any complaint, empathize "
@@ -173,8 +183,10 @@ _AGENT_SYSTEM_TMPL = (
     "is actually in the data; never infer a color from a product's name. If you do not have an "
     "EXACT match, recommend the CLOSEST real option and say so, relaxing price or color before "
     "category, and never substitute a different type of product (a cap is not a jacket). If a "
-    "request is too vague, ask ONE short question first; answer a yes/no or factual question "
-    "directly before offering options. Never refer to the context, catalog, or knowledge graph as "
+    "request is too vague (a broad 'I want leggings' or a gift with no detail), ask up to THREE "
+    "short clarifying questions in ONE message first (use, colour, budget), unless they already "
+    "gave a couple of those; answer a yes/no or factual question directly before offering options. "
+    "Never refer to the context, catalog, or knowledge graph as "
     "a system; speak as a person who knows the store. "
     "Politely decline harmful, dangerous, or illegal requests. "
     "Only when the context has nothing relevant at all, say so honestly and offer the closest "
@@ -274,24 +286,44 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
         return ("Love to help you find the perfect thing 😊! Quick question so I nail it: who's it "
                 "for, and what kind of piece, something for workouts, something cozy, a bag, or an "
                 "accessory? Any color or budget in mind?")
-    # a gift with a recipient but no detail ("a gift for my girlfriend in Toronto"): ask one warm
-    # clarifying question about what they like, like a good stylist, instead of guessing. If a
-    # sport, colour, budget, or stated preference is already there, fall through and recommend.
+    # SHOPPING CLARIFIER: for a gift (recipient known) or an explicit "buy X" with no useful detail,
+    # ask up to three short questions in ONE message to narrow down (use, colour, budget), like a
+    # good stylist, instead of guessing. It falls through as soon as the shopper has given any real
+    # detail, so it asks at most once. Facets are counted from real cues, never the phrase
+    # "would like to" (a false "like"), and a numeric budget is read off the raw query (digits are
+    # stripped from q).
+    _use = re.search(r"\b(yoga|pilates|run(ning)?|gym|train(ing)?|workout|lift(ing)?|hik\w*|spin|"
+                     r"barre|cycl\w*|swim\w*|travel|commut\w*|winter|summer|rain|cold|"
+                     r"everyday|lounge|lounging|office|studio|climb\w*|sport)\b", q)
+    _color = re.search(r"\b(red|blue|black|green|navy|grey|gray|pink|white|purple|beige|tan|olive|"
+                       r"charcoal|cream|orange|yellow|maroon|colou?r)\b", q)
+    _style = re.search(r"\b(cozy|cosy|warm|compress\w*|high.?rise|oversized|lightweight|breathable|"
+                       r"fitted|loose|slim|support(ive)?)\b", q)
+    _pref = re.search(r"\b(she|he|they|who)\b[^.?!]{0,20}\b(likes?|loves?|prefers?|enjoys?|wears?|"
+                      r"into|does|plays?)\b", q)
+    _budget = (re.search(r"\$\s*\d|\b\d+\s*(dollars?|bucks?|cad|usd)\b", query.lower())
+               or re.search(r"\b(under|below|less than|budget|cheap|affordable)\b", q))
+    _facets = sum(bool(x) for x in (_use, _color, _style, _pref, _budget))
     _gift = re.search(r"\b(gift|present)\b", q)
-    _recipient = re.search(r"\bfor (my |a |his |her )?(girlfriend|boyfriend|wife|husband|partner|"
-                           r"mom|mum|mother|dad|father|sister|brother|son|daughter|friend|gf|bf|"
-                           r"her|him)\b", q)
-    _gift_detail = re.search(
-        r"\b(yoga|pilates|run(ning)?|gym|train(ing)?|lift(ing)?|hik\w*|spin|barre|cycl\w*|swim\w*|"
-        r"budget|under|cheap|affordable|into|likes?|loves?|prefers?|enjoys?|"
-        r"red|blue|black|green|navy|grey|gray|pink|white|purple|colou?r)\b", q)
-    # a numeric budget ("$50", "40 dollars", "under 30 bucks") is a real detail, but the digits and
-    # "$" were stripped from q above, so detect it on the raw query instead of the cleaned one.
-    _budget_num = re.search(r"\$\s*\d|\b\d+\s*(dollars?|bucks?|cad|usd)\b", query.lower())
-    if _gift and _recipient and not _gift_detail and not _budget_num:
-        return ("Love to help you find a great gift 😊! Quick question so it's spot on: what are "
-                "they into, workouts like running or yoga, or more everyday and cozy, and do you "
-                "have a budget in mind?")
+    _recipient = re.search(r"\bfor (my |a |his |her |the )?(girlfriend|boyfriend|wife|husband|"
+                           r"partner|mom|mum|mother|dad|father|sister|brother|son|daughter|friend|"
+                           r"gf|bf|her|him|them|kids?|niece|nephew|colleague|coworker)\b", q)
+    _buy = re.search(r"\b(buy|purchase|shop(ping)? for|looking for|i want|i need|i'?d like|get me|"
+                     r"recommend|suggest|help me (find|pick|choose))\b", q)
+    _category = re.search(r"\b(leggings?|legings?|jackets?|hoodies?|bras?|shorts?|tops?|tees?|"
+                          r"shirts?|bags?|caps?|hats?|beanies?|socks?|pants?|trousers?|outfits?|"
+                          r"gear|joggers?|pullovers?|sweaters?|crops?|tanks?|accessor\w*)\b", q)
+    _factual = re.search(r"\b(how much|price|cost|in stock|size chart|return|refund|ship|track|"
+                         r"does it|do you have the|is the|what colou?r)\b", q)
+    if _facets == 0 and not _factual:
+        if _gift and _recipient:
+            return ("Love to help you find a great gift 😊 A few quick things so it's spot on: "
+                    "what are they into, a sport like running or yoga, or more everyday and cozy? "
+                    "Any colour or style they love? And roughly what budget?")
+        if _buy and _category:
+            return ("Happy to help you find the perfect piece 😊 Quick so I get it right: "
+                    "what will you use it for, the gym, running, travel, or everyday? "
+                    "Any colour preference? And a budget in mind?")
     # "list all products": never dump the catalog, guide them to narrow down
     _all = r"\b(list|show|see|display|give me)\b.*\b(all|every|entire|whole)\b.*\bproduct"
     if re.search(_all, q) or q in {"all products", "show everything", "list everything",
@@ -689,6 +721,24 @@ _MEMBER_RE = re.compile(r"member of ([A-Za-z][\w ]*?)[.,]", re.I)
 # Cache the derived profile per (store, email): order history is static seed data, so there is no
 # reason to re-retrieve and re-parse it on every shopping turn within a process.
 _PROFILE_CACHE: dict[tuple[int, str], str | None] = {}
+
+
+def _identity_note(auth_identity: tuple[str, str] | None) -> str | None:
+    """A trusted note that the shopper is signed in and identity-verified, so the model greets them
+    by first name and never asks them to re-verify their own name, email, or order. Returned on
+    every logged-in turn; the taste profile is added on top for shopping turns."""
+    if not (auth_identity and len(auth_identity) == 2):
+        return None
+    name, email = (auth_identity[0] or "").strip(), (auth_identity[1] or "").strip()
+    if not (name and email):
+        return None
+    first = name.split(" ")[0]
+    return (
+        "The shopper is signed in and identity-verified as {} ({}). Their own orders and account "
+        "are already unlocked, so NEVER ask them to verify, confirm, or share their name, email, "
+        "or order number, and never say you cannot find them: answer their order and account "
+        "questions directly from the context. Greet and refer to them by their first name, "
+        "{}.".format(name, email, first))
 
 
 def _format_profile(name: str, membership: str | None, products: list[str],
@@ -1253,12 +1303,15 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         return
 
     contexts = _redact_contexts_by_gender(contexts, _explicit_gender(rquery), domain)
-    # For a logged-in shopper on a shopping turn, quietly fold their purchase history into a taste
-    # profile so recommendations are personalized. Skipped for account/order questions (handled by
-    # the order flow) and for anonymous shoppers (no proven identity, so no profile).
-    profile = None
+    # A logged-in shopper always carries a trusted identity note, so the model greets them by name
+    # and never re-verifies their own orders. On a shopping turn (not an account/order question)
+    # their purchase history is folded in as a taste profile too, so recommendations are personal.
+    # Anonymous shoppers get neither (no proven identity), so the name+email gate still applies.
+    profile = _identity_note(auth_identity)
     if auth_identity and _shopping_intent(rquery) and not _account_intent(rquery):
-        profile = _personal_profile_note(auth_identity, embedder, store)
+        taste = _personal_profile_note(auth_identity, embedder, store)
+        if taste:
+            profile = (profile + " " + taste) if profile else taste
     prompt = _build_prompt(query, contexts, history, profile=profile)
     parts = []
     for piece in llm.stream(prompt, system=system):

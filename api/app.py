@@ -400,11 +400,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         if not req.query.strip():
             raise HTTPException(status_code=400, detail="query is required")
 
-        # A logged-in shopper's account identity (from the verified JWT, mapped via deployment
-        # config), so they unlock their own orders without re-typing name+email. None when the demo
-        # account identity is not configured, in which case the typed name+email gate applies.
+        # A logged-in shopper's account identity (from the verified JWT), so they unlock their own
+        # orders without re-typing name+email and get greeted by name. In this single-tenant demo
+        # every authenticated visitor (whether they came through demo-login or the shared landing
+        # gate) is the one demo shopper, so any non-admin session carries that identity. None only
+        # when no demo identity is configured, in which case the typed name+email gate applies.
         auth_identity = None
-        if user.get("username") == settings.demo_username and settings.demo_customer_email:
+        if settings.demo_customer_email and user.get("username") != settings.admin_username:
             auth_identity = (settings.demo_customer_name, settings.demo_customer_email)
 
         message_id = uuid.uuid4().hex

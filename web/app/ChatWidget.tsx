@@ -1186,7 +1186,7 @@ function Conversation({
               {heard && <div className="vl-said">&ldquo;{heard}&rdquo;</div>}
               {lastBot && (
                 <div className="vl-ans">
-                  <Markdown text={lastBot.text} />
+                  <Markdown text={lastBot.text} products={products} />
                 </div>
               )}
               {lastBot?.recs && lastBot.recs.length > 0 && (
@@ -1290,6 +1290,15 @@ function Conversation({
           </div>
         )}
 
+        {agentMode && (
+          <div className="agent-banner">
+            <span>You&rsquo;re with Sara, a human specialist.</span>
+            <button className="link-btn" onClick={endAgent}>
+              Back to Aria
+            </button>
+          </div>
+        )}
+
         {messages.map((m, i) => (
           <div key={i} style={{ display: "contents" }}>
             {m.role === "bot" && !m.text && loading ? (
@@ -1303,7 +1312,7 @@ function Conversation({
               <>
                 {m.agent && <div className="agent-tag">Sara · human agent</div>}
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
-                  {m.role === "bot" ? <Markdown text={m.text} /> : m.text}
+                  {m.role === "bot" ? <Markdown text={m.text} products={products} /> : m.text}
                 </div>
               </>
             )}

@@ -75,7 +75,12 @@ def route_metric(query: str, llm, resolver: MetricResolver) -> MetricResult | No
         return None
     if not _looks_like_metric(query, resolver):
         return None
-    raw = llm.generate(_slot_prompt(query, resolver), system=_SLOT_SYSTEM, max_tokens=200).text
+    # Slot-filling a metric name and params from a fixed list is constrained extraction the cheap
+    # model handles well, and the result is validated below (the metric must exist, params are
+    # filtered, resolve() can still reject), so classification does not pay for the large model.
+    # getattr picks the ResilientLLM's small fallback when present; a bare llm is used as-is.
+    clf = getattr(llm, "fallback", None) or llm
+    raw = clf.generate(_slot_prompt(query, resolver), system=_SLOT_SYSTEM, max_tokens=200).text
     parsed = _extract_json(raw)
     if not parsed:
         return None

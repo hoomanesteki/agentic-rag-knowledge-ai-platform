@@ -71,8 +71,12 @@ def rewrite_followup(query: str, history: list, llm) -> str:
     derailing retrieval."""
     if not history:
         return query
+    # Resolving a pronoun or ellipsis to a standalone question is cheap classification, and the
+    # rewrite is accepted below only if it shares a content word with the conversation, so the
+    # small model is safe here. getattr picks the ResilientLLM's small fallback when present.
+    clf = getattr(llm, "fallback", None) or llm
     try:
-        text = llm.generate(_followup_prompt(history, query), system=_REWRITE_SYSTEM,
+        text = clf.generate(_followup_prompt(history, query), system=_REWRITE_SYSTEM,
                             max_tokens=120).text.strip()
     except Exception:
         return query

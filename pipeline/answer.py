@@ -465,16 +465,28 @@ _VOICE_BREVITY = (
     "one or two sentences."
 )
 
-# Approximate Groq prices per 1M tokens (input, output). Update as pricing changes.
+# Approximate Groq prices per 1M tokens (input, output). Update as pricing changes. The app is
+# Groq-only by design (see docs/omni-plan-v2.md, decision 1): the escalation persona uses the
+# large Groq model, not a separate frontier vendor, so there are no frontier prices to track here.
 _PRICES = {
-    "llama-3.3-70b-versatile": (0.59, 0.79),
     "llama-3.1-8b-instant": (0.05, 0.08),
-    # frontier models for the escalation persona (steady list price per 1M tokens, conservative;
-    # Sonnet 5 is cheaper in its intro window). Cache reads bill ~0.1x input, writes ~1.25x.
-    "claude-sonnet-5": (3.00, 15.00),
-    "claude-opus-4-8": (5.00, 25.00),
-    "claude-haiku-4-5": (1.00, 5.00),
+    "llama-3.3-70b-versatile": (0.59, 0.79),
 }
+
+# Coarse model-size tier a model belongs to, used to attribute per-turn cost by tier so the
+# routing-is-cheap story is measurable. Unknown models default to the workhorse tier rather than
+# guessing a size. The omni brain populates several tiers per turn (small router, large lane);
+# the linear path bills the whole answer to one tier.
+_MODEL_TIER = {
+    "llama-3.1-8b-instant": "small",
+    "llama-3.3-70b-versatile": "large",
+}
+
+
+def _tier_of(model: str | None) -> str | None:
+    if not model:
+        return None
+    return _MODEL_TIER.get(model, "large")
 
 _CITE = re.compile(r"\[(\d+)\]")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]?")
@@ -1306,11 +1318,17 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     grounding = grounding_score(result.text, contexts)
     citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
                  for c in _used_citations(result.text, contexts)]
+    answer_cost = _estimate_cost(result.model, result.prompt_tokens, result.completion_tokens)
+    answer_tier = _tier_of(result.model)
     trace.update(
         tier="auto", model=result.model, grounding=round(grounding, 3),
         prompt_hash=hashlib.sha256(prompt.encode()).hexdigest()[:16],
         prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
-        cost=_estimate_cost(result.model, result.prompt_tokens, result.completion_tokens),
+        cost=answer_cost,
+        # cost attributed by model-size tier. In the linear path the answer is the whole turn, so
+        # one tier carries the cost; the omni brain adds the router and lane tiers alongside it.
+        cost_by_tier=({answer_tier: answer_cost} if answer_cost is not None and answer_tier
+                      else {}),
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
     write_trace(trace, trace_path)

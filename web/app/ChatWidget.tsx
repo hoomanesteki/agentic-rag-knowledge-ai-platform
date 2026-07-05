@@ -94,13 +94,21 @@ function recsFromAnswer(text: string, products: Product[]): Product[] {
   const low = text.toLowerCase();
   const seen = new Set<string>();
   const hits: { p: Product; at: number }[] = [];
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   for (const p of products) {
     const full = p.name.toLowerCase();
     const short = full.replace(/^aster\s+/, "");
-    const idxs = [low.indexOf(full), low.indexOf(short)].filter((x) => x >= 0);
-    if (idxs.length && !seen.has(p.id)) {
+    // match the SAME way the inline linker does (word boundaries, optional plural, a distinctive
+    // multi-word short form only), so a product gets a card exactly when it gets a link
+    const labels = short !== full && short.length >= 5 && /\s/.test(short) ? [full, short] : [full];
+    let at = -1;
+    for (const lab of labels) {
+      const m = low.match(new RegExp(`\\b${esc(lab)}s?\\b`));
+      if (m && m.index != null && (at < 0 || m.index < at)) at = m.index;
+    }
+    if (at >= 0 && !seen.has(p.id)) {
       seen.add(p.id);
-      hits.push({ p, at: Math.min(...idxs) });
+      hits.push({ p, at });
     }
   }
   // order the cards by where each product first appears in the answer, so the card row matches the
@@ -161,7 +169,9 @@ function productFollowups(p: Product, recs: Product[]): string[] {
   };
   const out = [`Do you have the ${short} in another color?`];
   out.push(recs.length > 1 ? (useByCat[p.category] || "Which do you recommend most?") : "Show me similar options");
-  out.push("Any under $100?");
+  // only offer a cheaper option when something shown is actually over $100; otherwise suggest a
+  // pairing, so it does not read as a reflexive discount nudge
+  out.push(recs.some((r) => (r.price ?? 0) > 100) ? "Any under $100?" : "What pairs well with this?");
   return out;
 }
 
@@ -1306,23 +1316,9 @@ function Conversation({
               <>
                 {m.agent && <div className="agent-tag">Sara · care specialist</div>}
                 <div className={`msg ${m.role}${m.agent ? " agent" : ""}`}>
-                  {m.role === "bot" ? <Markdown text={m.text} products={products} /> : m.text}
+                  {/* once recs are known (on final), link only the carded products so links == cards */}
+                  {m.role === "bot" ? <Markdown text={m.text} products={m.recs ?? products} /> : m.text}
                 </div>
-                {/* product cards with a photo under the answer, so a shopper can tap a pick, the
-                    same experience voice mode gives, on top of the inline name links */}
-                {m.role === "bot" && m.recs && m.recs.length > 0 && (
-                  <div className="recs">
-                    {m.recs.map((p) => (
-                      <Link key={p.id} className="rec" href={`/product/${p.id}`}>
-                        <ImageTile category={p.category} color={p.color} name={p.name} className="rec-img" />
-                        <div className="rb">
-                          <div className="rn">{p.name.replace(/^Aster /, "")}</div>
-                          <div className="rp">{p.price != null ? `$${p.price.toFixed(0)}` : ""}</div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
               </>
             )}
             {m.final && (

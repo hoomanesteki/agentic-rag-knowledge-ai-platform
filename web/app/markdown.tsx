@@ -83,9 +83,12 @@ export function Markdown({ text, products }: { text: string; products?: Prod[] }
   // that cites many sources doesn't render as ", , , and".
   const clean = text
     .replace(/\s*\[\d+(?:\s*,\s*\d+)*\](?:\s*(?:,\s*)?(?:and\s+|&\s+)?\[\d+(?:\s*,\s*\d+)*\])*/g, "")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,;:])(?:\s*[,;:])+/g, "$1")
-    .replace(/\s{2,}/g, " ");
+    .replace(/[ \t]+([,.;:!?])/g, "$1")
+    .replace(/([,;:])(?:[ \t]*[,;:])+/g, "$1")
+    // collapse only horizontal whitespace, and keep newlines so a framing line stays separate from
+    // the list under it (never merge the intro sentence and the first bullet into one run-on)
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n");
   const targets = linkTargets(products);
   const lines = clean.split(/\r?\n/);
   const blocks: ReactNode[] = [];

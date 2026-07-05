@@ -215,7 +215,8 @@ def _agent_system(domain: str) -> str:
     return _AGENT_SYSTEM_TMPL.format(**_persona(domain))
 
 
-def _smalltalk(query: str, persona: str | None = None, domain: str | None = None) -> str | None:
+def _smalltalk(query: str, persona: str | None = None, domain: str | None = None,
+               first_name: str | None = None) -> str | None:
     """Greetings and 'who are you' should feel human, not abstain. Handle them conversationally
     before retrieval so the assistant always answers a hello. When persona is 'agent', the human
     specialist answers in their own voice instead of the assistant's."""
@@ -351,13 +352,18 @@ def _smalltalk(query: str, persona: str | None = None, domain: str | None = None
     # a bare greeting (allow "there" and a persona name together, e.g. "hey there <assistant>")
     if re.fullmatch(r"(hi+|hey+|hello|yo|hiya|howdy|sup|greetings)" + _greet_name +
                     r"|good (morning|afternoon|evening|day)" + _greet_name, q):
+        hi = ", " + first_name if first_name else ""
         if agent:
+            if first_name:  # signed in: greet by name and never ask them to re-share anything
+                return ("Hey{hi}, {s} here from the {b} team. 👋 I've got your account, so no need "
+                        "to re-share anything. What's going on?").format(
+                            hi=hi, s=specialist, b=brand)
             return ("Hey, {s} here from the {b} team. 👋 Happy to help you in person. If it's "
                     "about an order, send me the email on it and I'll pull it up. What's going on?"
                     ).format(s=specialist, b=brand)
-        return ("Hi! I'm {n}, your {b} shopping assistant. 😊 I can help you find the right "
+        return ("Hi{hi}! I'm {n}, your {b} shopping assistant. 😊 I can help you find the right "
                 "piece, check sizing and stock, explain shipping and returns, or suggest a gift. "
-                "What are you shopping for today?").format(n=assistant, b=brand)
+                "What are you shopping for today?").format(hi=hi, n=assistant, b=brand)
     # strip a leading greeting so "hi what's your name" / "hey how are you" are handled below, but a
     # real question ("what are your shipping options") never matches these whole-message patterns
     q = re.sub(r"^(hi+|hey+|hello|hiya|howdy|yo|sup|good (morning|afternoon|evening))" +
@@ -595,8 +601,15 @@ def _followup_query(query: str, history: list[dict] | None) -> str:
     if history and len(query.split()) <= 6:
         prior = [t["content"].strip() for t in history
                  if t.get("role") == "user" and (t.get("content") or "").strip()]
-        if prior:
-            return (" ".join(prior[-3:]) + " " + query)[:400]
+        # also carry the last assistant turn (truncated), so a product it just recommended stays in
+        # the retrieval query for a follow-up like "what about size M?". This only shapes retrieval;
+        # the order-PII gate uses a separate user-only auth text, so it is not affected.
+        last_bot = next((t["content"].strip() for t in reversed(history)
+                         if t.get("role") in ("assistant", "bot")
+                         and (t.get("content") or "").strip()), "")
+        parts = prior[-3:] + ([last_bot[:160]] if last_bot else [])
+        if parts:
+            return (" ".join(parts) + " " + query)[:400]
     return query
 
 
@@ -1271,7 +1284,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     system = _agent_system(domain) if persona == "agent" else _system(domain)
     if concise:
         system = system + _VOICE_BREVITY
-    chat = _smalltalk(query, persona, domain)
+    _first = auth_identity[0].split(" ")[0] if (auth_identity and auth_identity[0]) else None
+    chat = _smalltalk(query, persona, domain, first_name=_first)
     if chat is not None:  # greetings / who-are-you: answer like a person, skip retrieval
         write_trace({"ts": time.time(), "message_id": message_id, "query": query, "lang": lang,
                      "tier": "chat", "streamed": True,

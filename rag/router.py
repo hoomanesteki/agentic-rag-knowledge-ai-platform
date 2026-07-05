@@ -29,27 +29,46 @@ LANES = ("stylist", "care", "complaint", "answers", "escalation")
 # An explicit ask to reach a person. It needs an escalation verb near a human noun, an
 # unambiguous phrase, or a bare human-noun message, so "a jacket for a tall person" or "in-person
 # pickup" do not trip it while "human please" and a lone "representative" do.
-# Human-support nouns. "someone" and "team" are deliberately excluded from the loose verb-to-noun
-# match because they are core stylist vocabulary ("a gift for someone", "the team jacket"); they
-# escalate only in the explicit phrases below.
-_HUMAN = (r"(human|person|agent|representative|rep|reps|manager|supervisor|advisor|operator|"
-          r"employee|staff)")
+# Human-support nouns for the escalation intercept. Kept narrow on purpose: "staff", "reps",
+# "operator", "advisor", and "employee" are excluded because they collide with shopping vocabulary
+# ("staff picks", "gym reps", "operator manual", "style advisor", "employee discount").
+_HUMAN = r"(human|person|people|agent|representative|manager|supervisor)"
+
+# A refusal to be handed to a person must NOT escalate ("I don't want to talk to a human").
+_NO_HUMAN = re.compile(
+    r"\b(don'?t|do not|no|not|never|without|rather not|no need)\b[^.?!]{0,20}\b" + _HUMAN + r"\b",
+    re.I)
+
+# An explicit request to reach a person. High precision on purpose: the frontend and the 8B
+# tie-break catch the rest, so a false positive (which files a real case) is the worse error. The
+# earlier "to a <human>" and "want/need a <human>" branches were removed: they hijacked gift
+# recipients ("a scarf to give to a supervisor") and style requests ("I need an advisor for my
+# outfit"). Escalation now needs a support verb landing on a human noun, or an unambiguous phrase.
 _ESCALATE = re.compile(
-    # a verb landing directly on a human noun with only connective words between, so "get me an
-    # agent" matches while "get me a gift for a travel agent" does not (product content breaks it)
-    r"\b(speak|talk|chat|connect|transfer\w*|escalate|refer|put me|hand( me)? off|get( me)?|"
-    r"give me)\b[ ,]*(to|with|me to|me with)?[ ,]*(a |an |the |your )?" + _HUMAN + r"\b"
-    r"|\b(i (?:want|need)|need)\b[ ,]*(a |an |to (?:speak|talk) to (?:a |an )?)?" + _HUMAN + r"\b"
-    r"|\b(real|actual|live)\s+" + _HUMAN + r"\b"
-    r"|\bto (a |an )(real |actual |live )?" + _HUMAN + r"\b"
-    r"|\b" + _HUMAN + r"[ ,]*(please|now|asap|pls)\b"
-    r"|\bhuman (being|help|support)\b"
-    r"|\bcustomer (service|care|support) (rep|agent|team|person)\b"
-    r"|\bsomeone (real|from your team|on (?:this|the) (?:chat|line))\b"
-    r"|\bto (?:speak|talk|chat) (?:to|with) someone\b"
-    r"|\b(no more|stop with the|done with the) (bot|chatbot|robot)\b"
+    r"\b(speak|talk|connect|transfer\w*|chat)\b[ ,]*(to|with|me to|me with)[ ,]*"
+    r"(a |an |the |your )?" + _HUMAN + r"\b"
+    r"|\b(real|actual|live) (person|human|agent|representative|rep|employee|staff)\b"
+    r"|\b(a |an )?" + _HUMAN + r" (please|now|right now|asap|pls)\b"
+    r"|\bhuman (being|help|support|agent|one)\b"
+    r"|\bcustomer (service|care|support) (rep|reps|representative|agent|team|person)\b"
+    r"|\b(speak|talk|chat) (to|with) (someone|somebody|anybody|a real person)\b"
+    r"|\bsomeone (real|from (your|the) team|on (this|the) (chat|line))\b"
+    r"|\bescalate (this|it|me|my|to)\b"
+    r"|\b((no more|stop with the|done with the) (bot|chatbot|robot)|get me off (this|the) "
+    r"(bot|chat))\b"
     r"|\byour (supervisor|manager)\b"
-    r"|^\s*" + _HUMAN + r"\s*[.!?]*\s*$", re.I)
+    r"|^\s*(a )?" + _HUMAN + r"\s*[.!?]*\s*$", re.I)
+
+# A looser second pass for "get me a human" / "I need a human" style asks. The human noun must sit
+# at a clause boundary (end, punctuation, or a help/talk word), so "get me a human please" matches
+# but "get me the manager cut blazer" does not (the noun is followed by a product word).
+_ESCALATE_LOOSE = re.compile(
+    r"\b(get|give) (me )?(a |an |the )?" + _HUMAN + r"\b\s*([.!?,]|please|now|asap|to help|"
+    r"on (this|the)|$)"
+    r"|\bi (want|need|wanna)\b[ ,]*(to (speak|talk) to )?(a |an )?" + _HUMAN
+    + r"\b\s*([.!?,]|please|now|to help|to talk|not an ai|on (this|the)|about|$)"
+    r"|\b(hand|refer|put|transfer|connect)\b[ ,]*(me |this |it )?(over |off |through )?"
+    r"(to|with)[ ,]*(a |an |the |your )?" + _HUMAN + r"\b", re.I)
 
 # Router-only lane cues that supplement the shared intent guards. The linear brain's guards are
 # tuned narrowly for its recommend-versus-abstain logic; routing wants wider coverage so common
@@ -64,34 +83,41 @@ _STYLIST_CUE = re.compile(
     r"|\b(any ideas|ideas for|smart casual|black tie|dressed up|trending|which of your|"
     r"petite)\b", re.I)
 
+# Order ids are two capitals plus digits, matched case-sensitively so a lowercase product code
+# ("ab1234") is not mistaken for an order. Checked separately in _intent_lanes because the rest of
+# the care cue is case-insensitive.
+_ORDER_ID = re.compile(r"\b[A-Z]{2}\d{4,}\b")
 _CARE_CUE = re.compile(
-    r"\b[A-Z]{2}\d{4,}\b"  # an order id like OD100219
-    r"|\bmy (order|orders|package|parcel|deliver\w*|shipment|tracking|return|returns|account|"
-    r"subscription|purchase|purchases|stuff|refund|store credit|loyalty)\b"
-    r"|\bwhen(?:'?s| is| will| does)?\b[^.?!]{0,30}\b(arrive|arriving|ship|shipped|shipping|"
-    r"deliver\w*|get(ting)? here|come|here)\b"
-    r"|\b(eta|tracking|loyalty points|store credit|order status)\b"
+    r"\bmy (order|orders|package|parcel|deliver\w*|shipment|tracking|return|returns|account|"
+    r"subscription|refund|store credit|loyalty)\b"
+    r"|\b(return|send back|sending back|take back) (my|this|it|these|them|the)\b"
+    r"|\bwant (my|a) (refund|money back)\b|\b(refund|money back) (please|on my|for my)\b"
+    r"|\bwhen (will|is|does) my (order|package|parcel|delivery|stuff|shipment)\b[^.?!]{0,20}"
+    r"\b(arrive|arriving|ship|shipped|get here|here|coming|deliver\w*)\b"
+    r"|\b(eta on my|tracking (number|info|for my)|loyalty points|store credit|order status)\b"
     r"|\bleft the warehouse\b|\b(did|has|have) my (return|order|package|parcel|refund)\b"
     r"|\bmy (last|recent|previous) (purchase|order)\b"
-    r"|\b(what did i buy|what i bought|total on my|total of my)\b"
-    r"|\bbought (in|last|from you|the)\b", re.I)
+    r"|\b(what did i buy|what i bought|total on my)\b", re.I)
 
+# A complaint. Garment-damage words ("torn", "stain", "ripped") are matched ONLY in a problem frame
+# (arrived/came/is/has), so catalog styles like "ripped jeans" or "stain-resistant" do not read as
+# complaints. (The shared problem_intent guard still fires on bare damage words for the linear
+# path; that is its long-standing behavior and out of scope here.)
 _COMPLAINT_CUE = re.compile(
-    r"\b(hole|holes|torn|tear|ripped|rip|stain|stained|scuff\w*|peel\w*|unravel\w*|frayed|"
-    r"defect\w*|damaged|broken|cracked)\b"
-    r"|\b(wrong (size|colou?r|item|order|thing)|not what i ordered|someone else'?s|mislabel\w*)\b"
-    r"|\b(charged|billed|charge|bill)\b[^.?!]{0,30}\b(twice|two times|again|double|duplicate|"
-    r"extra)\b"
-    r"|\b(two|double|extra|duplicate|second) (charge|charges|payment|billing)\b"
-    r"|\bnever (authorized|authorised|signed up|ordered)\b"
-    r"|\b(says|marked) (delivered|shipped)\b[^.?!]{0,30}\b(but|nothing|missing|empty|not here)\b"
-    r"|\btracking\b[^.?!]{0,20}\b(hasn'?t|not|stopped)\b[^.?!]{0,12}\b(moved|updated|update)\b"
-    r"|\b(still (no|waiting|processing|nothing)|no (package|jacket|update|sign|refund))\b"
-    r"|\brefund\b[^.?!]{0,40}\b(nothing|still|hasn'?t|weeks|not (here|received))\b"
-    r"|\bcancel\w*\b[^.?!]{0,30}\b(without|no (reason|explanation|warning))\b"
-    r"|\b(ridiculous|unacceptable|frustrat\w*|ruined|useless|fed up|not ok(ay)?|cheap quality|"
-    r"worst)\b"
-    r"|\bfell (off|apart)\b|\bwrong address\b|\bcourier left it\b", re.I)
+    r"\b(arrived|came|showed up|shipped|is|was|has a|had a|got a|there'?s a|with a)\b[^.?!]{0,18}"
+    r"\b(hole|torn|ripped|stain(ed)?|scuff\w*|peel\w*|unravel\w*|frayed|defect\w*|damaged|"
+    r"broken|cracked|falling apart)\b"
+    r"|\b(wrong (size|colou?r|item|order)|not what i ordered|someone else'?s (order|package))\b"
+    r"|\b(charged|billed)\b[^.?!]{0,24}\b(twice|two times|again|double|duplicate|extra)\b"
+    r"|\b(double|duplicate|extra) (charge|charges|payment|billing)\b"
+    r"|\bnever (arrived|received|got|showed up|authorized|authorised|signed up)\b"
+    r"|\b(says|marked) (delivered|shipped)\b[^.?!]{0,24}\b(but|nothing|missing|empty|not here)\b"
+    r"|\btracking\b[^.?!]{0,18}\b(hasn'?t|not|stopped)\b[^.?!]{0,10}\b(moved|updated|update)\b"
+    r"|\bstill (waiting|no (package|refund|update))\b"
+    r"|\brefund\b[^.?!]{0,30}\b(still|hasn'?t|weeks|not (here|received))\b"
+    r"|\bcancel\w*\b[^.?!]{0,24}\b(without|no (reason|explanation|warning))\b"
+    r"|\b(this is (ridiculous|unacceptable)|fed up|so frustrated|ruined my)\b"
+    r"|\bfell (off|apart)\b|\bwrong address\b", re.I)
 
 # Confidence per single-intent lane. Complaint is most certain (its cues are specific), a shopping
 # request least (its cues are broad), so a low-confidence stylist route is re-checked first.
@@ -114,7 +140,7 @@ def _intent_lanes(query: str) -> list[str]:
     lanes = []
     if problem_intent(query) or _COMPLAINT_CUE.search(query):
         lanes.append("complaint")
-    if account_intent(query) or _CARE_CUE.search(query):
+    if account_intent(query) or _CARE_CUE.search(query) or _ORDER_ID.search(query):
         lanes.append("care")
     if shopping_intent(query) or _STYLIST_CUE.search(query):
         lanes.append("stylist")
@@ -127,8 +153,9 @@ def route(query: str, *, history: list | None = None, signed_in: bool = False,
     if not q:
         return RouteDecision("answers", 0.3, 0, "empty query")
 
-    # Layer 0: an explicit request to reach a person outranks every other signal.
-    if _ESCALATE.search(q):
+    # Layer 0: an explicit request to reach a person outranks every other signal, unless it is a
+    # refusal ("I don't want to talk to a human"), which must not escalate or file a case.
+    if (_ESCALATE.search(q) or _ESCALATE_LOOSE.search(q)) and not _NO_HUMAN.search(q):
         return RouteDecision("escalation", 0.95, 0, "explicit request for a person")
 
     # Layer 1: the deterministic intent guards. One match decides. Two competing matches become a

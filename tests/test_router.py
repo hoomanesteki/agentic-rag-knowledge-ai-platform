@@ -54,3 +54,28 @@ def test_route_never_calls_a_model_when_a_layer_decides():
             raise AssertionError("router used the model on a deterministic turn")
     for q in ("where is my order", "recommend a coat", "talk to a human"):
         assert route(q, small_llm=Boom()).lane in LANES
+
+
+# --- regression: post-verification hardening (overfit router cues, escalation false positives) ---
+
+def test_escalation_does_not_false_positive_on_shopping_vocabulary():
+    for q in ("send this order to a manager at my office", "I need an advisor for my fall outfit",
+              "I want a manager special on the denim jacket", "I need staff picks for dresses",
+              "get me the manager cut blazer"):
+        assert route(q).lane != "escalation", q
+
+
+def test_a_refusal_to_talk_to_a_human_does_not_escalate():
+    for q in ("I don't want to talk to a human", "no need for a human",
+              "rather not speak to an agent"):
+        assert route(q).lane != "escalation", q
+
+
+def test_a_return_or_refund_request_routes_to_care():
+    assert route("I want to return my jacket").lane == "care"
+    assert route("I want my money back").lane == "care"
+
+
+def test_a_lowercase_product_code_is_not_read_as_an_order_id():
+    # the order-id cue is case-sensitive, so a lowercase model code is not an account lookup
+    assert route("do you have model ab1234 in navy").lane != "care"

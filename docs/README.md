@@ -32,6 +32,12 @@ A map to how this system is built and how it is kept honest. Start here.
 - [adr-enrichment.md](adr-enrichment.md) is the batch pipeline that turns untrusted reviews into
   confidence-scored product features by consensus, with provenance, served from a feature table.
 
+## How it was verified
+
+- [verification-findings.md](verification-findings.md) is the adversarial verification of the whole
+  stack (21 agents), the honest finding that the router cues had overfit the synthetic set, what was
+  hardened, and the post-hardening numbers. PII parity came back solid.
+
 ## Where it runs, and what is next
 
 - [adr-services.md](adr-services.md) is the service and container topology: a modular monolith with

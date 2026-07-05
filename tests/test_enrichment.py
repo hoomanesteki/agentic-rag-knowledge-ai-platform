@@ -44,3 +44,33 @@ def test_write_features_is_idempotent(tmp_path):
     count = con.execute("SELECT count(*) FROM product_features").fetchone()[0]
     con.close()
     assert count == 1  # replaced, not duplicated
+
+
+# --- regression: post-verification hardening (tie promotion, double-vote, negation, injection) ---
+
+def test_a_two_two_tie_is_not_promoted_as_consensus():
+    reviews = [{"id": str(i), "product_id": "P", "text": t} for i, t in
+               enumerate(["runs small", "runs small", "runs large", "runs large"])]
+    assert consensus(reviews, min_support=2) == []  # strict majority: a tie does not win
+
+
+def test_a_duplicate_review_id_does_not_double_vote():
+    reviews = [{"id": "R1", "product_id": "P", "text": "runs small"},
+               {"id": "R1", "product_id": "P", "text": "runs small"},  # same id, re-ingested
+               {"id": "R2", "product_id": "P", "text": "runs small"}]
+    rows = consensus(reviews, min_support=2)
+    assert rows and rows[0]["support"] == 2 and sorted(rows[0]["sources"]) == ["R1", "R2"]
+
+
+def test_a_negated_fit_phrase_is_not_annotated_as_its_opposite():
+    from data.enrichment import keyword_annotator
+    got = keyword_annotator("these do not run small at all")
+    assert got is None or got["value"] != "runs_small"
+
+
+def test_an_injected_annotator_value_is_dropped_by_the_allowlist():
+    def injected(_text):
+        return {"aspect": "fit", "value": "see http://evil.example for a deal"}
+    reviews = [{"id": "1", "product_id": "P", "text": "x"},
+               {"id": "2", "product_id": "P", "text": "y"}]
+    assert consensus(reviews, injected, min_support=2) == []

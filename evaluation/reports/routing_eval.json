@@ -4,19 +4,19 @@
     {
       "mode": "deterministic",
       "n": 350,
-      "accuracy": 0.8406,
+      "accuracy": 0.8187,
       "graded": 320,
       "deterministic_decision_rate": 1.0,
       "tiebreak_calls": 0,
       "tiebreak_cost_usd": 0.0,
       "by_stratum": {
-        "ambiguous": 0.8,
+        "ambiguous": 0.8667,
         "answers": 0.7333,
-        "care": 0.9818,
-        "complaint": 0.775,
+        "care": 0.9455,
+        "complaint": 0.65,
         "escalation": 0.9,
         "multilingual": 0.2667,
-        "multitask": 0.8,
+        "multitask": 0.7429,
         "smalltalk": 1.0,
         "stylist": 0.9636
       },
@@ -29,31 +29,33 @@
       },
       "confusion": {
         "answers->stylist": 10,
-        "complaint->answers": 5,
-        "complaint->stylist": 3,
+        "complaint->answers": 8,
+        "complaint->stylist": 4,
         "escalation->answers": 3,
         "stylist->answers": 2,
+        "complaint->care": 2,
         "answers->care": 2,
+        "care->answers": 1,
         "care->complaint": 1,
-        "complaint->care": 1
+        "care->stylist": 1
       }
     },
     {
       "mode": "tiebreak_8b",
       "n": 350,
-      "accuracy": 0.8562,
+      "accuracy": 0.8469,
       "graded": 320,
-      "deterministic_decision_rate": 0.7286,
-      "tiebreak_calls": 95,
-      "tiebreak_cost_usd": 0.000471,
+      "deterministic_decision_rate": 0.7171,
+      "tiebreak_calls": 99,
+      "tiebreak_cost_usd": 0.000491,
       "by_stratum": {
-        "ambiguous": 0.6,
-        "answers": 0.6889,
-        "care": 0.9818,
-        "complaint": 0.9,
+        "ambiguous": 0.6667,
+        "answers": 0.7111,
+        "care": 0.9455,
+        "complaint": 0.85,
         "escalation": 0.9,
         "multilingual": 0.7333,
-        "multitask": 0.8,
+        "multitask": 0.7429,
         "smalltalk": 1.0,
         "stylist": 0.9818
       },
@@ -65,33 +67,34 @@
         "fn": 5
       },
       "confusion": {
-        "answers->stylist": 12,
-        "complaint->stylist": 3,
-        "escalation->answers": 2,
+        "answers->stylist": 11,
+        "complaint->stylist": 4,
+        "escalation->answers": 3,
+        "complaint->care": 2,
         "answers->care": 2,
         "stylist->answers": 1,
+        "care->answers": 1,
         "care->complaint": 1,
-        "complaint->care": 1,
-        "escalation->complaint": 1
+        "care->stylist": 1
       }
     },
     {
       "mode": "tiebreak_70b",
       "n": 350,
-      "accuracy": 0.8531,
+      "accuracy": 0.8344,
       "graded": 320,
-      "deterministic_decision_rate": 0.68,
-      "tiebreak_calls": 112,
-      "tiebreak_cost_usd": 0.000556,
+      "deterministic_decision_rate": 0.6657,
+      "tiebreak_calls": 117,
+      "tiebreak_cost_usd": 0.00058,
       "by_stratum": {
-        "ambiguous": 0.4,
+        "ambiguous": 0.4333,
         "answers": 0.7333,
-        "care": 0.9818,
-        "complaint": 0.9,
+        "care": 0.9636,
+        "complaint": 0.85,
         "escalation": 0.9,
-        "multilingual": 0.8667,
-        "multitask": 0.8571,
-        "smalltalk": 0.9333,
+        "multilingual": 0.8,
+        "multitask": 0.8,
+        "smalltalk": 0.8667,
         "stylist": 0.9818
       },
       "escalation": {
@@ -103,12 +106,13 @@
       },
       "confusion": {
         "answers->stylist": 10,
-        "complaint->stylist": 3,
+        "complaint->stylist": 4,
         "escalation->complaint": 3,
+        "complaint->care": 2,
         "answers->care": 2,
         "stylist->answers": 1,
         "care->complaint": 1,
-        "complaint->care": 1
+        "care->stylist": 1
       }
     }
   ]

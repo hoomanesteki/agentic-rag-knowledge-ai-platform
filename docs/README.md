@@ -15,8 +15,8 @@ A map to how this system is built and how it is kept honest. Start here.
 ## The evaluation that proves it
 
 - [eval-routing-findings.md](eval-routing-findings.md) is the worked measurement: the deterministic
-  router hits 84% at zero marginal cost, a naive LLM tie-break hurt, and a bigger model was not
-  worth it. Every number regenerates from `scripts/run_agent_eval.py`.
+  router is 81.6% at zero marginal cost, the optimized 8B tie-break lifts it to 85.9%, and a 70B
+  buys nothing over the 8B. Every number regenerates from `scripts/run_agent_eval.py`.
 - [mlops-lifecycle.md](mlops-lifecycle.md) ties the pieces together: offline eval, MLflow tracking,
   the CI gate, human-gated promotion, drift monitoring, and the feedback loops, with a dev-versus-
   prod table and a role-to-surface map.

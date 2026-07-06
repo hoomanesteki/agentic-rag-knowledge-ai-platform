@@ -72,9 +72,9 @@ The assistant became a master orchestrator that routes every turn to a lane, sty
 
 | Mode | Accuracy | Marginal cost |
 |---|---|---|
-| Deterministic (layers 0 and 1) | 80.9% | none |
-| 8B small-model tie-break | 84.1% | ~$0.0005 |
-| 70B large-model tie-break | 83.1% | ~$0.0006 |
+| Deterministic (layers 0 and 1) | 81.6% | none |
+| 8B small-model tie-break | 85.9% | ~$0.0005 |
+| 70B large-model tie-break | 85.6% | ~$0.0006 |
 
 Two decisions fell out of this, and both are in the numbers rather than a preference. The cheap deterministic router carries most turns at zero marginal cost and 100% escalation precision. And a 70B tie-break barely beats an 8B while both trail or match the free layer, which is the measured case for staying Groq-only instead of paying a frontier model to classify.
 

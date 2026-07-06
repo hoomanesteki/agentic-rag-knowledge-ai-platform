@@ -26,10 +26,10 @@ tests, all green
 :::
 ::: {.stat}
 ::: {.n}
-84%
+86%
 :::
 ::: {.k}
-router accuracy, $0 marginal
+router accuracy, cheap 8B tie-break
 :::
 :::
 ::: {.stat}

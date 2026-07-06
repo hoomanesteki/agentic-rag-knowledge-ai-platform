@@ -47,13 +47,14 @@ Regenerated from `scripts/run_agent_eval.py` (in `evaluation/reports/routing_eva
 
 | Mode | Accuracy | Note |
 | --- | --- | --- |
-| Deterministic | 80.9% | down from 84.1%: the honest cost of removing the overfit cues |
-| 8B tie-break | 84.1% | the production number, still the best, still beats 70B |
-| 70B tie-break | 83.1% | a bigger model still is not worth it for routing |
+| Deterministic (layers 0 and 1) | 81.6% | free; the safe floor, ambiguity deferred to the tie-break |
+| 8B tie-break | 85.9% | the production path; escalation recall reaches 100% here |
+| 70B tie-break | 85.6% | a bigger model still is not worth it for routing |
 
-The deterministic number dropped because precision went up: the routes it now declines to guess are
+The deterministic number is lower because precision went up: the routes it now declines to guess are
 handed to the cheap tie-break, which is why the 8B mode is the strongest. The escalation intercept
-keeps 100% precision on the eval with recall at 90%.
+keeps 100% precision, and with the tie-break's escalation option added in the final round, escalation
+recall reaches 100% on the 8B path.
 
 ## The confirmation round
 

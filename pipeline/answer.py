@@ -1044,6 +1044,55 @@ def _product_genders(domain: str) -> frozenset:
     return frozenset(out.items())
 
 
+# A comparison or superlative follow-up ("which is warmest", "the cheaper one", "compare those"),
+# which asks the assistant to weigh the items it JUST recommended, not to fetch a fresh set.
+_COMPARE_FOLLOWUP = re.compile(
+    r"\bwhich (is|one|of (them|those|these))\b"
+    r"|\bthe (warm\w*|cheap\w*|light\w*|soft\w*|thick\w*|warm\w*|cool\w*|better|best|nic\w*|"
+    r"bigger|biggest|smaller|smallest|priciest|dearest) (one|of (them|those|these))?\b"
+    r"|\b(compare|versus|vs\.?)\b", re.I)
+
+
+@lru_cache(maxsize=8)
+def _catalog_names(domain: str) -> tuple:
+    """Every product name in the catalog, longest-first so a full name matches before a shorter one
+    it contains. Read from the manifest's products source, so no product name is hardcoded here."""
+    import csv as _csv
+
+    import yaml
+    pack = os.path.join("domains", domain)
+    names: set[str] = set()
+    try:
+        manifest = yaml.safe_load(open(os.path.join(pack, "domain.yaml"), encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return ()
+    for src in (manifest.get("sources", {}) or {}).get("structured", []) or []:
+        if src.get("role") != "products" or "name" not in (src.get("columns", {}) or {}):
+            continue
+        try:
+            for row in _csv.DictReader(open(os.path.join(pack, src["file"]), encoding="utf-8")):
+                if row.get("name"):
+                    names.add(row["name"].strip())
+        except OSError:
+            continue
+    return tuple(sorted(names, key=len, reverse=True))
+
+
+def _prior_products(history, domain: str) -> list[str]:
+    """The product names the assistant named in its last turn, so a comparison follow-up can be
+    answered over exactly those items instead of a different, freshly retrieved set."""
+    last_bot = next((t.get("content", "") for t in reversed(history or [])
+                     if t.get("role") in ("assistant", "bot") and (t.get("content") or "").strip()),
+                    "")
+    if not last_bot:
+        return []
+    found: list[str] = []
+    for name in _catalog_names(domain):
+        if name in last_bot and not any(name in f for f in found):
+            found.append(name)
+    return found
+
+
 @lru_cache(maxsize=8)
 def _domain_vocab(domain: str) -> frozenset:
     """Correct-spelling vocabulary for typo repair: product-name words, glossary terms, and category
@@ -1439,6 +1488,12 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # Resolve the recipient's gender across the whole conversation, not just this turn, so a gift
     # named once ("for my father") still filters the picks on a follow-up that does not restate it.
     sticky_gender = _sticky_gender(rquery, history)
+    # On a comparison/superlative follow-up ("which is warmest", "the cheaper one"), anchor
+    # retrieval on the exact products the assistant just recommended, so it weighs those items
+    # instead of a freshly retrieved, different set; the prompt then compares only among what shown.
+    pinned = _prior_products(history, domain) if _COMPARE_FOLLOWUP.search(query or "") else []
+    if pinned:
+        retrieval_q = (" ".join(pinned) + " " + rquery).strip()[:400]
     hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
                     auth_text=auth_text, gender=sticky_gender)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
@@ -1452,8 +1507,13 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # A complaint ("my jacket ripped") often also trips _shopping_intent, so only un-abstain into a
     # product recommendation when the turn is NOT a problem; otherwise the empathetic problem branch
     # below stays reachable. Both intents read the expanded query so complaint follow-ups classify.
-    if abstained and hits and _shopping_intent(rquery) and not _problem_intent(rquery):
-        abstained = False  # shopping request + any retrieved product -> recommend, don't abstain
+    # The omni stylist lane is a stronger shopping signal than the narrow _shopping_intent regex
+    # (which misses phrasings like "cozy loungewear for the house"): when the router routed the turn
+    # to stylist and products were retrieved, recommend rather than firing the generic abstain. lane
+    # is None on the linear path, so its abstain behavior is unchanged.
+    if (abstained and hits and (lane == "stylist" or _shopping_intent(rquery))
+            and not _problem_intent(rquery)):
+        abstained = False  # shopping/stylist turn + any retrieved product -> recommend not abstain
     # a signed-in shopper's OWN order surfaced but the query words barely overlap the record text
     # (natural phrasings like "did my package arrive"): answer from the authorized order rather than
     # abstaining into a generic clarifier. Fires only for a proven identity's own account question

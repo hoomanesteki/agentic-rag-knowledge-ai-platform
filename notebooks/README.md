@@ -7,6 +7,9 @@ Runnable walkthroughs of the platform, offline on the synthetic data (no keys, n
   pull a governed number from the semantic layer with a chart.
 - [02-evaluation.ipynb](02-evaluation.ipynb): the quality stack. Run the offline gate, watch it
   **block a simulated regression**, and see drift (PSI) flag a distribution shift, with charts.
+- [03-continuous-training.ipynb](03-continuous-training.ipynb): the CT loop, distinct from CI/CD.
+  Run the trigger and promotion **policy** offline (no keys): what fires a cycle, what clears the
+  bar to be promoted, and why CT only ever *proposes* a change for a human to approve.
 
 ## Running them
 

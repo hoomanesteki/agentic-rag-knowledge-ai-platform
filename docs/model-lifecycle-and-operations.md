@@ -51,6 +51,41 @@ own served behavior invites drift and reward hacking, so an agentic coding flow 
 open it for review, but it never merges itself. When a fix is small, safe, and the eval confirms no
 regression, a human approves it in seconds; when it is not, the log is there for a careful look.
 
+## Continuous training (CT)
+
+The loops above are the discipline; CT is the concrete pipeline that runs them on a cadence. It is a
+third loop, distinct from the other two:
+
+- **CI** runs on every push and asks *is the code correct?* (lint, tests, the eval gate).
+- **CD** ships once CI is green.
+- **CT** runs on a schedule, on measured drift, or on enough new human-verified data, and asks *is a
+  retrained candidate better, and safe to promote?*
+
+"Training" here is not gradient descent on model weights, since the LLM is a hosted Groq model. It is
+the data-and-prompt layer this system owns, retrained on a cadence and versioned like a model: the
+retrieval index (re-embed new reviews and descriptions, incrementally via `run_ingest.py --only`),
+the governed enrichment features (recompute consensus on new reviews), and the router and answer
+prompts (the OPRO loop). Each is gated the way a model would be.
+
+A CT cycle (`make ct`; policy in `mlops/ct.py`, wiring in `scripts/run_ct.py`, scheduled by
+`.github/workflows/ct.yml`) is deterministic control flow:
+
+1. **Trigger.** Fire on the weekly schedule, when the drift monitors cross threshold, or when the
+   review-queue flywheel has accumulated enough new verified answers to be worth retraining on. If
+   nothing changed, the cycle does nothing and says so.
+2. **Retrain.** Re-index the new data and re-optimize the target prompt against the ground-truth
+   eval (the safety-gated prompt-optimization loop).
+3. **Gate.** Score the candidate on a held-out split and run the same regression gate CI runs.
+4. **Propose.** Promote only when the candidate beats the baseline by a margin with the gate and the
+   safety check green, and even then only *propose* it: the cycle writes
+   `evaluation/reports/ct_report.json`, logs the run to MLflow, and the workflow uploads that report
+   as the artifact a human approves. Nothing retrains and ships itself.
+
+This is the self-improvement rule made operational: automatic proposal, human-gated promotion, so a
+candidate that games the metric is caught at the gate and never reaches production. It is resilient
+too: with no model key the training step is skipped and CT runs the gate as a health check, so a run
+always produces an auditable report.
+
 ## Drift: detect, decide, act
 
 Four monitors (`mlops/drift.py` and the routing re-eval) watch four kinds of drift: input (the

@@ -156,3 +156,15 @@ def test_escalation_without_a_queue_makes_no_false_promise(tmp_path):
                                    store=None, llm=None, trace_path=str(tmp_path / "t.jsonl")))
     ans = events[-1]["answer"]
     assert "logged this" not in ans and "follow up by email" not in ans
+
+
+def test_an_escalation_clause_in_a_multitask_turn_escalates_the_whole_turn(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    rq = _Queue()
+    events = list(omni.stream_omni("suggest a gift, and get me a human please", embedder=None,
+                                   store=None, llm=None, review_queue=rq,
+                                   domain="apparel_ecommerce"))
+    assert rq.filed  # a case was filed for the human request
+    assert not rec.calls  # it did not fan out into a plain escalation-lane answer
+    assert events[-1]["tier"] == "escalate"

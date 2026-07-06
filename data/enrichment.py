@@ -79,8 +79,8 @@ def consensus(reviews, annotate=keyword_annotator, *, min_support: int = 2,
                 continue
             seen_ids.add(rid)
         a = annotate(r.get("text", ""))
-        if not a:
-            continue
+        if not isinstance(a, dict):
+            continue  # a malformed or injection-steered annotator output is dropped, never fatal
         aspect, value = a.get("aspect"), a.get("value")
         if value not in ALLOWED.get(aspect, set()):
             continue  # only allowlisted pairs, so an injected annotation cannot reach a feature

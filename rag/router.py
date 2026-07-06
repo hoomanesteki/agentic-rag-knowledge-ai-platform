@@ -35,9 +35,14 @@ LANES = ("stylist", "care", "complaint", "answers", "escalation")
 _HUMAN = r"(human|person|people|agent|representative|manager|supervisor)"
 
 # A refusal to be handed to a person must NOT escalate ("I don't want to talk to a human").
+# A genuine refusal of a person, not a discourse "No, I want a human". It needs a negated desire or
+# verb landing near the human noun, or "no need for a human", so "No, connect me to an agent" and
+# "not a bot, a human please" still escalate.
 _NO_HUMAN = re.compile(
-    r"\b(don'?t|do not|no|not|never|without|rather not|no need)\b[^.?!]{0,20}\b" + _HUMAN + r"\b",
-    re.I)
+    r"\b(don'?t|do not|never|no need|rather not|no longer|stop)\b[^.?!]{0,16}\b(want|need|talk|"
+    r"speak|chat|deal|transfer|connect|use)\b[^.?!]{0,12}\b" + _HUMAN + r"\b"
+    r"|\bwithout (a |an |talking to |speaking to )?" + _HUMAN + r"\b"
+    r"|\bno need for (a |an )?" + _HUMAN + r"\b", re.I)
 
 # An explicit request to reach a person. High precision on purpose: the frontend and the 8B
 # tie-break catch the rest, so a false positive (which files a real case) is the worse error. The
@@ -118,6 +123,10 @@ _COMPLAINT_CUE = re.compile(
     r"|\brefund\b[^.?!]{0,30}\b(still|hasn'?t|weeks|not (here|received))\b"
     r"|\bcancel\w*\b[^.?!]{0,24}\b(without|no (reason|explanation|warning))\b"
     r"|\b(this is (ridiculous|unacceptable)|fed up|so frustrated|ruined my)\b"
+    r"|\b(zipper|strap|button|buttons|seam|seams|sole|heel|stitching|clasp|zip|elastic|thread)\b"
+    r"[^.?!]{0,14}\b(broke|snapped|tore|torn|split|came (apart|undone|off)|unravel\w*|"
+    r"stopped working)\b"
+    r"|\b(broke|snapped|tore|split|unravel\w*|came apart) (after|on|within|the first|during)\b"
     r"|\bfell (off|apart)\b|\bwrong address\b", re.I)
 
 # Confidence per single-intent lane. Complaint is most certain (its cues are specific), a shopping
@@ -191,7 +200,8 @@ _TIEBREAK_SYSTEM = (
     "ONLY a JSON object {\"lane\": L} where L is one of: stylist (specific product combination or "
     "gift ideas), care (direct reference to their own order or account), complaint (explicit "
     "problem, delay, or billing issue), answers (general or policy question, or seeking "
-    "information), unclear (genuinely ambiguous between two specific intents). Prioritize answers "
+    "information), escalation (they explicitly ask to reach a human, agent, or representative), "
+    "unclear (genuinely ambiguous between two specific intents). Prioritize answers "
     "for general inquiries and defer to unclear only when a message clearly conveys multiple "
     "distinct intents. No prose, only the JSON."
 )
@@ -209,6 +219,10 @@ def _model_tiebreak(query: str, small_llm, system: str | None = None) -> RouteDe
         return None
     match = re.search(r'"lane"\s*:\s*"([a-z]+)"', raw or "")
     lane = match.group(1) if match else ""
+    if lane == "escalation":
+        # an explicit human request the English-only Layer 0 regexes missed (a non-English phrasing
+        # or a typo); the tie-break is the safety net so it can still reach a person
+        return RouteDecision("escalation", 0.7, 2, "small-model tie-break, human request")
     if lane in ("stylist", "care", "complaint", "answers"):
         return RouteDecision(lane, 0.65, 2, "small-model tie-break")
     if lane == "unclear":

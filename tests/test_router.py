@@ -91,3 +91,16 @@ def test_hardening_round2_no_reintroduced_false_positives():
         assert route(q).lane != "escalation", q
     for q in ("is this stain-resistant", "ripped jeans in my size", "are these pre-ripped"):
         assert route(q).lane != "complaint", q
+
+
+def test_negation_refinement_only_suppresses_genuine_refusals():
+    # a discourse "No," before a human request still escalates; a real refusal does not
+    assert route("No, I want to talk to a human").lane == "escalation"
+    assert route("not a bot, a human please").lane == "escalation"
+    assert route("I don't want to talk to a human").lane != "escalation"
+    assert route("no need for a human, I've got it").lane != "escalation"
+
+
+def test_failure_verbs_route_to_complaint():
+    assert route("the zipper broke after one wash").lane == "complaint"
+    assert route("the strap snapped on the first wear").lane == "complaint"

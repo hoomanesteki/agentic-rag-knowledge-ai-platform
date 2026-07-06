@@ -74,3 +74,9 @@ def test_an_injected_annotator_value_is_dropped_by_the_allowlist():
     reviews = [{"id": "1", "product_id": "P", "text": "x"},
                {"id": "2", "product_id": "P", "text": "y"}]
     assert consensus(reviews, injected, min_support=2) == []
+
+
+def test_a_non_dict_annotator_return_is_dropped_not_fatal():
+    reviews = [{"id": "1", "product_id": "P", "text": "x"},
+               {"id": "2", "product_id": "P", "text": "y"}]
+    assert consensus(reviews, lambda _t: "a string, not a dict") == []  # must not raise

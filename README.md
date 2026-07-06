@@ -7,10 +7,10 @@ architecture, evaluation, the decisions behind it, and an honest look at the fai
 site's source is in [`showcase/`](showcase/) (Quarto, rendered to GitHub Pages by CI).
 
 A local-first, domain-swappable **agentic RAG platform**. It answers questions over a mix of
-structured and unstructured data, grounds every answer in citations (or abstains), routes hard
-questions through a supervisor that coordinates specialist agents, and hands off to a human when
-it is unsure, then learns from that answer. One engine serves any topic: a domain is a config
-folder, not code.
+structured and unstructured data, grounds every answer in citations (or abstains), routes every turn
+through a **master orchestrator** to a specialized lane (all sharing one gated pipeline), and hands
+off to a human when it is unsure, then learns from that answer. One engine serves any topic: a
+domain is a config folder, not code.
 
 Built step by step, MVP first, each step reviewed by an independent model before it merged. Tests
 and CI run entirely offline on fakes; the hosted models (Groq, Cohere) and the stores (Qdrant,
@@ -20,11 +20,16 @@ DuckDB, Neo4j) are config swaps.
 
 - **Grounded or honest.** Hybrid retrieval (dense + sparse, RRF) with a reranker, sentence-level
   citation checks, and an abstain gate. Retrieved text is sanitized against prompt injection.
-- **A brain, not a prompt.** A LangGraph state machine (understand, dispatch, reconcile) that
-  compiles to a langchain-core `Runnable`, with a **supervisor** that dispatches to three
-  **specialists** (a Retriever, a governed **Metrics** agent, and a knowledge-**Graph** agent) and
-  reconciles their findings (a governed number beats a contradicting review), wrapped by a gate and
-  a bounded agent loop that retries before it escalates. Langfuse traces the whole run as one span.
+- **A master orchestrator, not a prompt.** The default brain (`CHAT_BRAIN=omni`) is a master
+  orchestrator that reads every turn and routes it to a specialized lane, stylist (Sara), care,
+  complaint, answers, or escalation (Tiffany), through **one gated pipeline**, so specialization
+  sharpens tone and focus but never creates a second, weaker safety surface. Routing is a cheap-first
+  cascade: free deterministic guards decide the majority (81.6% correct at zero marginal cost), a
+  cheap 8B tie-break lifts the ambiguous minority to 85.9% with 100% escalation recall. A two-in-one
+  turn is split, routed, answered, and stitched back; a genuinely unclear turn is asked about, not
+  guessed. An alternate brain (`CHAT_BRAIN=agent`) is a LangGraph supervisor over three specialists
+  (Retriever, governed Metrics, knowledge Graph) with a gate and a bounded retry loop; both compile
+  to a langchain-core `Runnable`, and Langfuse traces the whole run as one span.
 - **Guards that do not trust the model.** Order PII, prompt injection, customer enumeration, and
   gender-correct recommendations are enforced deterministically in code, before the prompt. See
   [the guardrails](#guardrails-enforced-in-code-not-in-the-prompt).
@@ -38,8 +43,11 @@ DuckDB, Neo4j) are config swaps.
   supplier makes X") answer from the graph via allowlisted traversals, not free Cypher.
 - **Human-in-the-loop flywheel.** Escalations land in a review queue; an operator answers; the
   answer becomes a retrievable verified chunk and grows the eval set.
-- **Observability.** Langfuse traces every turn and LLM call (model, tokens, latency, cost);
-  MLflow, a faithful RAGAS eval, four drift monitors, and an offline CI eval gate cover the rest.
+- **Observability and MLOps.** Langfuse traces every turn and LLM call (model, tokens, latency,
+  cost). Four monitoring pillars read the one trace store, data drift, model quality (RAGAS +
+  routing), system health (p95 latency, errors, cost), and business KPIs (containment, answer rate,
+  $/session). Weekly **continuous training** retrains and gates a candidate and registers it to a
+  versioned **model registry** as `proposed`; a human promotes it, so nothing self-ships.
 - **Guided and voiced.** Per-domain starter prompts, spoken input (Groq Whisper), spoken replies
   (browser voice by default, ElevenLabs when keyed), a storefront-style demo UI with the chat
   widget, and a backoffice dashboard at `/admin`.
@@ -57,13 +65,13 @@ DuckDB, Neo4j) are config swaps.
 | Layer | Choice | Where |
 | --- | --- | --- |
 | API | FastAPI: SSE chat, JWT auth, rate limiting, Turnstile, degraded mode | `api/` |
-| Brain | LangGraph supervisor + three specialists, gate + bounded retry loop | `rag/` |
+| Brain | Master orchestrator (routes each turn to a lane) over one gated pipeline; `CHAT_BRAIN` also selects a linear or a LangGraph-supervisor brain | `rag/`, `pipeline/` |
 | Retrieval | Qdrant hybrid (dense + sparse, server-side RRF), Cohere `embed-v4.0` + `rerank-v3.5` | `adapters/`, `retrieval/` |
 | Generation | Groq Llama 3.3 70B (large) and Llama 3.1 8B (small) | `adapters/groq.py` |
 | Voice | Groq Whisper in; browser voice or ElevenLabs Flash v2.5 out (key stays server-side) | `adapters/groq_whisper.py`, `adapters/elevenlabs.py` |
 | Analytics | DuckDB + dbt medallion, `metrics.yaml` semantic layer | `dbt/`, `data/` |
 | Graph | Neo4j, loaded from gold | `knowledge/`, `adapters/neo4j_store.py` |
-| MLOps | Langfuse tracing, MLflow (compose server backed by Postgres, or `./mlruns`), RAGAS eval, drift monitors, CI gate | `mlops/`, `evaluation/` |
+| MLOps | Langfuse tracing, MLflow (Postgres-backed compose server or `./mlruns`), RAGAS eval, four drift monitors, CI eval gate, weekly continuous training + a versioned model registry | `mlops/`, `evaluation/` |
 | Web | Next.js 14 storefront demo with the chat widget and `/admin` | `web/` |
 
 Every provider sits behind an adapter interface, and the defaults are offline fakes
@@ -80,18 +88,30 @@ Every provider sits behind an adapter interface, and the defaults are offline fa
    |  /api/chat (SSE)   /api/transcribe   /api/tts       |  Turnstile, degraded mode
    |  /api/admin/*                                       |
    +--------------------------+--------------------------+
-                              |  CHAT_BRAIN=agent
+                              |  CHAT_BRAIN=omni (default)
                               v
    +-----------------------------------------------------+
-   |           The brain (LangGraph + the gate)          |
-   |   understand  ->  dispatch  ->  reconcile  -> gate  |
-   |   (rewrite,       (supervisor    (merge,     (auto /|
-   |    route)          fans out)      rank,     retry / |
-   |                        |          resolve) escalate)|
-   |           +------------+------------+               |
-   |           v            v            v               |
-   |      Retriever      Metrics       Graph             |  three specialists,
-   |      specialist     specialist    specialist        |  one Finding contract
+   |         MASTER ORCHESTRATOR   (rag/omni.py)         |
+   |   route each turn -> the right lane -> one path     |
+   |                                                     |
+   |   Layer 0  reach a person?     (regex,        $0)   |
+   |   Layer 1  intent guards       (complaint/         |
+   |            deterministic        care/stylist, $0)   |
+   |   Layer 2  cheap 8B tie-break  (only if ambiguous)  |
+   |                        |                            |
+   |    +--------+--------+--+-----+--------+---------+   |
+   |    v        v        v        v        v         v   |
+   | stylist   care   complaint  answers  escalation      |  lanes are DATA ROWS:
+   | (Sara)  (order) (make right)(facts)  (Tiffany:       |  a focus added to ONE
+   |                                       file a case)   |  shared system prompt
+   +--------------------------+--------------------------+
+                              |  every lane answers through
+                              v  the SAME gated pipeline
+   +-----------------------------------------------------+
+   |  understand -> retrieve -> ground -> answer/abstain  |
+   |  (typo repair, (hybrid    (PII gate, (cited [1][2],  |
+   |   follow-up     + rerank)  gender     or "I don't    |
+   |   expand)                  redaction) have that")    |
    +-----------|------------|------------|---------------+
                v            v            v
          +----------+ +-----------+ +-----------+
@@ -106,10 +126,12 @@ Every provider sits behind an adapter interface, and the defaults are offline fa
          +---------------------------------+
 ```
 
-The LangGraph graph itself is understand -> dispatch -> reconcile (`rag/supervisor.py`); the gate
-and the bounded loop wrap it (`rag/agent.py`): answer when confident and conflict-free, retry with
-a reformulated query up to a step cap when the question looked answerable, escalate to the review
-queue otherwise.
+The orchestrator (`rag/omni.py`) routes with the cascade in `rag/router.py` and answers each lane
+through the one gated pipeline in `pipeline/answer.py`, so the order-PII gate, the gender filter, and
+the abstain gate are identical on every lane. `CHAT_BRAIN` selects the brain: `omni` (the default
+above), `linear` (the single pipeline, no routing), or `agent` (a LangGraph supervisor that fans out
+to a Retriever, a governed Metrics, and a knowledge Graph specialist, then reconciles, in
+`rag/supervisor.py` + `rag/agent.py`).
 
 ## The data architecture
 
@@ -150,10 +172,10 @@ analytics and semantic layer is real dbt: tested, documented, and lineage-traced
 
 A leak linter in `make check` greps every engine folder for each pack's brand, product, metric,
 and glossary vocabulary and fails the build on a hit, which is what keeps the engine reusable
-across domains. The apparel pack's content is written for realism: 304 human-voice reviews (one
-positive and one honest-critical per product), 152 product descriptions grounded in fabric, fit,
-and care detail, and synthetic orders whose fake PII exercises the order gate below. See
-[docs/semantic-layer.md](docs/semantic-layer.md).
+across domains. The apparel pack's content is written for realism: 158 products, 810 reviews in
+total (including 304 human-voice reviews, one positive and one honest-critical per product), 140
+product descriptions grounded in fabric, fit, and care detail, and synthetic orders whose fake PII
+exercises the order gate below. See [docs/semantic-layer.md](docs/semantic-layer.md).
 
 ## How one turn works
 
@@ -230,6 +252,8 @@ make ablation    # dense vs hybrid vs +rerank, per language -> docs/eval-report.
 make ragas       # faithfulness, answer relevance, context precision/recall (LLM judge)
 make gate        # the offline CI eval gate (also runs in CI)
 make drift       # drift across the four monitors from recent traffic, per language
+make ct          # one Continuous Training cycle: retrain, gate, propose a promotion (human-gated)
+make registry    # the model registry: versions, stages, the current champion
 make promote     # gate the config through MLflow stages (dev -> staging -> prod) by eval score
 make dbt-docs    # the dbt lineage graph and column docs
 ```
@@ -246,19 +270,32 @@ regression, and the drift monitor flags a distribution shift. The walkthrough is
 | --- | --- |
 | ![eval gate blocks a regression](docs/img/eval-gate.png) | ![drift PSI](docs/img/drift-psi.png) |
 
-## Observability and CI
+## Observability, monitoring, and the three loops
+
+Every turn is traced once; four monitoring pillars read the same trace store, so a bad answer is
+explained, not guessed at.
 
 ```text
-   every turn  --> Langfuse trace: model, tokens, latency, cost
-               \-> request trace --> /admin dashboard: quality, health, gaps
-                                \--> MLflow runs
-                                \--> four drift monitors (per language)
-                                \--> RAGAS answer-quality eval
+   every turn --> Langfuse span + request trace: model, tokens, latency, cost, grounding
+                    |
+     FOUR MONITORING PILLARS, all off the one trace store:
+       data      --> drift monitors: embedding distance, retrieval PSI, confidence PSI, feedback
+       model     --> RAGAS + routing accuracy + the offline eval gate
+       system    --> /admin/health:   p95 latency, error rate, cost/turn, throughput
+       business  --> /admin/business: containment vs escalation, answer rate, $/turn, $/session
+                    |
+                    \--> MLflow: eval runs, drift, CT cycles, promotions (nothing is a screenshot)
 
-   every commit --> CI: make check (lint, tests, domain validation, leak check, eval gate)
-                        + dbt build and governance tests + a gold parity test
-                        + web lint and build + dependency audits
+   CI  every push     --> make check: lint, tests, domain + leak check, eval gate
+                          + dbt governance + gold parity + web build + dependency audits
+   CD  when CI green  --> ship the serving config
+   CT  weekly / drift --> retrain (OPRO) -> gate -> REGISTER a proposed model version;
+                          a human promotes it (make registry-promote). Nothing self-ships.
 ```
+
+CI asks *is the code correct?*, CD ships it, and CT asks *as new data and drift arrive, is a
+retrained candidate better and safe?* Retraining and evaluation are automated; deployment is
+human-gated (`mlops/ct.py`, `mlops/model_registry.py`, `.github/workflows/ct.yml`).
 
 ## The thinking
 

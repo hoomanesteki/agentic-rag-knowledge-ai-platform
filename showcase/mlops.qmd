@@ -61,6 +61,23 @@ flowchart LR
 
 The smoke gate only proves the pipeline is wired. The real decision is the measured RAGAS answer-quality score from the actual providers, logged to MLflow. It refuses to promote on a score measured against a different config (that would ship an unmeasured change), and a production candidate must beat the frozen champion or it is capped at staging. This started life broken (it scored fake providers and always promoted to Production), which an adversarial review caught and fixed.
 
+## The model registry, and weekly registration
+
+Retraining without a registry is a science project. Every retrained artifact, a prompt candidate or a serving config, is versioned and moved through stages that mirror the MLflow Model Registry: `proposed → staging → production` (and any version can be archived).
+
+```{mermaid}
+flowchart LR
+  CT[CT cycle<br/>retrains weekly] -->|beats baseline,<br/>gate + safety green| PROP[Registered:<br/>proposed]
+  CT -->|no better candidate| KEEP[Baseline kept,<br/>cycle recorded]
+  PROP --> REV[A human reviews<br/>the proposal]
+  REV -->|approve| PROD[Production:<br/>archives the incumbent]
+  REV -->|reject| KEEP
+  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  class KEEP rej;
+```
+
+The weekly [continuous-training](#continuous-training) cycle records **every** run and, when it produced a promotable candidate, **registers it as `proposed`** (`mlops/model_registry.py`), so the model is versioned on a cadence with an audit trail. `make registry` shows every version, its stage, and the current champion. Promotion to production is the one deliberately manual step, `make registry-promote V=<n>` archives the incumbent so exactly one model is ever live. **Retraining and evaluation are automated; deployment is human-gated**, which is the guardrail against a candidate that games the metric shipping itself. When an MLflow tracking server is configured, `make promote` mirrors the same transition to the real Registry with the measured RAGAS score attached.
+
 ## How a change would reach real users
 
 The demo runs on a hobby budget, so the following is the intended path, with the hooks already in place rather than a hosted pipeline.
@@ -78,13 +95,18 @@ Three pieces, one job each, wired so a turn is inspectable end to end.
 - **LangGraph** is the orchestration: a typed `understand -> dispatch -> reconcile` state graph with a gate and a bounded retry loop, so the agent's steps are a diagram, not a black box.
 - **Langfuse** is the observability: one root span per turn (`@observe`), every LLM generation nested under it with model, tokens, latency, and cost. The LLM is a custom Groq adapter rather than a LangChain LLM, so tracing uses spans instead of the callback handler, a deliberate choice noted in the code. One turn maps to one trace in the Langfuse UI.
 
-## Watching it once it is live
+## The four things we monitor
 
-Every turn is traced, and the same trace store feeds the monitors, so a bad answer can be explained rather than guessed at.
+An ML system is not one thing to watch, it is four, and a good dashboard answers a different question for each. Every turn is traced, and the same trace store feeds all four, so a bad answer can be *explained* rather than guessed at.
 
-- **MLflow** records each eval run and promotion decision. A recent promotion logged `gate 0.95, ragas 0.95, smoke 1.0` for the `cohere embed-v4.0 + rerank-v3.5 + Groq linear` config, promoted to Production; changing only the reranker forces a fresh candidate that must re-earn the stage.
-- **Four drift monitors** (query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate) run on the real trace store, by language. A run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content.
-- **The admin dashboards** at `/admin` turn those traces into quality, health, and unmet-demand views for an operator.
+| Pillar | The question it answers | What is watched | Where it lives |
+|---|---|---|---|
+| **Data** | Has the input shifted? | Four drift monitors: query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate, by language | `mlops/drift.py`, `make drift`, `skein-drift` in MLflow |
+| **Model** | Is the answer still good? | RAGAS faithfulness / relevance / context, routing accuracy, the offline eval gate | `evaluation/`, `make ragas`, `make gate` |
+| **System** | Is it fast, and up? | p95 latency, error rate, cost per turn, throughput | `/api/admin/health`, Langfuse spans |
+| **Business** | Is it earning its keep? | Containment vs escalation, answer rate, thumbs, and \$ per turn / answer / session | `/api/admin/business`, `mlops/cost_model.py` |
+
+A drift run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content. The **admin dashboards** at `/admin` turn those traces into quality, health, business, and unmet-demand views for an operator, and every loop, drift, eval, CT cycle, and promotion, is logged to **MLflow**, so a decision is never a screenshot, it is a run you can open.
 
 ## The metrics that matter
 
@@ -131,6 +153,15 @@ The prompts are not frozen. A small [OPRO](https://arxiv.org/abs/2309.03409)-sty
 
 Three loops feed each other. A turn that abstains, is corrected, or is flagged low-confidence lands in the durable review queue; a human, or the largest Groq-served model as a rare offline judge (still on Groq, so no second vendor is added), resolves it; the flywheel re-indexes the verified answer as gold and the eval set grows from real failures. The prompt-optimization loop proposes better prompts against that grown set. The batch enrichment pipeline turns new reviews into governed features. Each proposes automatically and promotes through a human, which is what keeps a self-improving system from drifting or reward-hacking its way somewhere bad. The full lifecycle, dev to shadow to canary to soft launch to production, is documented alongside the code.
 
-## What it costs to run
+## What it costs, for whoever signs the invoice
 
-Operating cost is a first-class number, not an afterthought. A reproducible cost model (`mlops/cost_model.py`) puts a text turn at about a third of a cent, a voice turn at three and a half cents (the premium voice, not the model, is most of it), and a human-agent turn at $1.33, so an eight-turn session is two and a half cents against ten dollars for a human. A frontier model would triple to quintuple the text cost for no measured gain on this workload. Every figure regenerates from the model, so the economics stay honest as prices and models change.
+Operating cost is a first-class number, not an afterthought, and it is the number a business stakeholder actually reads. A reproducible cost model (`mlops/cost_model.py`) puts each option side by side for a typical **8-turn conversation**:
+
+| Who handles the conversation | Cost per session | Versus a human agent | What you trade |
+|---|---:|---:|---|
+| **This assistant (text)** | **\$0.025** | **~430× cheaper** | Handles the routine majority; escalates the hard cases to a human |
+| This assistant (voice) | \$0.28 | ~38× cheaper | The premium voice, not the model, is most of the cost |
+| A frontier model in its place | \$0.08 – \$0.13 | ~100× cheaper | 3.3–5.1× the text cost, for **no measured quality gain** on this workload |
+| A human agent | \$10.67 | 1× (baseline) | The gold standard for the hard 15%, too costly for the routine 85% |
+
+The business case is not "replace the humans", it is **deflection**: the assistant resolves the routine majority itself (the `containment_rate` on the [business dashboard](#the-four-things-we-monitor)) so the human team spends its expensive minutes on the cases that actually need them. The measured decision to skip a frontier model is the same discipline in miniature, it would 3–5× the per-turn cost and the eval showed no lift, so the money stays where it buys something. Every figure regenerates from the model, so the economics stay honest as prices and models change.

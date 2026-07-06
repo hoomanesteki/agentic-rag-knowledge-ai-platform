@@ -18,7 +18,7 @@ Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storef
 ::: {.stat-strip}
 ::: {.stat}
 ::: {.n}
-462
+500
 :::
 ::: {.k}
 tests, all green
@@ -26,10 +26,10 @@ tests, all green
 :::
 ::: {.stat}
 ::: {.n}
-86%
+85.9%
 :::
 ::: {.k}
-router accuracy, cheap 8B tie-break
+router accuracy, 100% escalation recall
 :::
 :::
 ::: {.stat}

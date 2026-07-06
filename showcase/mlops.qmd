@@ -102,3 +102,15 @@ Provider quota and cost, model or vendor drift, and adversarial users. Each has 
 ## What shipped, and what is next
 
 Logged-in personalization already shipped: a signed-in shopper is greeted by first name, and a taste profile built from their own order history biases the recommendations. Still ahead: a scheduled drift-and-eval cron in place of the on-demand runs, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.
+
+## Optimizing the prompts against the ground truth
+
+The prompts are not frozen. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about eighty lines, not a framework like DSPy) evaluates a prompt against the routing ground truth, lets a model propose better variants from the failing cases, scores each on a held-out split, and surfaces the winner for a human to promote. Its first target, the router's tie-break prompt, went from 73.9% to 79.5% on the held-out test and was promoted by hand with the candidate and the numbers as the audit trail. The rule matches the drift policy: propose automatically, promote through a human, so the system never rewrites its own served behavior.
+
+## The self-improvement loop
+
+Three loops feed each other. A turn that abstains, is corrected, or is flagged low-confidence lands in the durable review queue; a human, or a frontier model as a rare offline judge, resolves it; the flywheel re-indexes the verified answer as gold and the eval set grows from real failures. The prompt-optimization loop proposes better prompts against that grown set. The batch enrichment pipeline turns new reviews into governed features. Each proposes automatically and promotes through a human, which is what keeps a self-improving system from drifting or reward-hacking its way somewhere bad. The full lifecycle, dev to shadow to canary to soft launch to production, is documented alongside the code.
+
+## What it costs to run
+
+Operating cost is a first-class number, not an afterthought. A reproducible cost model (`mlops/cost_model.py`) puts a text turn at about a third of a cent, a voice turn at three and a half cents (the premium voice, not the model, is most of it), and a human-agent turn at $1.33, so an eight-turn session is two and a half cents against ten dollars for a human. A frontier model would triple to quintuple the text cost for no measured gain on this workload. Every figure regenerates from the model, so the economics stay honest as prices and models change.

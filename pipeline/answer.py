@@ -1389,7 +1389,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # their own order records surface (order docs are keyed on the email); the gate then authorizes
     # them from the proven identity, without the shopper having to re-type name and email.
     retrieval_q = rquery
-    if auth_identity and auth_identity[1] and _account_intent(rquery):
+    # the omni care lane is a stronger account signal than _account_intent (which is intentionally
+    # narrow); when the router routed this to care, treat it as an own-account turn so a signed-in
+    # shopper's order docs surface. lane is None on the linear path, so its behavior is unchanged.
+    if auth_identity and auth_identity[1] and (_account_intent(rquery) or lane == "care"):
         retrieval_q = (rquery + " " + auth_identity[1]).strip()
     hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
                     auth_text=auth_text)
@@ -1410,7 +1413,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # (natural phrasings like "did my package arrive"): answer from the authorized order rather than
     # abstaining into a generic clarifier. Fires only for a proven identity's own account question
     # with an order doc already retrieved, so anonymous and third-party lookups still abstain.
-    if (abstained and auth_identity and _account_intent(rquery)
+    if (abstained and auth_identity and (_account_intent(rquery) or lane == "care")
             and not _problem_intent(rquery)
             and any(c.get("doc_type") == "order" for c in contexts)):
         abstained = False

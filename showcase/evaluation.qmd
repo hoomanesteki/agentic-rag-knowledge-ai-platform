@@ -65,3 +65,19 @@ A "model" here is a serving configuration: the LLM, the embedder, the reranker, 
 ::: {.callout-note appearance="simple"}
 This layer started life broken, it scored a fake-provider pipeline that always returned 1.0, so every run "promoted to Production" regardless of the real model. An [adversarial review](reliability.qmd#what-the-review-found) caught it. It now refuses to promote at all if no real quality score was ever measured: you cannot promote on a quality you never measured.
 :::
+
+## Layer 5, the omni-agent routing evaluation
+
+The assistant became a master orchestrator that routes every turn to a lane, stylist, care, complaint, answers, or escalation, before it answers. Routing is the new thing to evaluate: send a turn to the wrong lane and the best answer in the world is off-topic. So there is a labeled set of 350 shopper turns (`domains/apparel_ecommerce/eval/routing.jsonl`, curated synthetic and described honestly as such) and a harness that scores the router with no retrieval and no generation, so it runs in seconds and costs at most one small-model call per ambiguous turn. Every number below regenerates from one command, `scripts/run_agent_eval.py --with-llm`, and lands in `evaluation/reports/routing_eval.json`.
+
+| Mode | Accuracy | Marginal cost |
+|---|---|---|
+| Deterministic (layers 0 and 1) | 81.6% | none |
+| 8B small-model tie-break | 85.9% | ~$0.0005 |
+| 70B large-model tie-break | 85.6% | ~$0.0006 |
+
+Two decisions fell out of this, and both are in the numbers rather than a preference. The cheap deterministic router carries most turns at zero marginal cost and 100% escalation precision. And a 70B tie-break barely beats an 8B while both trail or match the free layer, which is the measured case for staying Groq-only instead of paying a frontier model to classify.
+
+## Layer 6, the prompt-optimization loop
+
+The evaluation is not just a scorecard, it is a target. The routing eval found the small-model tie-break was guessing a specialist lane on ambiguous turns instead of deferring. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop, about eighty lines rather than a framework, took that exact prompt, let a model propose more conservative rewrites from the failing cases, scored each on a held-out split, and surfaced the winner for a human to promote. It lifted the tie-break from 73.9% to 79.5% on the held-out test, which flipped the 8B tie-break from hurting the routing to helping it. Measure, find the weak spot, optimize, re-measure, with a human on the promotion step so the system never rewrites its own served behavior. The whole story, with the two verification rounds that caught an overfit in the router cues, is on the [decisions](decisions.qmd) page.

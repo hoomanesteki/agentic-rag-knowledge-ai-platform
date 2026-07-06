@@ -22,35 +22,40 @@ this size makes the point without the cost, and it is described honestly as such
 
 ## Results
 
-| Mode | Accuracy | Marginal cost | Escalation precision |
+These are the current committed numbers from `evaluation/reports/routing_eval.json`, after the
+prompt-optimization and the two verification-driven hardening rounds. The journey that produced
+them is Finding 1.
+
+| Mode | Accuracy | Marginal cost | Escalation |
 | --- | --- | --- | --- |
-| Deterministic (layers 0 and 1) | 84.1% | none | 100% |
-| 8B small-model tie-break | 81.2% | ~$0.0005 | 100% |
-| 70B large-model tie-break | 83.8% | ~$0.0006 | 100% |
+| Deterministic (layers 0 and 1) | 81.6% | none | 100% precision, 84% recall |
+| 8B small-model tie-break | 85.9% | ~$0.0005 | 100% precision, 100% recall |
+| 70B large-model tie-break | 85.6% | ~$0.0006 | 100% precision, 100% recall |
 
-Per stratum, the deterministic router already handles the clear lanes well: care 98%, stylist 96%,
-smalltalk 100%, escalation recall 90% at 100% precision. It is weaker on complaint (78%, the
-phrasings are open ended) and, as expected, on multilingual (27%, the deterministic cues are
-English).
+Per stratum with the 8B tie-break (the production path): care 95%, stylist 98%, smalltalk 100%,
+escalation 100%, complaint 82%, multilingual 87%. The deterministic layer alone is weaker on
+complaint (60%) and multilingual (27%), because a bare damage word ("are these scuffed") is
+genuinely ambiguous with a product question and the cues are English; those are exactly the turns
+handed to the cheap tie-break.
 
-## Finding 1: cheap-first routing wins, and a naive LLM tie-break hurts
+## Finding 1: cheap-first routing wins, and the tie-break had to be taught to defer
 
-The deterministic layers, which cost nothing, are the strongest single mode at 84.1%. Adding a
-small-model tie-break on the turns they do not decide actually lowers overall accuracy to 81.2%.
-It helps where you would expect (complaint 78 to 90, stylist 96 to 100, multilingual 27 to 67) but
-it hurts the two strata where the right move is restraint: on genuinely ambiguous turns it guesses
-a confident lane instead of asking (80 to 30), and it pulls general or policy questions into
-specialist lanes (answers 73 to 56). The lesson is that an eager classifier is the wrong tool for
-the turns a router is least sure about. The fix is a tie-break that defers, which is the concrete
-target taken up in the prompt-optimization work.
+The story matters more than any single number. When the tie-break was first added with a naive
+prompt, it LOWERED accuracy: it guessed a confident specialist lane on genuinely ambiguous turns
+instead of asking, and pulled general questions into specialist lanes. That is the finding that
+motivated the prompt-optimization loop, which rewrote the tie-break prompt to defer, taking it from
+73.9% to 79.5% on a held-out split. With the deferring prompt (and, after the last verification
+round, an escalation option so a missed human request can still reach a person), the 8B tie-break
+now HELPS: 81.6% deterministic to 85.9%. The lesson holds either way: an eager classifier is the
+wrong tool for the turns a router is least sure about, and the fix was to make it defer, not to
+make it bigger.
 
 ## Finding 2: a bigger model is not worth it for routing
 
-The 70B tie-break scores 83.8% against the 8B's 81.2%, a 2.6 point gain for roughly the same tiny
-per-call cost but about 20x the price per token, and both still trail the free deterministic
-router. For the routing task, model tier barely moves the result, and the deterministic layer plus
-a cheap 8B is the right architecture. This is the direct, measured evidence behind the project's
-decision to stay Groq-only and not add a frontier vendor for classification. The same restraint is
+The 70B tie-break scores 85.6% against the 8B's 85.9%, so a model roughly 20x the price per token
+does not even edge out the cheap one on this task. Model tier barely moves the result, and the
+deterministic layer plus a cheap 8B is the right architecture. This is the direct, measured evidence
+behind staying Groq-only and not adding a frontier vendor for classification. The same restraint is
 applied to the escalation persona, whose task (gather, confirm, file) is structured rather than
 reasoning heavy.
 
@@ -68,13 +73,9 @@ reasoning heavy.
 ## Where this plugs into the lifecycle
 
 The scorecard is logged to MLflow (experiment `skein-omni-eval`) when a tracking server is
-configured, and written to a JSON artifact either way. The ambiguous-turn weakness in Finding 1 is
-the input to the prompt-optimization loop, which proposes a more conservative tie-break prompt,
-scores it on this same set, and only promotes it if it beats the baseline without regressing
-safety. That is the measure, find, improve, re-measure loop the MLOps work is built around.
-
-Update: that loop ran and its conservative tie-break prompt was reviewed and promoted (see
-`docs/prompt-optimization.md`). With it, the 8B tie-break scores 85.6% on the full set, above the
-84.1% deterministic baseline, so the fallback now helps instead of hurting, and the 8B still
-matches the 70B (85.3%). The numbers in the table above are the pre-fix state that motivated the
-work; `evaluation/reports/routing_eval.json` holds the current, post-fix numbers.
+configured, and written to a JSON artifact either way. The naive-tie-break weakness in Finding 1
+was the input to the prompt-optimization loop (`docs/prompt-optimization.md`), which proposed a more
+conservative tie-break prompt, scored it on this same set, and promoted it only after a human
+reviewed the held-out gain. That is the measure, find, improve, re-measure loop the MLOps work is
+built around, and it is why the numbers in the table are the current post-optimization state and
+regenerate from `scripts/run_agent_eval.py`.

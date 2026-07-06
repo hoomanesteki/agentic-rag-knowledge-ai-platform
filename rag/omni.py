@@ -75,10 +75,14 @@ def _answer_once(clause: str, lane: str, deps: dict):
 
 
 def _stream_multitask(routed, *, message_id, auth_identity, deps):
-    # a complaint leads (empathy before anything else); the rest keep the order the shopper typed.
-    # The cap is applied AFTER this ordering, so a complaint in a late clause is never dropped.
-    ordered = ([x for x in routed if x[1] == "complaint"]
-               + [x for x in routed if x[1] != "complaint"])[:_MAX_CLAUSES]
+    # answer each distinct LANE once (so a single complaint split across two comma clauses does not
+    # double-apologize), with a complaint lane leading, then the rest in typed order, capped after.
+    by_lane: dict = {}
+    for clause, lane in routed:
+        by_lane.setdefault(lane, clause)  # keep the first clause seen for each lane
+    lanes_ordered = ([ln for ln in by_lane if ln == "complaint"]
+                     + [ln for ln in by_lane if ln != "complaint"])[:_MAX_CLAUSES]
+    ordered = [(by_lane[ln], ln) for ln in lanes_ordered]
     reroute_budget = 1
     answers = []
     for clause, lane in ordered:
@@ -209,6 +213,14 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
         clauses = _split_clauses(query)
         if len(clauses) > 1:
             routed = [(c, route(c).lane) for c in clauses]
+            # a human request anywhere in a multi-task turn escalates the WHOLE turn, so a real case
+            # is filed instead of a plain escalation-lane answer with no handoff
+            if any(ln == "escalation" for _, ln in routed):
+                yield from _escalate_handoff(query, message_id=message_id,
+                                             auth_identity=auth_identity, history=history,
+                                             lang=lang, review_queue=review_queue, domain=domain,
+                                             trace_path=trace_path)
+                return
             actionable_lanes = {ln for _, ln in routed if ln in _ACTIONABLE}
             if len(actionable_lanes) >= 2:
                 # fan out over ALL clauses, so an "answers" sub-question in the turn is still

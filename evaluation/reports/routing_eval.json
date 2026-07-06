@@ -4,7 +4,7 @@
     {
       "mode": "deterministic",
       "n": 350,
-      "accuracy": 0.8094,
+      "accuracy": 0.8156,
       "graded": 320,
       "deterministic_decision_rate": 1.0,
       "tiebreak_calls": 0,
@@ -13,10 +13,10 @@
         "ambiguous": 0.9,
         "answers": 0.7333,
         "care": 0.9455,
-        "complaint": 0.575,
+        "complaint": 0.6,
         "escalation": 0.9,
         "multilingual": 0.2667,
-        "multitask": 0.7143,
+        "multitask": 0.7429,
         "smalltalk": 1.0,
         "stylist": 0.9636
       },
@@ -28,14 +28,87 @@
         "fn": 5
       },
       "confusion": {
-        "complaint->answers": 10,
         "answers->stylist": 10,
+        "complaint->answers": 9,
         "complaint->stylist": 4,
         "complaint->care": 3,
         "escalation->answers": 3,
         "stylist->answers": 2,
         "answers->care": 2,
         "care->answers": 1,
+        "care->complaint": 1,
+        "care->stylist": 1
+      }
+    },
+    {
+      "mode": "tiebreak_8b",
+      "n": 350,
+      "accuracy": 0.8594,
+      "graded": 320,
+      "deterministic_decision_rate": 0.7229,
+      "tiebreak_calls": 97,
+      "tiebreak_cost_usd": 0.000481,
+      "by_stratum": {
+        "ambiguous": 0.6667,
+        "answers": 0.7111,
+        "care": 0.9455,
+        "complaint": 0.825,
+        "escalation": 1.0,
+        "multilingual": 0.8667,
+        "multitask": 0.7429,
+        "smalltalk": 1.0,
+        "stylist": 0.9818
+      },
+      "escalation": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 32,
+        "fp": 0,
+        "fn": 0
+      },
+      "confusion": {
+        "answers->stylist": 11,
+        "complaint->stylist": 4,
+        "complaint->care": 3,
+        "answers->care": 2,
+        "stylist->answers": 1,
+        "care->answers": 1,
+        "care->complaint": 1,
+        "care->stylist": 1
+      }
+    },
+    {
+      "mode": "tiebreak_70b",
+      "n": 350,
+      "accuracy": 0.8562,
+      "graded": 320,
+      "deterministic_decision_rate": 0.66,
+      "tiebreak_calls": 119,
+      "tiebreak_cost_usd": 0.00059,
+      "by_stratum": {
+        "ambiguous": 0.4667,
+        "answers": 0.7333,
+        "care": 0.9636,
+        "complaint": 0.825,
+        "escalation": 1.0,
+        "multilingual": 1.0,
+        "multitask": 0.8,
+        "smalltalk": 0.9333,
+        "stylist": 0.9818
+      },
+      "escalation": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "tp": 32,
+        "fp": 0,
+        "fn": 0
+      },
+      "confusion": {
+        "answers->stylist": 10,
+        "complaint->stylist": 4,
+        "complaint->care": 3,
+        "answers->care": 2,
+        "stylist->answers": 1,
         "care->complaint": 1,
         "care->stylist": 1
       }

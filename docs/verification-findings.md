@@ -47,13 +47,14 @@ Regenerated from `scripts/run_agent_eval.py` (in `evaluation/reports/routing_eva
 
 | Mode | Accuracy | Note |
 | --- | --- | --- |
-| Deterministic | 80.9% | down from 84.1%: the honest cost of removing the overfit cues |
-| 8B tie-break | 84.1% | the production number, still the best, still beats 70B |
-| 70B tie-break | 83.1% | a bigger model still is not worth it for routing |
+| Deterministic (layers 0 and 1) | 81.6% | free; the safe floor, ambiguity deferred to the tie-break |
+| 8B tie-break | 85.9% | the production path; escalation recall reaches 100% here |
+| 70B tie-break | 85.6% | a bigger model still is not worth it for routing |
 
-The deterministic number dropped because precision went up: the routes it now declines to guess are
+The deterministic number is lower because precision went up: the routes it now declines to guess are
 handed to the cheap tie-break, which is why the 8B mode is the strongest. The escalation intercept
-keeps 100% precision on the eval with recall at 90%.
+keeps 100% precision, and with the tie-break's escalation option added in the final round, escalation
+recall reaches 100% on the 8B path.
 
 ## The confirmation round
 
@@ -69,19 +70,36 @@ instead of decided wrongly at layer 1. The lesson repeats: each round of heurist
 adversarial check, and the durable answer is to defer ambiguity to the model rather than add another
 rule. Sixteen adversarial checks and the regression tests now cover both rounds.
 
+## The comprehensive round
+
+A final wide pass (a Fable breadth probe and an Opus depth audit per dimension) covered routing,
+edge cases and non-English, each lane's mastery, the escalation contract, multi-task, clarify, PII
+and safety, enrichment, the prompt loop, MLOps reproducibility, and the docs. PII parity held again,
+and a real set of issues was fixed: the negation guard was suppressing genuine human requests ("No,
+I want a human"), so it now only catches real refusals; the small-model tie-break gained an
+escalation option, so a human request the English-only Layer 0 misses (a non-English phrasing, a
+typo) can still reach a person, taking escalation recall on the 8B path to 100%; the complaint cue
+gained high-precision failure-verb patterns ("the zipper broke"); enrichment drops a malformed
+annotator return instead of crashing; a multi-task turn carrying a human request now escalates the
+whole turn and files a case, and it answers each distinct lane once so a comma-split complaint does
+not double-apologize; the care lane now surfaces a signed-in shopper's order docs; and the routing
+numbers in every doc were corrected to the committed values (the docs had gone stale across the
+rounds, which is why their numbers now regenerate from the artifact).
+
 ## Known residuals, documented not hidden
 
-- The shared `problem_intent` guard in the linear pipeline still fires on bare damage words, so
-  "ripped jeans" can read as a complaint on both brains. That is long-standing linear-brain behavior
-  and out of scope for this hardening; the fix is to frame-anchor it in the shared guard.
 - The clarify question is emitted in English; a non-English shopper on an ambiguous turn should get
-  it in their language.
-- The shipped UI intercepts an escalation phrase client-side and shows the specialist intro without
-  calling the backend, so the backend case-file path is exercised by the API and the eval; wiring
-  the UI to it is a small follow-up.
+  it in their language. The rest of the pipeline already replies in the shopper's language.
+- The shipped web widget intercepts an escalation phrase client-side and shows the specialist intro
+  without posting the turn, so the backend case-file path is exercised by the API and the eval;
+  wiring the widget to post the turn (so a real case is filed from the browser) is a contained
+  frontend follow-up.
+- The order-PII gate uses name-plus-email as its two factors; a regulated deployment would add a
+  stronger factor and an audit log, as the decisions page already notes.
 
 ## Verdict
 
-The integration gate is green on the full stack: 461 tests pass, no domain leaks, the eval gate is
-1.0. The stack is ready for a manual merge in order. The residuals above are documented follow-ups,
-not regressions.
+The integration gate is green on the full stack: 469 tests pass, no domain leaks, the eval gate is
+1.0. Three adversarial rounds and their regression tests now cover the routing, escalation,
+multi-task, enrichment, and prompt surfaces, and PII parity held every time. The stack is ready to
+merge in order.

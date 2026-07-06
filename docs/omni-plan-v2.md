@@ -1,10 +1,9 @@
 # Skein Lite: Omni-Agent + MLOps Evaluation, unified build plan (v2)
 
-This supersedes the frontier-model parts of `docs/omni-agent-plan.md`. The architecture
-design in that document (master orchestrator, lanes as data rows, Send map-reduce, clarify
-fork, deterministic guards) still stands. What changed here is the model-tier decision, the
-addition of an MLOps evaluation spine, and a prompt-optimization loop. Everything is on branch
-`feat/omni-agent`. Never push or merge to main; the owner merges manually after review.
+This is the authoritative build plan: a master orchestrator, lanes as data rows, a Send-style
+map-reduce for multi-task turns, a clarify fork, and deterministic guards, plus the model-tier
+decision, an MLOps evaluation spine, and a prompt-optimization loop. Everything is on branch
+`feat/omni-agent` and the stacked branches after it; the owner merges to main manually.
 
 ## 0. Decision log (why this plan looks the way it does)
 
@@ -18,7 +17,10 @@ themselves a deliverable: the point is to show judgment, cheaply.
    new dependency, a new key, per-token frontier cost, and fragile plumbing (cache padding,
    thinking config, refusal handling) for a marginal gain. Decision: stay Groq-only, and prove
    the tier is enough with a real A/B (Experiment 2, section 3). Expected finding: 70B saturates
-   the task; 8B handles routing; no frontier justified.
+   the task; 8B handles routing; no frontier justified. Tiffany therefore runs on the same Groq LLM
+   as the rest of the app (the large Groq tier, `GROQ_MODEL_LARGE`); "more capable" means the best
+   model Groq serves, never a Claude or other second-vendor API. If a stronger tier is ever wanted,
+   it is a bigger Groq model, set by config, not a new dependency.
 
 2. **Eval set size: about 500, tiered, not 1000.** Routing accuracy needs volume and is almost
    free to measure (router only, no generation). Answer quality needs depth and costs tokens

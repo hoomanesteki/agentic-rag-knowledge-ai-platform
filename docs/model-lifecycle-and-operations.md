@@ -36,9 +36,9 @@ The system gets better from its own traffic, with a human always on the promotio
 - A turn that is confident and grounded needs nothing. It is served and logged.
 - A turn that abstains, is corrected by the shopper, or is flagged low-confidence is written to the
   durable review queue (`rag/hitl.py`). This is the signal worth learning from.
-- A reviewer resolves it: a human, or a frontier model used as a one-off judge on the hard cases
-  (the one place a bigger model earns its cost, offline and rarely, not in the serving path). The
-  verified answer is the truth.
+- A reviewer resolves it: a human, or the largest Groq-served model used as a one-off judge on the
+  hard cases (the one place a bigger model earns its cost, offline and rarely, not in the serving
+  path, and still on Groq so no second vendor is added). The verified answer is the truth.
 - That verified answer becomes gold. The flywheel (`rag/flywheel.py`) re-indexes it, and the eval
   set grows from it, so the next evaluation is measured against real failures the system has already
   seen.

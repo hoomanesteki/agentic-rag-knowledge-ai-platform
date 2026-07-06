@@ -109,7 +109,7 @@ The prompts are not frozen. A small [OPRO](https://arxiv.org/abs/2309.03409)-sty
 
 ## The self-improvement loop
 
-Three loops feed each other. A turn that abstains, is corrected, or is flagged low-confidence lands in the durable review queue; a human, or a frontier model as a rare offline judge, resolves it; the flywheel re-indexes the verified answer as gold and the eval set grows from real failures. The prompt-optimization loop proposes better prompts against that grown set. The batch enrichment pipeline turns new reviews into governed features. Each proposes automatically and promotes through a human, which is what keeps a self-improving system from drifting or reward-hacking its way somewhere bad. The full lifecycle, dev to shadow to canary to soft launch to production, is documented alongside the code.
+Three loops feed each other. A turn that abstains, is corrected, or is flagged low-confidence lands in the durable review queue; a human, or the largest Groq-served model as a rare offline judge (still on Groq, so no second vendor is added), resolves it; the flywheel re-indexes the verified answer as gold and the eval set grows from real failures. The prompt-optimization loop proposes better prompts against that grown set. The batch enrichment pipeline turns new reviews into governed features. Each proposes automatically and promotes through a human, which is what keeps a self-improving system from drifting or reward-hacking its way somewhere bad. The full lifecycle, dev to shadow to canary to soft launch to production, is documented alongside the code.
 
 ## What it costs to run
 

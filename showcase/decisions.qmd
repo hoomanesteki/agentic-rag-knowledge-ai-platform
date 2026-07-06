@@ -26,7 +26,7 @@ The reranker is the highest-leverage component in the whole retrieval path. Dens
 For a *streaming conversational* assistant, tokens-per-second is a feature, not a nicety, a shopper watching a reply appear word by word forgives a lot. Groq's inference speed makes a 70B model feel instant, and Llama 3.3 70B is more than capable of the grounded, cited, format-following answers this needs. It's also open-weight, so there's no lock-in to the model itself.
 
 ::: {.callout-note appearance="simple"}
-**If your constraints differ.** The LLM sits behind one `make_llm` seam and a `.generate()` interface. For higher reasoning quality on hard multi-step questions, point it at a frontier model (Claude, GPT-4-class), the prompts are model-agnostic. For a stronger *judge* in the RAGAS eval, set `JUDGE_MODEL` independently so the app model isn't grading itself.
+**If your constraints differ.** The LLM sits behind one `make_llm` seam and a `.generate()` interface. For higher reasoning quality on hard multi-step questions, point it at a larger Groq-served model first (staying on one vendor), or at a hosted frontier model if you accept the added dependency, the prompts are model-agnostic. For a stronger *judge* in the RAGAS eval, set `JUDGE_MODEL` independently so the app model isn't grading itself.
 :::
 
 ## The frontier model, measured and declined

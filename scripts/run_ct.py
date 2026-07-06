@@ -20,15 +20,18 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 from adapters.config import get_settings
 from evaluation.ci_gate import load_gate, run_gate
 from mlops.ct import evaluate_trigger, run_ct_cycle
+from mlops.model_registry import ModelRegistry
 from rag.hitl import ReviewQueue
 
 _TRACES = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 _PROMPT_OPT_REPORT = "evaluation/reports/prompt_opt.json"
 _CT_REPORT = "evaluation/reports/ct_report.json"
+_REGISTRY = "evaluation/reports/model_registry.json"
 
 
 def _read_jsonl(path: str) -> list[dict]:
@@ -123,10 +126,17 @@ def _log_mlflow(d: dict) -> None:
         with mlflow.start_run(run_name="ct-cycle"):
             mlflow.log_params({"triggered": d["triggered"], "domain": d.get("domain"),
                                "promote_recommended": d["promote_recommended"],
-                               "promoted": d["promoted"]})
+                               "promoted": d["promoted"],
+                               "registered_version": d.get("registered_version")})
             for k in ("baseline_score", "candidate_score", "gain"):
                 if d.get(k) is not None:
                     mlflow.log_metric(k, float(d[k]))
+            # attach the drift signals too, so a cycle's inputs and outputs are in one MLflow run
+            sig = d.get("signals") or {}
+            if sig.get("drift_score") is not None:
+                mlflow.log_metric("drift_score", float(sig["drift_score"]))
+            if sig.get("new_labeled") is not None:
+                mlflow.log_metric("new_labeled", float(sig["new_labeled"]))
     except Exception:  # noqa: BLE001 - observability must never break the pipeline
         pass
 
@@ -163,6 +173,28 @@ def main() -> int:
     d["domain"] = domain
     d["signals"] = {"drift_score": drift_score, "drift_note": drift_note,
                     "new_labeled": new_labeled, "min_new_labeled": args.min_new_labeled}
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    d["at"] = stamp
+
+    # Register the cycle to the versioned model registry: an audit entry for EVERY cycle, and a new
+    # `proposed` version when the cycle produced a promotable candidate. A human transitions it to
+    # production later (make registry-promote), so a weekly cadence leaves an audit trail without
+    # ever auto-shipping. registered_version is null on a quiet or no-candidate cycle.
+    registry = ModelRegistry(os.getenv("MODEL_REGISTRY_PATH", _REGISTRY))
+    registry.record_cycle({
+        "at": stamp, "domain": domain, "triggered": report.triggered, "reasons": report.reasons,
+        "baseline_score": report.baseline_score, "candidate_score": report.candidate_score,
+        "gate_passed": report.gate_passed, "safety_passed": report.safety_passed,
+        "promote_recommended": report.promote_recommended, "promoted": report.promoted})
+    d["registered_version"] = None
+    if report.promote_recommended:
+        d["registered_version"] = registry.register(
+            name="tiebreak_system", kind="prompt", source="ct-cycle", created_at=stamp,
+            metrics={"baseline": report.baseline_score, "candidate": report.candidate_score,
+                     "gate_passed": report.gate_passed, "safety_passed": report.safety_passed},
+            notes="candidate from " + (report.candidate_path or "the CT cycle")
+            + "; review, then 'make registry-promote V=<n>' to ship")
+
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2)
@@ -179,6 +211,9 @@ def main() -> int:
             report.safety_passed))
         print("  promote_recommended={} | promoted={}".format(
             report.promote_recommended, report.promoted))
+    if d.get("registered_version"):
+        print("  registered model version {} as 'proposed' -> review, then "
+              "make registry-promote V={}".format(d["registered_version"], d["registered_version"]))
     for n in report.notes:
         print("  note:", n)
     print("wrote", args.out)

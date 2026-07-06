@@ -100,6 +100,52 @@ def aggregate_quality(traces: list[dict], feedback: list[dict]) -> dict:
             "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())}}
 
 
+def aggregate_business(traces: list[dict], feedback: list[dict], *,
+                       turns_per_session: int = 8) -> dict:
+    """The business-facing view of the same traffic: how many turns the assistant RESOLVES itself
+    (containment) versus hands to a human (escalation), how many it ANSWERS versus abstains on, the
+    thumbs satisfaction, and what a turn, an answer, and a session cost. These are the numbers a
+    business stakeholder reads: self-serve resolution, human deflection, and unit economics, all
+    derived from the same trace store the technical dashboards use, so there is one source of truth.
+
+    turns_per_session rolls a per-turn cost up to a per-session cost; it is a config knob (the demo
+    traces are not grouped into sessions), not a measured session length."""
+    served = 0
+    tiers: Counter = Counter()
+    cost_sum, cost_n = 0.0, 0
+    for trace in traces:
+        tier = trace.get("tier", "unknown")
+        if tier in ("degraded", "error"):
+            continue  # infra failures are a system-health concern, not a business rate
+        served += 1
+        tiers[tier] += 1
+        cost = trace.get("cost")
+        if isinstance(cost, (int, float)):
+            cost_sum += cost
+            cost_n += 1
+
+    denom = served or 1
+    answered = tiers.get("auto", 0)
+    escalated = tiers.get("escalate", 0)
+    up = sum(1 for e in feedback if e.get("verdict") == "up")
+    down = sum(1 for e in feedback if e.get("verdict") == "down")
+    thumbs = up + down
+    avg_cost = round(cost_sum / cost_n, 6) if cost_n else None
+    return {
+        "served_turns": served,
+        "answer_rate": round(answered / denom, 3),           # a real answer, not abstain/escalate
+        "containment_rate": round((served - escalated) / denom, 3),  # resolved without a human
+        "escalation_rate": round(escalated / denom, 3),      # handed to a human
+        "abstain_rate": round(tiers.get("abstain", 0) / denom, 3),
+        "satisfaction": round(up / thumbs, 3) if thumbs else None,   # share of thumbs that are up
+        "avg_cost_per_turn": avg_cost,
+        "avg_cost_per_answer": round(cost_sum / answered, 6) if answered and cost_n else None,
+        "cost_per_session_est": round(avg_cost * turns_per_session, 4) if avg_cost is not None
+        else None,
+        "turns_per_session": turns_per_session,
+    }
+
+
 def _p95(values: list) -> float | None:
     if not values:
         return None

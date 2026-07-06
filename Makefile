@@ -95,6 +95,13 @@ drift: ## Report drift across the four monitors from recent traffic
 ct: ## Run one Continuous Training cycle (trigger -> retrain -> gate -> propose promotion)
 	PYTHONPATH=. uv run python scripts/run_ct.py $(CT_ARGS)
 
+STAGE ?= production
+registry: ## Show the model registry (versions, stages, the current champion)
+	PYTHONPATH=. uv run python scripts/promote_registry.py --list
+
+registry-promote: ## Human-gated: promote a registry version (make registry-promote V=<n> STAGE=production)
+	PYTHONPATH=. uv run python scripts/promote_registry.py -V $(V) --stage $(STAGE)
+
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000 \
 	  --reload-exclude '.venv/*' --reload-exclude 'web/*' --reload-exclude 'dbt/target/*'

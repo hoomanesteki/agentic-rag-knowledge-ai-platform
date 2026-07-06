@@ -32,7 +32,13 @@ from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from data.introspect import lineage_view, metrics_view, ontology_view
 from data.lakehouse import load_manifest
-from evaluation.monitoring import aggregate_gaps, aggregate_health, aggregate_quality, read_jsonl
+from evaluation.monitoring import (
+    aggregate_business,
+    aggregate_gaps,
+    aggregate_health,
+    aggregate_quality,
+    read_jsonl,
+)
 from pipeline.answer import (
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_TRACE_PATH,
@@ -606,6 +612,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def admin_health(_: dict = Depends(require_admin)):
         # live platform health from recent traffic (p95 latency, throughput, error rate, cost)
         return aggregate_health(read_jsonl(DEFAULT_TRACE_PATH, limit=5000))
+
+    @app.get("/api/admin/business")
+    def admin_business(_: dict = Depends(require_admin)):
+        # business KPIs from the same traffic: containment vs escalation, answer rate, unit econ
+        traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
+        feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
+        return aggregate_business(traces, feedback)
 
     @app.get("/api/admin/gaps")
     def admin_gaps(_: dict = Depends(require_admin)):

@@ -92,6 +92,9 @@ promote: ## Gate the current config through MLflow stages (dev -> staging -> pro
 drift: ## Report drift across the four monitors from recent traffic
 	PYTHONPATH=. uv run python scripts/run_drift.py
 
+ct: ## Run one Continuous Training cycle (trigger -> retrain -> gate -> propose promotion)
+	PYTHONPATH=. uv run python scripts/run_ct.py $(CT_ARGS)
+
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000 \
 	  --reload-exclude '.venv/*' --reload-exclude 'web/*' --reload-exclude 'dbt/target/*'

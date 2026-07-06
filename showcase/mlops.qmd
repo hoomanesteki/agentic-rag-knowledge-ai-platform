@@ -22,6 +22,26 @@ Every push runs four jobs. Nothing merges to `main` unless all of them pass.
 
 The **leak linter** is the load-bearing one for the "swap one folder" claim: it fails the build if a single product name, brand, metric, or glossary term appears in engine code.
 
+## Continuous training
+
+CI asks "is the code correct?" on every push. CD ships it once green. **Continuous training (CT)** asks a different question on a cadence: *as new data and drift arrive, is a retrained candidate better, and safe to promote?* It runs weekly and on demand as its own workflow (`.github/workflows/ct.yml`), separate from the per-push CI.
+
+"Training" here is not gradient descent on model weights, the LLM is a hosted Groq model. It is the data-and-prompt layer this project *does* own, retrained on a schedule and versioned like a model would be: the retrieval index (re-embed new reviews and descriptions), the governed enrichment features (recompute consensus on new reviews), and the router and answer prompts (the OPRO loop below).
+
+```{mermaid}
+flowchart LR
+  T{Trigger:<br/>schedule, drift,<br/>or new labeled data} -->|fires| TR[Retrain:<br/>re-index new data,<br/>re-optimize the prompt]
+  T -->|quiet| SKIP[No cycle:<br/>nothing changed]
+  TR --> G{Held-out eval<br/>+ safety gate}
+  G -->|beats baseline,<br/>gate + safety green| PROP[Promotion PROPOSED<br/>as an artifact]
+  G -->|regresses or unsafe| KEEP[Keep the baseline]
+  PROP --> H[Human approves<br/>the deploy]
+  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  class KEEP rej;
+```
+
+A cycle (`make ct`; `mlops/ct.py` is the policy, `scripts/run_ct.py` the wiring) checks three triggers: the weekly schedule, measured drift over threshold, or enough new human-verified answers from the review-queue flywheel to be worth retraining on (an operator can also force it). When one fires, it re-optimizes the tie-break prompt against the routing ground truth, then gates the candidate on a held-out split **and** the same regression gate CI runs. It promotes only when the candidate beats the baseline by a margin with the gate and the safety check green, and even then it only **proposes**: the cycle writes a report and uploads it as the workflow artifact for a human to approve. Nothing retrains and ships itself, which is the drift and reward-hacking guardrail. With no model key the training step is skipped and the cycle runs the gate as a health check, so a run always produces an auditable report.
+
 ## Promotion is gated on measured quality
 
 A "model" here is a serving configuration: the LLM, the embedder, the reranker, and the prompt. Promotion from dev to staging to production is not automatic. It runs in two stages.
@@ -87,11 +107,11 @@ Grounded-or-honest by design, deterministic safety guards, a real governed data 
 :::
 ::: {.card}
 ### Weaknesses
-Synthetic single-store scale, MLOps runs on demand rather than a hosted schedule, and one graph relationship is thin. All documented, not hidden.
+Synthetic single-store scale and one thin graph relationship. The CT loop is scheduled, but promotion stays human-gated by design, so nothing self-deploys yet. All documented, not hidden.
 :::
 ::: {.card}
 ### Opportunities
-More domains on the same engine, deeper personalization from chat history, and a scheduled drift-and-retrain loop feeding the human-in-the-loop flywheel.
+More domains on the same engine, deeper personalization from chat history, and auto-canary of a CT-approved candidate once the loop has earned that trust.
 :::
 ::: {.card}
 ### Threats
@@ -101,7 +121,7 @@ Provider quota and cost, model or vendor drift, and adversarial users. Each has 
 
 ## What shipped, and what is next
 
-Logged-in personalization already shipped: a signed-in shopper is greeted by first name, and a taste profile built from their own order history biases the recommendations. Still ahead: a scheduled drift-and-eval cron in place of the on-demand runs, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.
+Logged-in personalization already shipped: a signed-in shopper is greeted by first name, and a taste profile built from their own order history biases the recommendations. The scheduled continuous-training loop also shipped, as its own weekly workflow with human-gated promotion. Still ahead: auto-canary of a CT-approved candidate, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.
 
 ## Optimizing the prompts against the ground truth
 

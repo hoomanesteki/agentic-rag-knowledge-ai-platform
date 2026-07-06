@@ -20,7 +20,7 @@ import sys
 from adapters.factory import make_llm, make_small_llm
 from evaluation.agent_eval import _graded_correct, load_cases
 from mlops.prompt_opt import optimize_prompt, save_candidate
-from rag.router import _TIEBREAK_SYSTEM, route
+from rag.router import _TIEBREAK_SYSTEM, _model_tiebreak, route
 
 _SET = "domains/apparel_ecommerce/eval/routing.jsonl"
 _REPORT = "evaluation/reports/prompt_opt.json"
@@ -68,12 +68,26 @@ def _propose(current, misrouted, n, proposer):
     return out
 
 
-def _safety(prompt: str) -> bool:
-    # a candidate must keep the JSON contract and the lane vocabulary, or the parser gets nothing
-    # and every ambiguous turn silently falls back. This is the hard gate the loop cannot cross.
-    low = prompt.lower()
-    return ('"lane"' in prompt and "answers" in low and "unclear" in low
-            and all(w in low for w in ("stylist", "care", "complaint")) and len(prompt) < 1600)
+# Messages that clearly belong to different lanes, used to prove a candidate is not degenerate.
+_PROBE = ["can you suggest a gift for my mum", "you charged me twice and I'm upset",
+          "what is your return policy", "it is not quite right, not sure"]
+
+
+def _make_safety(small):
+    """The hard gate. Checks the candidate's TEXT (it must keep the JSON contract and the lanes) AND
+    its BEHAVIOR: a prompt that collapses every turn to one lane (a reward-hacking candidate that
+    beats the metric by always saying 'answers') produces one lane on the probe and is rejected."""
+    def safety(prompt: str) -> bool:
+        low = prompt.lower()
+        if not ('"lane"' in prompt and len(prompt) < 1600
+                and all(w in low for w in ("stylist", "care", "complaint", "answers", "unclear"))):
+            return False
+        lanes = set()
+        for q in _PROBE:
+            d = _model_tiebreak(q, small, system=prompt)
+            lanes.add(d.lane if d else "none")
+        return len(lanes) >= 3  # not degenerate: it distinguishes at least three lanes
+    return safety
 
 
 def main() -> int:
@@ -89,11 +103,12 @@ def main() -> int:
     cut = int(len(cases) * 0.6)
     train, test = cases[:cut], cases[cut:]
 
+    safety = _make_safety(small)
     result = optimize_prompt(
         _TIEBREAK_SYSTEM,
         evaluate=lambda p: _evaluate(p, train, small),
         propose=lambda p, m, n: _propose(p, m, n, proposer),
-        safety=_safety, rounds=2, n_candidates=3)
+        safety=safety, rounds=2, n_candidates=3)
 
     base_test, _ = _evaluate(_TIEBREAK_SYSTEM, test, small)
     best_test, _ = _evaluate(result["best_prompt"], test, small)
@@ -113,8 +128,9 @@ def main() -> int:
     print("tie-break prompt optimization")
     print("  baseline: train {:.1%}  test {:.1%}".format(result["baseline_score"], base_test))
     print("  candidate: train {:.1%}  test {:.1%}".format(result["best_train_score"], best_test))
-    promote = result["improved"] and best_test > base_test
-    if promote and _safety(result["best_prompt"]):
+    # require a real held-out margin, not a single flipped case, and re-check the safety gate
+    promote = result["improved"] and best_test > base_test + 0.01
+    if promote and safety(result["best_prompt"]):
         path = save_candidate("tiebreak_system", result["best_prompt"],
                               {"baseline_test": round(base_test, 4),
                                "candidate_test": round(best_test, 4)})

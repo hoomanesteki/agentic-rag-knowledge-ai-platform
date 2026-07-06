@@ -49,7 +49,7 @@ def _clarify_text(clarify: dict) -> str:
 def _split_clauses(query: str) -> list[str]:
     parts = [p.strip(" ,.;:") for p in _CONJ.split(query or "")]
     parts = [p for p in parts if len(p.split()) >= 2]  # drop fragments like "a red"
-    return parts[:_MAX_CLAUSES] if len(parts) > 1 else [query]
+    return parts if len(parts) > 1 else [query]  # the cap is applied after complaint-first ordering
 
 
 def _output_leaks(text: str, auth_identity) -> bool:
@@ -75,9 +75,10 @@ def _answer_once(clause: str, lane: str, deps: dict):
 
 
 def _stream_multitask(routed, *, message_id, auth_identity, deps):
-    # a complaint leads (empathy before anything else); the rest keep the order the shopper typed
+    # a complaint leads (empathy before anything else); the rest keep the order the shopper typed.
+    # The cap is applied AFTER this ordering, so a complaint in a late clause is never dropped.
     ordered = ([x for x in routed if x[1] == "complaint"]
-               + [x for x in routed if x[1] != "complaint"])
+               + [x for x in routed if x[1] != "complaint"])[:_MAX_CLAUSES]
     reroute_budget = 1
     answers = []
     for clause, lane in ordered:
@@ -136,9 +137,15 @@ def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review
              "specialist:"]
     for i, (label, val) in enumerate(rows, start=1):
         lines.append("{}. {}: {}".format(i, label, val or "please confirm"))
-    ref = " (ref {})".format(case_id[:8]) if case_id else ""
-    lines.append("I've logged this{} and a specialist will follow up by email. Is there anything "
-                 "else you'd like me to add before I pass it over?".format(ref))
+    # only claim it was logged and will be followed up when a case was actually filed; otherwise
+    # take the details without a false promise
+    if case_id:
+        lines.append("I've logged this (ref {}) and a specialist will follow up by email. Is "
+                     "there anything else you'd like me to add before I pass it over?".format(
+                         case_id[:8]))
+    else:
+        lines.append("Let me take these details down for a specialist to pick up. Is there "
+                     "anything else you'd like me to add before I pass it over?")
     text = "\n".join(lines)
     mid = message_id or uuid.uuid4().hex
     write_trace({"ts": time.time(), "message_id": mid, "query": query, "lang": lang,
@@ -202,9 +209,11 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
         clauses = _split_clauses(query)
         if len(clauses) > 1:
             routed = [(c, route(c).lane) for c in clauses]
-            actionable = [(c, ln) for c, ln in routed if ln in _ACTIONABLE]
-            if len({ln for _, ln in actionable}) >= 2:
-                yield from _stream_multitask(actionable, message_id=message_id,
+            actionable_lanes = {ln for _, ln in routed if ln in _ACTIONABLE}
+            if len(actionable_lanes) >= 2:
+                # fan out over ALL clauses, so an "answers" sub-question in the turn is still
+                # answered and stitched in, not silently dropped by an actionable-only filter
+                yield from _stream_multitask(routed, message_id=message_id,
                                              auth_identity=auth_identity, deps=deps)
                 return
 

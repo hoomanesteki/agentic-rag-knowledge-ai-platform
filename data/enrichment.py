@@ -36,12 +36,31 @@ _FIT_RULES = [
 ]
 
 
+# A negation shortly before a fit phrase flips its meaning ("does not run small"), so a negated
+# match is skipped rather than annotated as the opposite.
+_NEG = re.compile(r"\b(not|isn'?t|wasn'?t|doesn'?t|don'?t|didn'?t|never|no)\b", re.I)
+
+# The only aspect/value pairs a feature may carry. An LLM annotator whose output is steered by
+# injected review text cannot land an arbitrary string in the served features: consensus() drops
+# anything not in this allowlist.
+ALLOWED = {"fit": {"runs_small", "runs_large", "true_to_size"}}
+
+
 def keyword_annotator(review_text: str) -> dict | None:
-    """A cheap, deterministic first-pass annotator: the fit signal a review expresses, or None. In
-    production an LLM annotator (or several voting per review) plugs in here unchanged."""
+    """A cheap, deterministic first-pass annotator: the fit signal a review expresses, or None. It
+    returns the first NON-negated match, so "does not run small, true to size" reads as
+    true_to_size, not runs_small. In production an LLM annotator plugs into this slot unchanged."""
     text = review_text or ""
     for value, rx in _FIT_RULES:
-        if rx.search(text):
+        m = rx.search(text)
+        if not m:
+            continue
+        # only a negation in the SAME clause flips the meaning, so scope the lookback to the text
+        # since the last clause break ("no complaints, runs small" is not a negated runs_small)
+        before = text[:m.start()]
+        brk = max(before.rfind(c) for c in ",.;:!?")
+        clause = before[brk + 1:] if brk >= 0 else before
+        if not _NEG.search(clause):
             return {"aspect": "fit", "value": value}
     return None
 
@@ -52,10 +71,20 @@ def consensus(reviews, annotate=keyword_annotator, *, min_support: int = 2,
     at least min_support reviews back it and they are at least min_ratio of the reviews that spoke
     to that aspect. Each kept feature carries its confidence, its support, and the source ids."""
     votes: dict = defaultdict(lambda: defaultdict(list))  # product -> aspect -> [(value, rev_id)]
+    seen_ids: set = set()
     for r in reviews:
+        rid = r.get("id")
+        if rid is not None:  # a re-ingested or repeat-posted review must not double-vote
+            if rid in seen_ids:
+                continue
+            seen_ids.add(rid)
         a = annotate(r.get("text", ""))
-        if a:
-            votes[r.get("product_id")][a["aspect"]].append((a["value"], r.get("id")))
+        if not a:
+            continue
+        aspect, value = a.get("aspect"), a.get("value")
+        if value not in ALLOWED.get(aspect, set()):
+            continue  # only allowlisted pairs, so an injected annotation cannot reach a feature
+        votes[r.get("product_id")][aspect].append((value, rid))
     rows = []
     for product, aspects in votes.items():
         if product is None:
@@ -64,7 +93,9 @@ def consensus(reviews, annotate=keyword_annotator, *, min_support: int = 2,
             total = len(vs)
             value, support = Counter(v for v, _ in vs).most_common(1)[0]
             ratio = support / total if total else 0.0
-            if support >= min_support and ratio >= min_ratio:
+            # strict majority: a tie (0.5) does not win, so an order-dependent Counter tie-break
+            # can never promote a value that only half the reviews support
+            if support >= min_support and ratio > min_ratio:
                 rows.append({
                     "product_id": product, "aspect": aspect, "value": value,
                     "confidence": round(ratio, 3), "support": support, "total": total,

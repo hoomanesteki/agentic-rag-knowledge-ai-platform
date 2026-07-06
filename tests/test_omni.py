@@ -68,8 +68,8 @@ def test_agent_mode_repeated_human_request_does_not_refile(monkeypatch):
 def test_comma_joined_multitask_fans_out(monkeypatch):
     rec = _Recorder()
     monkeypatch.setattr(omni, "stream_answer", rec)
-    list(omni.stream_omni("my jacket ripped, show me a replacement", embedder=None, store=None,
-                          llm=None))
+    list(omni.stream_omni("my order arrived damaged, show me a replacement", embedder=None,
+                          store=None, llm=None))
     lanes = [c["lane"] for c in rec.calls]
     assert "complaint" in lanes and "stylist" in lanes  # comma-joined intents both handled
 
@@ -130,3 +130,29 @@ def test_multitask_puts_a_complaint_clause_first(monkeypatch):
     list(omni.stream_omni("suggest a warmer coat and my last order never arrived",
                           embedder=None, store=None, llm=None))
     assert rec.calls[0]["lane"] == "complaint"  # empathy leads regardless of typed order
+
+
+# --- regression: post-verification hardening (multi-task drops, escalation false promise) ---
+
+def test_multitask_answers_clause_is_answered_not_dropped(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("where is my order, suggest a warm coat, and what is your return policy",
+                          embedder=None, store=None, llm=None))
+    lanes = [c["lane"] for c in rec.calls]
+    assert "answers" in lanes  # the policy sub-question is stitched in, not filtered out
+
+
+def test_multitask_floats_a_late_complaint_to_the_front(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    list(omni.stream_omni("suggest a coat, check my order, and my last order never arrived",
+                          embedder=None, store=None, llm=None))
+    assert rec.calls[0]["lane"] == "complaint"  # empathy leads even from a late clause
+
+
+def test_escalation_without_a_queue_makes_no_false_promise(tmp_path):
+    events = list(omni.stream_omni("please connect me with a representative", embedder=None,
+                                   store=None, llm=None, trace_path=str(tmp_path / "t.jsonl")))
+    ans = events[-1]["answer"]
+    assert "logged this" not in ans and "follow up by email" not in ans

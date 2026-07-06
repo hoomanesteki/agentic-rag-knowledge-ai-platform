@@ -14,7 +14,8 @@ answered, the reply text, the products it cited, and two automatic behavioral fl
 It is used two ways: (1) by the deep-loop review (Opus/Fable read the transcripts and judge them),
 and (2) by the regression tests, which assert the flags stay clean on the fixed build.
 
-Run:  PYTHONPATH=. uv run python scripts/probe_conversation.py --scenarios path.json --out out.json
+Run:  PYTHONPATH=. uv run python scripts/probe_conversation.py [--scenarios p.json] [--out o.json]
+Scenarios default to the active domain's eval/conversations.json (the committed ground-truth set).
 Needs: keys in .env, Qdrant up (make up), an ingest done. Brain defaults to omni (the orchestrator).
 """
 from __future__ import annotations
@@ -137,6 +138,11 @@ def run_scenario(comp, small, scenario, gmap):
                 if " " in name and g != recipient and re.search(
                         r"\b" + re.escape(name) + r"\b", low):
                     leaks.append({"name": name, "gender": g, "where": "prose"})
+            # also catch an opposite-gender CATEGORY phrase ("women's bottoms" for a male
+            # recipient), which names no specific SKU but still points at the wrong section
+            other = "women" if recipient == "men" else "men"
+            for m in re.finditer(r"\b(" + other + r"'?s|" + other + r"s)\s+\w+", low):
+                leaks.append({"phrase": m.group(0), "gender": other, "where": "category"})
 
         q = _last_question(text)
         repeat = bool(q) and any(_jaccard(q, pq) >= 0.6 for pq in prior_questions)
@@ -166,17 +172,20 @@ def run_scenario(comp, small, scenario, gmap):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scenarios", required=True, help="JSON list of scenarios")
+    ap.add_argument("--scenarios", default="",
+                    help="JSON scenarios (default: the active domain's eval/conversations.json)")
     ap.add_argument("--out", default="", help="write full transcripts here (JSON)")
     args = ap.parse_args()
 
-    with open(args.scenarios, encoding="utf-8") as f:
+    from adapters.config import get_settings
+    domain = get_settings().domain
+    scenarios_path = args.scenarios or os.path.join(
+        "domains", domain, "eval", "conversations.json")
+    with open(scenarios_path, encoding="utf-8") as f:
         scenarios = json.load(f)
     if isinstance(scenarios, dict):
         scenarios = scenarios.get("scenarios", [])
 
-    from adapters.config import get_settings
-    domain = get_settings().domain
     gmap = _product_gender_map(domain)
     comp, small = _build()
 

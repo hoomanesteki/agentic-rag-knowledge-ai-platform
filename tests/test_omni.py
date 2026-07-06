@@ -168,3 +168,34 @@ def test_an_escalation_clause_in_a_multitask_turn_escalates_the_whole_turn(monke
     assert rq.filed  # a case was filed for the human request
     assert not rec.calls  # it did not fan out into a plain escalation-lane answer
     assert events[-1]["tier"] == "escalate"
+
+
+# --- regression: deep-loop review findings (duplicate ticket, lane continuity) ---
+
+def test_repeated_escalation_after_a_handoff_does_not_refile(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    rq = _Queue()
+    # the session already filed a handoff (its brief's opening line is in a prior assistant turn),
+    # and the shopper's "yes a human please" is really confirming the prior "anything else?"
+    history = [{"role": "user", "content": "I want to talk to a human"},
+               {"role": "assistant", "content":
+                "I've got you, and I'll make this quick. Here is what I'm noting for our care "
+                "specialist: 1. Your concern: ..."}]
+    events = list(omni.stream_omni("yes a human please", embedder=None, store=None, llm=None,
+                                   review_queue=rq, domain="apparel_ecommerce", history=history))
+    assert not rq.filed  # no second, duplicate ticket for the same escalation
+    assert not rec.calls  # not routed through the normal answer path
+    assert events[-1]["tier"] == "escalate"  # still reassures in the escalation voice
+
+
+def test_bare_followup_inherits_the_prior_care_lane(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(omni, "stream_answer", rec)
+    # "when will it get here" carries no intent alone and would fall to the answers catch-all; with
+    # the prior order-status turn it must inherit the care lane instead of dropping the thread
+    history = [{"role": "user", "content": "where is my order AB12345"},
+               {"role": "assistant", "content": "Let me look into that for you."}]
+    list(omni.stream_omni("when will it get here", embedder=None, store=None, llm=None,
+                          history=history))
+    assert rec.calls[-1]["lane"] == "care"

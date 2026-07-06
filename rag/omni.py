@@ -111,6 +111,19 @@ def _find_order_ref(query: str, history) -> str:
     return m.group(0) if m else ""
 
 
+_HANDOFF_MARK = "noting for our care specialist"  # the opening line of _escalate_handoff's brief
+
+
+def _already_escalated(history) -> bool:
+    """True when this session already filed an escalation handoff, so a repeated 'human please'
+    (often the shopper just confirming the prior 'anything else?') should reassure, not open a
+    second duplicate case."""
+    for t in (history or []):
+        if t.get("role") in ("assistant", "bot") and _HANDOFF_MARK in (t.get("content") or ""):
+            return True
+    return False
+
+
 def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review_queue, domain,
                       trace_path):
     """The handoff to a person. The escalation specialist confirms what a human will need as a
@@ -168,6 +181,20 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
     signed_in = bool(auth_identity and auth_identity[0])
     decision = route(query, history=history, signed_in=signed_in, small_llm=small_llm)
 
+    # Lane continuity: a short follow-up ("when will it get here", "the cheaper one") often carries
+    # no intent of its own and falls to the answers catch-all, breaking the thread it continues.
+    # Re-route it with the prior shopper turns prepended so it inherits that lane (an order-status
+    # follow-up stays in care, a styling one in stylist), instead of dropping to generic answers.
+    if (decision.layer != 0 and decision.lane == "answers"
+            and len((query or "").split()) <= 6 and history):
+        prior = [t.get("content", "") for t in history
+                 if t.get("role") == "user" and (t.get("content") or "").strip()]
+        if prior:
+            cont = route((" ".join(prior[-2:]) + " " + query).strip(), history=history,
+                         signed_in=signed_in, small_llm=small_llm)
+            if cont.lane != "answers" and cont.clarify is None and not cont.tasks:
+                decision = cont
+
     # ask, do not guess: a genuinely ambiguous turn gets the one question that splits it
     if decision.clarify is not None:
         mid = message_id or uuid.uuid4().hex
@@ -200,6 +227,16 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
     # A first request to reach a person: file exactly one ready case brief and confirm. This takes
     # the whole turn; a human request never fans out. Reached only when not already handed off.
     if decision.lane == "escalation":
+        if _already_escalated(history):
+            # a case was already filed this session, so a repeated ask (often just confirming the
+            # prior "anything else?") reassures instead of opening a second, duplicate ticket
+            text = ("You're all set, I've already passed your details to our specialist and "
+                    "they'll follow up by email. Is there anything else I can help with meanwhile?")
+            mid = message_id or uuid.uuid4().hex
+            yield {"type": "token", "text": text}
+            yield {"type": "final", "message_id": mid, "answer": text, "tier": "escalate",
+                   "confidence": 1.0, "grounding": 1.0, "citations": []}
+            return
         yield from _escalate_handoff(query, message_id=message_id, auth_identity=auth_identity,
                                      history=history, lang=lang, review_queue=review_queue,
                                      domain=domain, trace_path=trace_path)

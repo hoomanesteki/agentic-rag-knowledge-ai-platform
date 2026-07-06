@@ -5,7 +5,13 @@ retrieval hard-filter's fallback when a product chunk carries no gender tag.
 """
 import pytest
 
-from pipeline.answer import _explicit_gender, _gender_filter, _product_genders
+from pipeline.answer import (
+    _explicit_gender,
+    _gender_filter,
+    _product_genders,
+    _redact_contexts_by_gender,
+    _sticky_gender,
+)
 
 DOMAIN = "apparel_ecommerce"
 
@@ -89,3 +95,64 @@ def test_hard_filter_keeps_non_product_and_unisex():
     unisex = {"id": "u", "payload": {"doc_type": "product", "text": "A unisex beanie in black."}}
     kept = _gender_filter([guide, unisex], "men", DOMAIN)
     assert guide in kept and unisex in kept
+
+
+# --- gender carried across conversation turns (the "gift for my father" then "$100?" bug) ---
+
+def _hist(*user_turns):
+    """A conversation history from the shopper's turns; each is followed by a neutral assistant turn
+    so the lookback must skip assistant turns to find the recipient's gender."""
+    hist = []
+    for u in user_turns:
+        hist.append({"role": "user", "content": u})
+        hist.append({"role": "assistant", "content": "Here are a few options."})
+    return hist
+
+
+@pytest.mark.parametrize("query,history,expected", [
+    # the recipient is named once; a follow-up that does NOT restate gender still filters
+    ("something around $100", _hist("a gift for my father"), "men"),
+    ("which is the warmest layer", _hist("a present for my mom", "she likes yoga"), "women"),
+    ("in black if you have it", _hist("shopping for her", "she's into the gym"), "women"),
+    ("the warmest one?", _hist("i'm shopping for him"), "men"),
+    # the CURRENT turn always wins over an earlier, different recipient
+    ("actually a dress for my wife", _hist("a gift for my father"), "women"),
+    ("men's leggings please", _hist("a present for my sister"), "men"),
+    # the most recent prior turn that named a gender wins when the current turn names none
+    ("around $100", _hist("a gift for my father", "actually make it for my mother"), "women"),
+])
+def test_sticky_gender_carries_and_current_turn_wins(query, history, expected):
+    assert _sticky_gender(query, history) == expected
+
+
+def test_sticky_gender_none_when_never_stated():
+    assert _sticky_gender("something around $100",
+                          _hist("what do you recommend for the gym")) is None
+    assert _sticky_gender("hello", None) is None
+
+
+def test_sticky_gender_ignores_the_assistants_words():
+    # only the shopper's own turns set the recipient: the assistant asking "for her or him?" must
+    # not flip the recipient the shopper actually named
+    hist = [{"role": "user", "content": "a gift for my father"},
+            {"role": "assistant", "content": "Sure! Is this for her or for him?"}]
+    assert _sticky_gender("around $100", hist) == "men"
+
+
+def test_redact_drops_an_opposite_gender_category_phrase():
+    # a metric or category aggregate can name "women's bottoms" with no branded SKU; for a male
+    # recipient that clause must be scrubbed so the model cannot recommend it (the "women's bottoms
+    # for your father" leak), while the men's clause in the same context is kept
+    ctx = [{"n": 1, "doc_type": "metric",
+            "text": "Popular picks: Aster women's bottoms priced from $100. "
+                    "Aster Coastal Hoodie for men at $104."}]
+    out = _redact_contexts_by_gender(ctx, "men", DOMAIN)
+    assert "women's bottoms" not in out[0]["text"].lower()
+    assert "coastal hoodie" in out[0]["text"].lower()
+
+
+def test_redact_keeps_a_unisex_mention():
+    # a genuinely unisex clause naming both genders must survive (no over-scrub into an abstain)
+    ctx = [{"n": 1, "doc_type": "guide", "text": "The beanie suits women and men alike."}]
+    out = _redact_contexts_by_gender(ctx, "men", DOMAIN)
+    assert "beanie" in out[0]["text"].lower()

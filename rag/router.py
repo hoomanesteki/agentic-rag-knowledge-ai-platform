@@ -122,7 +122,7 @@ def _intent_lanes(query: str) -> list[str]:
 
 
 def route(query: str, *, history: list | None = None, signed_in: bool = False,
-          small_llm=None) -> RouteDecision:
+          small_llm=None, tiebreak_system: str | None = None) -> RouteDecision:
     q = (query or "").strip()
     if not q:
         return RouteDecision("answers", 0.3, 0, "empty query")
@@ -144,27 +144,35 @@ def route(query: str, *, history: list | None = None, signed_in: bool = False,
     # (offline, tests) fall back to the answers lane, which self-gates on facts, policy, and
     # catch-all and never fabricates.
     if small_llm is not None:
-        decided = _model_tiebreak(q, small_llm)
+        decided = _model_tiebreak(q, small_llm, system=tiebreak_system)
         if decided is not None:
             return decided
     return RouteDecision("answers", 0.5, 1, "no intent fired, answers catch-all")
 
 
+# Promoted from the prompt-optimization loop (docs/prompt-optimization.md): a conservative tie-break
+# that prefers answers on general questions and reserves unclear for genuinely two-intent turns,
+# rather than guessing a specialist lane. Human-reviewed and promoted from the candidate at
+# mlops/prompt_registry/tiebreak_system.candidate.json (held-out routing test 73.9% -> 79.5%).
 _TIEBREAK_SYSTEM = (
-    "You are a strict router for a shopping assistant. Read the shopper's message and reply "
-    "with ONLY a JSON object {\"lane\": L} where L is one of: stylist (product ideas, gifts, what "
-    "goes together), care (their own order or account), complaint (a problem, delay, or billing "
-    "issue), answers (a general or policy question), unclear (it could be two different things). "
-    "No prose, only the JSON."
+    "You are a strict router for a shopping assistant. Read the shopper's message and reply with "
+    "ONLY a JSON object {\"lane\": L} where L is one of: stylist (specific product combination or "
+    "gift ideas), care (direct reference to their own order or account), complaint (explicit "
+    "problem, delay, or billing issue), answers (general or policy question, or seeking "
+    "information), unclear (genuinely ambiguous between two specific intents). Prioritize answers "
+    "for general inquiries and defer to unclear only when a message clearly conveys multiple "
+    "distinct intents. No prose, only the JSON."
 )
 
 
-def _model_tiebreak(query: str, small_llm) -> RouteDecision | None:
+def _model_tiebreak(query: str, small_llm, system: str | None = None) -> RouteDecision | None:
     """One cheap classification call for the minority of turns the deterministic layers cannot
     place. On 'unclear' it returns a two-option clarify rather than a guess. Any parse or model
-    failure returns None so the caller falls back to the answers catch-all."""
+    failure returns None so the caller falls back to the answers catch-all. `system` overrides the
+    tie-break prompt so a candidate from the prompt-optimization loop can be scored without an
+    edit."""
     try:
-        raw = small_llm.generate(query, system=_TIEBREAK_SYSTEM, max_tokens=40).text
+        raw = small_llm.generate(query, system=system or _TIEBREAK_SYSTEM, max_tokens=40).text
     except Exception:
         return None
     match = re.search(r'"lane"\s*:\s*"([a-z]+)"', raw or "")

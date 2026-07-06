@@ -43,16 +43,19 @@ def _graded_correct(case: dict, decision) -> bool | None:
     return lane == want
 
 
-def evaluate_routing(cases: list[dict], *, small_llm=None, mode: str | None = None) -> dict:
+def evaluate_routing(cases: list[dict], *, small_llm=None, mode: str | None = None,
+                     tiebreak_system: str | None = None) -> dict:
     """Route every case and aggregate. With small_llm=None only layers 0 and 1 run (free,
     deterministic); pass a model to include the layer-2 tie-break on ambiguous turns. mode overrides
-    the label so a model-tier comparison (8B vs 70B tie-break) can name each run."""
+    the label so a model-tier comparison (8B vs 70B tie-break) can name each run. tiebreak_system
+    overrides the tie-break prompt so the prompt-optimization loop can score a candidate."""
     graded = correct = det_decisions = llm_calls = 0
     per: dict[str, list[int]] = {}
     confusion: dict[str, int] = {}
     esc_tp = esc_fp = esc_fn = 0
     for c in cases:
-        d = route(c["query"], signed_in=c.get("signed_in", False), small_llm=small_llm)
+        d = route(c["query"], signed_in=c.get("signed_in", False), small_llm=small_llm,
+                  tiebreak_system=tiebreak_system)
         if d.layer < 2:
             det_decisions += 1
         else:

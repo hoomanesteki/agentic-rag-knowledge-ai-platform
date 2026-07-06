@@ -72,3 +72,9 @@ configured, and written to a JSON artifact either way. The ambiguous-turn weakne
 the input to the prompt-optimization loop, which proposes a more conservative tie-break prompt,
 scores it on this same set, and only promotes it if it beats the baseline without regressing
 safety. That is the measure, find, improve, re-measure loop the MLOps work is built around.
+
+Update: that loop ran and its conservative tie-break prompt was reviewed and promoted (see
+`docs/prompt-optimization.md`). With it, the 8B tie-break scores 85.6% on the full set, above the
+84.1% deterministic baseline, so the fallback now helps instead of hurting, and the 8B still
+matches the 70B (85.3%). The numbers in the table above are the pre-fix state that motivated the
+work; `evaluation/reports/routing_eval.json` holds the current, post-fix numbers.

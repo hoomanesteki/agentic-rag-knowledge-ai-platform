@@ -41,21 +41,21 @@
     {
       "mode": "tiebreak_8b",
       "n": 350,
-      "accuracy": 0.8125,
+      "accuracy": 0.8562,
       "graded": 320,
-      "deterministic_decision_rate": 0.6971,
-      "tiebreak_calls": 106,
-      "tiebreak_cost_usd": 0.000526,
+      "deterministic_decision_rate": 0.7286,
+      "tiebreak_calls": 95,
+      "tiebreak_cost_usd": 0.000471,
       "by_stratum": {
-        "ambiguous": 0.3,
-        "answers": 0.5556,
+        "ambiguous": 0.6,
+        "answers": 0.6889,
         "care": 0.9818,
         "complaint": 0.9,
         "escalation": 0.9,
-        "multilingual": 0.6667,
-        "multitask": 0.8286,
+        "multilingual": 0.7333,
+        "multitask": 0.8,
         "smalltalk": 1.0,
-        "stylist": 1.0
+        "stylist": 0.9818
       },
       "escalation": {
         "precision": 1.0,
@@ -66,33 +66,33 @@
       },
       "confusion": {
         "answers->stylist": 12,
-        "answers->care": 8,
         "complaint->stylist": 3,
+        "escalation->answers": 2,
+        "answers->care": 2,
+        "stylist->answers": 1,
         "care->complaint": 1,
         "complaint->care": 1,
-        "escalation->answers": 1,
-        "escalation->complaint": 1,
-        "escalation->stylist": 1
+        "escalation->complaint": 1
       }
     },
     {
       "mode": "tiebreak_70b",
       "n": 350,
-      "accuracy": 0.8375,
+      "accuracy": 0.8531,
       "graded": 320,
       "deterministic_decision_rate": 0.68,
       "tiebreak_calls": 112,
       "tiebreak_cost_usd": 0.000556,
       "by_stratum": {
-        "ambiguous": 0.3,
-        "answers": 0.7111,
+        "ambiguous": 0.4,
+        "answers": 0.7333,
         "care": 0.9818,
         "complaint": 0.9,
         "escalation": 0.9,
-        "multilingual": 0.8,
+        "multilingual": 0.8667,
         "multitask": 0.8571,
-        "smalltalk": 0.8667,
-        "stylist": 1.0
+        "smalltalk": 0.9333,
+        "stylist": 0.9818
       },
       "escalation": {
         "precision": 1.0,
@@ -105,7 +105,8 @@
         "answers->stylist": 10,
         "complaint->stylist": 3,
         "escalation->complaint": 3,
-        "answers->care": 3,
+        "answers->care": 2,
+        "stylist->answers": 1,
         "care->complaint": 1,
         "complaint->care": 1
       }

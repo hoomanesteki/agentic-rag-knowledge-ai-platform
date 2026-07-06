@@ -675,8 +675,28 @@ function Conversation({
       agentModeRef.current = true; // sync now so the intro is spoken in Tiffany's voice, not Sara's
       return AGENT_INTRO; // return the intro so voice mode speaks it
     }
+    // Auto-handback to Sara: if the shopper is already with the specialist (Tiffany) but clearly
+    // turns back to shopping (a gift, product, or styling request, not an order, return, or
+    // complaint), hand the turn back to the shopping assistant. Without this, one escalation earlier
+    // in the session leaves every later "help me pick a gift" stuck with the care specialist, which
+    // is the wrong voice for a styling question. Order/return/complaint words keep them with Tiffany.
+    const careLike =
+      /\b(order|orders|return|returns|refund|package|parcel|delivery|deliver\w*|tracking|broken|damaged|defect\w*|wrong item|missing|charged|billing|complaint|cancel\w*|my account)\b/i.test(
+        q,
+      );
+    const shoppingLike =
+      /\b(gift|present|buy|purchase|shopping|looking for|recommend|suggest|show me|do you (have|carry|sell)|what (goes|pairs) with|outfit|style|to wear|size guide)\b/i.test(
+        q,
+      ) || /\bgift\b[^.?!]{0,24}\bfor\b/i.test(q);
+    let handedBack = false;
+    if (agentMode && shoppingLike && !careLike && !verbHuman && !shortHuman && !refusesHuman) {
+      setAgentMode(false);
+      agentModeRef.current = false;
+      handedBack = true; // this turn is answered by Sara, and the avatar/tag switch back
+    }
+    const inAgent = agentMode && !handedBack;
     setInput("");
-    setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: agentMode }]);
+    setMessages((m) => [...m, { role: "me", text: q }, { role: "bot", text: "", agent: inAgent }]);
     setLoading(true);
     // Only fold the current product into the query when the shopper clearly means "it" (a pronoun)
     // and is not naming another category. Otherwise "a jacket for LA" while viewing a waist pack
@@ -684,7 +704,7 @@ function Conversation({
     let qSend = q;
     // never fold product context in agent mode: after escalating from a product page, "when will
     // it arrive?" is about the shopper's order, not the product they were viewing
-    if (context?.kind === "product" && !agentMode) {
+    if (context?.kind === "product" && !inAgent) {
       const nm = context.name.replace(/^Aster /i, "");
       const pronoun = /\b(it|its|it's|this|that|the one|the item|the product)\b/i.test(q);
       // Domain agnostic: the query "names another item" if it mentions any catalog category
@@ -740,7 +760,7 @@ function Conversation({
         signal: ctrl.signal,
         body: JSON.stringify({
           query: qSend,
-          ...(agentMode ? { persona: "agent" } : {}),
+          ...(inAgent ? { persona: "agent" } : {}),
           ...(voiceLiveRef.current ? { concise: true } : {}), // short, speakable reply in voice mode
           ...(history.length ? { history } : {}),
           ...(shopperNotes ? { notes: shopperNotes } : {}), // on-device personalization memory

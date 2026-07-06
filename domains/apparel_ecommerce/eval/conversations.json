@@ -1,0 +1,497 @@
+[
+ {
+  "name": "core_gift_father_gym",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "hi, i'd like to buy a gift for my father",
+   "he's really into the gym and lifting",
+   "show me a few options around $100",
+   "which of those is the warmest layer"
+  ]
+ },
+ {
+  "name": "core_gift_mother_yoga",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "i need a present for my mom",
+   "she does a lot of yoga and pilates",
+   "keep it under $120",
+   "what colors does the top one come in"
+  ]
+ },
+ {
+  "name": "core_gift_boyfriend_running",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "gift ideas for my boyfriend?",
+   "he runs a lot, half marathons",
+   "something breathable for hot days",
+   "the cheaper of those two"
+  ]
+ },
+ {
+  "name": "core_gift_girlfriend_hiking",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "would you please help me get a gift for my girlfriend",
+   "something about $100",
+   "she's only into hiking, not yoga or pilates",
+   "which is best for cold weather"
+  ]
+ },
+ {
+  "name": "core_gift_husband_cozy",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "looking for a gift for my husband",
+   "he likes cozy loungewear for the house",
+   "warm and soft, around $90"
+  ]
+ },
+ {
+  "name": "core_gift_wife_travel",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "i want to get my wife something for travel",
+   "she wants a versatile layer",
+   "budget is flexible, up to $150"
+  ]
+ },
+ {
+  "name": "core_gift_son_teen",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "a gift for my son, he's 16",
+   "into basketball and streetwear",
+   "nothing over $80"
+  ]
+ },
+ {
+  "name": "core_gift_daughter_dance",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "present for my daughter",
+   "she dances and does gymnastics",
+   "something stretchy and comfy"
+  ]
+ },
+ {
+  "name": "core_forhim_bare_followups",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "i'm shopping for him",
+   "he likes outdoor stuff",
+   "around 100 dollars",
+   "the warmest one?"
+  ]
+ },
+ {
+  "name": "core_forher_bare_followups",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "shopping for her",
+   "she's into the gym",
+   "under $100",
+   "in black if you have it"
+  ]
+ },
+ {
+  "name": "core_woman_shopping_for_husband",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "i'm a woman and i want to get something for my husband",
+   "he lifts weights",
+   "around $100"
+  ]
+ },
+ {
+  "name": "core_common_gym_recommend",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "what do you recommend for the gym",
+   "something for hot weather",
+   "what pairs well with that"
+  ]
+ },
+ {
+  "name": "core_common_winter_jacket",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "i need a warm jacket for winter",
+   "for really cold, wet days",
+   "how does the sizing run"
+  ]
+ },
+ {
+  "name": "core_noexact_ski_parka",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "do you carry a waterproof insulated ski parka with a real fur hood",
+   "ok what's the closest thing you actually have"
+  ]
+ },
+ {
+  "name": "core_noexact_dress_shoes",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "do you sell leather dress shoes for a wedding",
+   "what about anything formal at all"
+  ]
+ },
+ {
+  "name": "core_care_order_status",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "where is my order AB12345",
+   "when will it get here"
+  ]
+ },
+ {
+  "name": "core_care_return",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "i want to return something i bought",
+   "it's a hoodie that doesn't fit"
+  ]
+ },
+ {
+  "name": "core_complaint_damaged",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "my jacket arrived with a hole in the sleeve",
+   "this is really disappointing"
+  ]
+ },
+ {
+  "name": "core_complaint_double_charge",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "i was charged twice for order AB98765",
+   "i want the duplicate refunded"
+  ]
+ },
+ {
+  "name": "core_escalation_human",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "i want to talk to a real person",
+   "yes a human please"
+  ]
+ },
+ {
+  "name": "core_refuse_escalation_then_shop",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "i don't want to talk to a human, just help me shop",
+   "a gift for my girlfriend who loves the gym",
+   "under $100"
+  ]
+ },
+ {
+  "name": "core_answers_policy",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "what's your return policy",
+   "do you ship to canada"
+  ]
+ },
+ {
+  "name": "core_multiintent_gift_and_order",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "suggest a gift for my dad who hikes, and also tell me where order AB12345 is",
+   "make the gift under $100"
+  ]
+ },
+ {
+  "name": "core_stuck_specialist_pivot_to_gift",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "persona": "agent",
+  "turns": [
+   "would you please help me get a gift for my girlfriend",
+   "she's into hiking",
+   "around $100"
+  ]
+ },
+ {
+  "name": "where_is_order_then_what_to_order",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "Where is my order AB12345? It was supposed to arrive Tuesday.",
+   "Ok thanks. While I wait, what should I order for early fall? I like light layers.",
+   "The cheaper one?",
+   "In black?"
+  ]
+ },
+ {
+  "name": "broken_zipper_vs_zipper_shopping",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "The zipper on the jacket from my order KL88321 broke after one wear. This is really disappointing.",
+   "Fine, I'll deal with the return later. Can you recommend a jacket that actually has a good zipper?",
+   "Which is warmest?",
+   "Does it come in navy?"
+  ]
+ },
+ {
+  "name": "yoga_gift_sounds_like_escalation",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "I need help. I need a gift for a person who loves yoga.",
+   "Something under 60 dollars please.",
+   "Do you gift wrap orders?"
+  ]
+ },
+ {
+  "name": "refuses_human_wants_to_shop",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "No, I don't want to talk to a human or an agent, just help me shop for running shorts.",
+   "5 inch inseam, with pockets.",
+   "The cheaper one?"
+  ]
+ },
+ {
+  "name": "policy_questions_then_shopping_pivot",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "What's your return policy?",
+   "Do you ship to Canada, and how long does that take?",
+   "Great, then show me a rain jacket that would ship in time for a trip next Friday."
+  ]
+ },
+ {
+  "name": "multi_intent_gift_plus_order_status",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "Suggest a gift for my dad and tell me where order CD20987 is.",
+   "He's into fishing and hates bright colors.",
+   "And did that order actually ship yet or is it still processing?"
+  ]
+ },
+ {
+  "name": "escalation_then_pivot_back_to_sara",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "persona": "agent",
+  "turns": [
+   "This is ridiculous, I need to speak to a human right now.",
+   "Actually never mind, it's not worth the wait. Can you just help me find a summer dress for a beach wedding?",
+   "Something midi length, not strapless.",
+   "In yellow?"
+  ]
+ },
+ {
+  "name": "fragment_chain_winter_coat",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "I'm looking for a winter coat for my husband, he walks to work in Chicago.",
+   "Which is warmest?",
+   "The cheaper one?",
+   "Ok and what if he doesn't like it, can he return it after Christmas?"
+  ]
+ },
+ {
+  "name": "double_charge_then_demands_human",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "I was charged twice for order XY44567, there are two identical charges on my card.",
+   "How long do refunds usually take to show up?",
+   "That's too long. If this can't be fixed right now I want to talk to a real person."
+  ]
+ },
+ {
+  "name": "wrong_item_then_shops_replacement",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "Order MN90210 arrived with the wrong item. I ordered gloves and got a scarf.",
+   "How do I send the scarf back?",
+   "Actually, while we're at it, can you suggest gloves warmer than the ones I originally ordered?",
+   "Touchscreen friendly?"
+  ]
+ },
+ {
+  "name": "return_own_boots_then_refund_status",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "I want to return the boots from my order QR55643, they run small.",
+   "What's the status of my refund once you get them back?",
+   "And the store credit option? Is that faster?"
+  ]
+ },
+ {
+  "name": "shipping_policy_vs_my_shipment",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "Do you ship to Canada?",
+   "Great, and is my order TB70211 the one shipping there? I moved recently.",
+   "When will it arrive?"
+  ]
+ },
+ {
+  "name": "father_60th_budget_warmth",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "Hi! I need a gift for my father, he's turning 60 next month and spends a lot of time outdoors.",
+   "Something around $100 would be ideal.",
+   "Which of those is the warmest?",
+   "Nice, does that one come in navy?"
+  ]
+ },
+ {
+  "name": "mom_birthday_rain_walker",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "Hey there! My mom's birthday is coming up and I want to get her something really nice. She goes on long walks every single morning, rain or shine, I'm not even kidding.",
+   "Ooh a jacket could totally work, what do you have?",
+   "Hmm which one would hold up best in actual rain though?",
+   "Perfect. Is that available in a medium?"
+  ]
+ },
+ {
+  "name": "gf_hoodie_terse_typos",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "hoodie for my gf",
+   "under $80",
+   "whcih is the softest",
+   "k add matching leggings too"
+  ]
+ },
+ {
+  "name": "wife_cashmere_no_exact_match",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "I want to surprise my wife for our anniversary with a really nice cashmere sweater.",
+   "No cashmere at all? Ok what's the closest cozy thing you do have?",
+   "She usually wears a small.",
+   "Which color is the most popular?"
+  ]
+ },
+ {
+  "name": "grandpa_cold_terse_typos",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "lookin for somethin real warm for my grandpa, he gets cold so easy in winter",
+   "prolly a parka or big coat?",
+   "wich ones the warmest"
+  ]
+ },
+ {
+  "name": "nephew_basketball_no_shoes",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "My nephew is turning 15 and he's obsessed with basketball. Do you guys sell basketball shoes?",
+   "Dang ok. What do you have that a basketball kid would actually wear?",
+   "Budget is like $60.",
+   "Cool, go with the first one. What sizes does it come in?"
+  ]
+ },
+ {
+  "name": "woman_shopping_for_husband_running",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "I'm a woman but I'm shopping for my husband today, he needs a good running jacket.",
+   "Oh I love the teal one, would that work?",
+   "He wears a large.",
+   "What about something reflective? He runs at night a lot."
+  ]
+ },
+ {
+  "name": "brother_no_reask_trap",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "Gift for my brother. He wears a large, my budget is $60 max, and he's big into running. Go.",
+   "So what do you recommend?",
+   "Any of those on sale right now?",
+   "Fine, the first one. What colors does it come in?"
+  ]
+ },
+ {
+  "name": "sister_yoga_highwaist",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "my sister just got super into yoga, need gift ideas",
+   "she'd want high waisted for sure",
+   "whats the difference between those two options?"
+  ]
+ },
+ {
+  "name": "anniversary_gift_for_him",
+  "recipient_gender": "men",
+  "brain": "omni",
+  "turns": [
+   "Need an anniversary gift for him, we've been together 5 years and I want it to be special.",
+   "He runs cold, like always freezing, even indoors.",
+   "Something under $150 please.",
+   "Ok which one would you personally pick?"
+  ]
+ },
+ {
+  "name": "daughter_gift_then_escalation",
+  "recipient_gender": "women",
+  "brain": "omni",
+  "turns": [
+   "Looking for a gift for my daughter, she's heading off to college in the fall.",
+   "She basically lives in leggings, so probably start there.",
+   "Actually wait, before I order anything, my last package showed up ripped open and half empty. Can I talk to a human about that?",
+   "Thanks. Ok back to the leggings, do any of those have pockets?",
+   "Great, add the pocket ones in size small."
+  ]
+ },
+ {
+  "name": "secret_santa_unknown_recipient",
+  "recipient_gender": "",
+  "brain": "omni",
+  "turns": [
+   "I got picked for secret santa at work and I don't even know who I'm getting yet lol. Need ideas under $40.",
+   "Something unisex is probably safest right?",
+   "Do you have like beanies or bags or anything?",
+   "The bag works. What's the return policy in case they hate it?"
+  ]
+ }
+]

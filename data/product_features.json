@@ -1,0 +1,140 @@
+{
+  "reviews": 486,
+  "computed_at": "2026-06-26",
+  "features": [
+    {
+      "product_id": "P041",
+      "aspect": "fit",
+      "value": "runs_small",
+      "confidence": 1.0,
+      "support": 3,
+      "total": 3,
+      "sources": [
+        "RG0049",
+        "RG0050",
+        "RG0051"
+      ]
+    },
+    {
+      "product_id": "P056",
+      "aspect": "fit",
+      "value": "runs_small",
+      "confidence": 1.0,
+      "support": 3,
+      "total": 3,
+      "sources": [
+        "RG0058",
+        "RG0059",
+        "RG0060"
+      ]
+    },
+    {
+      "product_id": "P021",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0037",
+        "RG0039"
+      ]
+    },
+    {
+      "product_id": "P026",
+      "aspect": "fit",
+      "value": "runs_small",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0041",
+        "RG0042"
+      ]
+    },
+    {
+      "product_id": "P191",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0143",
+        "RG0144"
+      ]
+    },
+    {
+      "product_id": "P199",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0148",
+        "RG0149"
+      ]
+    },
+    {
+      "product_id": "P267",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0199",
+        "RG0200"
+      ]
+    },
+    {
+      "product_id": "P409",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0306",
+        "RG0307"
+      ]
+    },
+    {
+      "product_id": "P465",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0350",
+        "RG0351"
+      ]
+    },
+    {
+      "product_id": "P485",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0368",
+        "RG0370"
+      ]
+    },
+    {
+      "product_id": "P517",
+      "aspect": "fit",
+      "value": "true_to_size",
+      "confidence": 1.0,
+      "support": 2,
+      "total": 2,
+      "sources": [
+        "RG0395",
+        "RG0396"
+      ]
+    }
+  ]
+}

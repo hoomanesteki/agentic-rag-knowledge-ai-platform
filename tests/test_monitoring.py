@@ -1,5 +1,10 @@
 """M7.2 quality and M7.5 health aggregation over the request traces and thumbs feedback."""
-from evaluation.monitoring import aggregate_health, aggregate_quality, read_jsonl
+from evaluation.monitoring import (
+    aggregate_business,
+    aggregate_health,
+    aggregate_quality,
+    read_jsonl,
+)
 
 
 def test_read_jsonl_missing_and_bad_lines(tmp_path):
@@ -28,6 +33,33 @@ def test_aggregate_quality_by_language():
     assert en["thumbs_up"] == 1 and en["avg_grounding"] == 0.8
     assert fr["thumbs_down"] == 1 and fr["abstain_rate"] == 0.5
     assert fr["avg_grounding"] == 0.6
+
+
+def test_aggregate_business_kpis_and_unit_economics():
+    # 2 answered, 1 escalated, 1 abstained -> served 4; containment = resolved-without-a-human = 3/4
+    traces = [
+        {"tier": "auto", "cost": 0.002}, {"tier": "auto", "cost": 0.004},
+        {"tier": "escalate", "cost": 0.0}, {"tier": "abstain", "cost": 0.001},
+        {"tier": "error"},  # infra failure: excluded from the business rates
+    ]
+    feedback = [{"verdict": "up"}, {"verdict": "up"}, {"verdict": "down"}]
+    b = aggregate_business(traces, feedback, turns_per_session=8)
+
+    assert b["served_turns"] == 4  # the error turn is excluded
+    assert b["answer_rate"] == 0.5  # 2 of 4 served turns got a real answer
+    assert b["containment_rate"] == 0.75  # 3 of 4 resolved without a human
+    assert b["escalation_rate"] == 0.25
+    assert b["satisfaction"] == round(2 / 3, 3)  # 2 up of 3 thumbs
+    # all four served turns carry a numeric cost (the escalate turn's is 0.0), so the mean is /4
+    assert b["avg_cost_per_turn"] == round((0.002 + 0.004 + 0.0 + 0.001) / 4, 6)
+    assert b["cost_per_session_est"] == round(b["avg_cost_per_turn"] * 8, 4)
+
+
+def test_aggregate_business_empty_is_safe():
+    b = aggregate_business([], [])
+    assert b["served_turns"] == 0 and b["answer_rate"] == 0.0
+    assert b["avg_cost_per_turn"] is None and b["cost_per_session_est"] is None
+    assert b["satisfaction"] is None
 
 
 def test_missing_lang_buckets_as_unknown():

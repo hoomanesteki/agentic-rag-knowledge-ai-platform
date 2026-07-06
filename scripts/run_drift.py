@@ -5,6 +5,7 @@ four monitors, by language. Reads the traces and feedback the app already writes
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 from adapters.factory import make_embedder
@@ -13,6 +14,27 @@ from mlops.drift import drift_report
 from pipeline.answer import DEFAULT_TRACE_PATH
 
 _FEEDBACK_PATH = "traces/feedback.jsonl"
+
+
+def _log_mlflow(report: dict) -> None:
+    """Best-effort: log the drift run to MLflow so the data-drift pillar is auditable alongside the
+    eval and CT runs, not just printed to a terminal. Never fails the drift job."""
+    uri = os.getenv("MLFLOW_TRACKING_URI")
+    if not uri:
+        return
+    try:
+        import mlflow
+        mlflow.set_tracking_uri(uri)
+        mlflow.set_experiment("skein-drift")
+        with mlflow.start_run(run_name="drift"):
+            mlflow.log_param("drifted", report.get("drifted"))
+            for name, monitor in (report.get("monitors") or {}).items():
+                for key in ("psi", "distance", "current", "reference"):
+                    val = monitor.get(key)
+                    if isinstance(val, (int, float)):
+                        mlflow.log_metric("{}_{}".format(name, key), float(val))
+    except Exception:  # noqa: BLE001 - observability must never break the pipeline
+        pass
 
 
 def main() -> int:
@@ -32,6 +54,7 @@ def main() -> int:
     report = drift_report(ref, cur, feedback_ref=fb_ref, feedback_cur=fb_cur,
                           embedder=make_embedder())
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    _log_mlflow(report)
     return 1 if report["drifted"] else 0  # non-zero so a scheduled job can alert on drift
 
 

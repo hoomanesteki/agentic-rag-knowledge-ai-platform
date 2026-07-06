@@ -7,11 +7,53 @@ pagetitle: "Skein Lite: Architecture"
 How a question becomes a grounded answer
 :::
 
-Every request is first routed to a specialized lane by a master orchestrator, then it follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+Every request goes first to a **master orchestrator** that reads the turn and hands it to the right specialist, then the answer follows one shared, gated path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
 
-## The master orchestrator
+## Meet the team
 
-Every turn goes first to a master orchestrator that decides which lane should handle it, then answers through the one gated pipeline below. Routing is a cheap-first cascade, so the common case costs nothing and only genuine ambiguity pays for a model call.
+Picture the assistant as a small team behind one chat box. A **manager** reads every message and passes it to the right focus, and every focus answers through the same safety checks, so no one can cut a corner. The assistant persona is **Sara**: she voices the first four focuses below (shopping, orders, complaints, questions), shifting tone to match, and hands to a separate care specialist, **Tiffany**, only when you ask for a person.
+
+::: {.grid-cards}
+::: {.card}
+### 🧭 The orchestrator
+The manager. Reads each turn, decides which focus should handle it, splits a two-in-one request, and asks a clarifying question rather than guessing. Costs nothing on the easy majority.
+:::
+::: {.card}
+### 🛍️ Shopping · Sara
+Gifts, outfits, what-goes-with-what. Asks one or two sharp questions, then recommends with a reason for each pick, and never re-asks what you already told her.
+:::
+::: {.card}
+### 📦 Care · your order
+Order status, returns, refunds, account. Answers from your own records once you are verified, and never asks a signed-in shopper to re-share what it can already see.
+:::
+::: {.card}
+### 🛠️ Complaint · make it right
+A damaged item, a wrong or double charge, a delay. Leads with a genuine acknowledgement, takes ownership, moves to the fix, and does not upsell.
+:::
+::: {.card}
+### 📚 Answers · the facts
+Policies, shipping, sizing, general questions. Answers only from the context, and says so plainly when the answer is not there.
+:::
+::: {.card}
+### 🤝 Tiffany · a real person
+When you ask for a human, Tiffany (an AI care specialist) gathers and confirms what a person will need, files a ready case, and hands off warm, so the human starts halfway there.
+:::
+:::
+
+## One turn, narrated
+
+Say you type *"a gift for my dad who hikes, around \$100."* Here is what happens, in order:
+
+1. The **orchestrator** reads it. It is a shopping request, not an order problem and not a request for a human, so it routes to **Sara**.
+2. Sara's turn runs through the **one gated pipeline**: it repairs typos, expands the follow-up with the conversation so far, and retrieves men's hiking pieces, filtered to the recipient's gender, which stays fixed even when a later *"which is warmest?"* never restates it.
+3. The **guards** run in code, not in the prompt: no women's items for your dad, no order data without verification, retrieved reviews framed as data rather than instructions.
+4. Sara recommends two or three pieces with a one-line reason each, priced, and flags anything over budget, or, if the store has nothing close, says so and offers the nearest alternatives instead of inventing one.
+
+Every specialist follows those same four steps. That is the whole point of routing through one path: specialization sharpens the *tone and focus*, never the safety.
+
+## The routing cascade, precisely
+
+Under the plain-language version, routing is a **cheap-first cascade**, so the common case costs nothing and only genuine ambiguity pays for a model call. Layer 0 and Layer 1 are free deterministic checks that decide the majority; only a genuinely ambiguous turn reaches the cheap 8B tie-break.
 
 ```{mermaid}
 flowchart TD
@@ -30,7 +72,9 @@ flowchart TD
   class LANE,PIPE,ESC core;
 ```
 
-The lanes, stylist, care, complaint, answers, and escalation, are data rows, not a class hierarchy: each is a short focus added to the same system prompt, so a new lane is a new row, not new code. Every lane still answers through the one gated pipeline below, so specialization never creates a second, weaker safety surface. A two-in-one turn ("suggest a gift and check my order") is split, each part routed and answered, then stitched back with a complaint clause leading. A turn the router genuinely cannot place is asked about, not guessed. The escalation lane is the AI care specialist Tiffany, who confirms what a person will need and files a ready case, so the human picks up warm. The routing quality, and the measured decision to keep it Groq-only, are on the [evaluation](evaluation.qmd) page.
+The lanes, stylist, care, complaint, answers, and escalation, are data rows, not a class hierarchy: each is a short focus added to the same system prompt, so a new lane is a new row, not new code. Every lane still answers through the one gated pipeline below, so specialization never creates a second, weaker safety surface. A two-in-one turn ("suggest a gift and check my order") is split, each part routed and answered, then stitched back with a complaint clause leading. A turn the router genuinely cannot place is asked about, not guessed. The escalation lane is the AI care specialist Tiffany, who confirms what a person will need and files a ready case, so the human picks up warm.
+
+On the labeled routing set (350 turns), the free deterministic layers get **81.6%** right at zero marginal cost; adding the cheap 8B tie-break on the ambiguous minority lifts it to **85.9%**, with **100% escalation recall** (it never misses a genuine "get me a human"). A 70B tie-break scored 85.6%, no better than the 8B, which is the measured evidence for keeping routing Groq-only. The full breakdown and the decision are on the [evaluation](evaluation.qmd) page.
 
 ## The answer path
 

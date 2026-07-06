@@ -4,10 +4,10 @@ pagetitle: "Skein Lite: Evaluation"
 ---
 
 ::: {.eyebrow}
-Four layers, each catching a different failure
+A layered defense, each catching a different failure
 :::
 
-An LLM feature without evaluation is a demo, not a product. The hard part is that "answer quality" is many different things, is it grounded, is it relevant, did it retrieve the right fact, did it correctly refuse, and no single number captures all of them. So there are four layers, and each one is designed to catch a specific class of failure before it reaches a shopper.
+An LLM feature without evaluation is a demo, not a product. The hard part is that "answer quality" is many different things, is it grounded, is it relevant, did it retrieve the right fact, did it correctly refuse, and no single number captures all of them. So there are several layers, four core ones below, plus a routing evaluation and a prompt-optimization loop, each designed to catch a specific class of failure before it reaches a shopper.
 
 ## The four layers
 
@@ -76,8 +76,8 @@ The assistant became a master orchestrator that routes every turn to a lane, sty
 | 8B small-model tie-break | 85.9% | ~$0.0005 |
 | 70B large-model tie-break | 85.6% | ~$0.0006 |
 
-Two decisions fell out of this, and both are in the numbers rather than a preference. The cheap deterministic router carries most turns at zero marginal cost and 100% escalation precision. And a 70B tie-break barely beats an 8B while both trail or match the free layer, which is the measured case for staying Groq-only instead of paying a frontier model to classify.
+Two decisions fell out of this, and both are in the numbers rather than a preference. The cheap deterministic router carries most turns at zero marginal cost and 100% escalation precision. And a 70B tie-break does not even edge out the 8B (85.6% vs 85.9%), while both lift the free layer by only a few points, which is the measured case for staying Groq-only instead of paying a frontier model to classify.
 
 ## Layer 6, the prompt-optimization loop
 
-The evaluation is not just a scorecard, it is a target. The routing eval found the small-model tie-break was guessing a specialist lane on ambiguous turns instead of deferring. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop, about eighty lines rather than a framework, took that exact prompt, let a model propose more conservative rewrites from the failing cases, scored each on a held-out split, and surfaced the winner for a human to promote. It lifted the tie-break from 73.9% to 79.5% on the held-out test, which flipped the 8B tie-break from hurting the routing to helping it. Measure, find the weak spot, optimize, re-measure, with a human on the promotion step so the system never rewrites its own served behavior. The whole story, with the two verification rounds that caught an overfit in the router cues, is on the [decisions](decisions.qmd) page.
+The evaluation is not just a scorecard, it is a target. The routing eval found the small-model tie-break was guessing a specialist lane on ambiguous turns instead of deferring. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop, about eighty lines rather than a framework, took that exact prompt, let a model propose more conservative rewrites from the failing cases, scored each on a held-out split, and surfaced the winner for a human to promote. It lifted the tie-break from 73.9% to 79.5% on the held-out test, which flipped the 8B tie-break from hurting the routing to helping it. That winner was promoted by hand and is now the baseline the served prompt sits at, so re-running the loop today finds no further lift, the loop working as intended, not a regression. Measure, find the weak spot, optimize, re-measure, with a human on the promotion step so the system never rewrites its own served behavior. The whole story, with the two verification rounds that caught an overfit in the router cues, is on the [decisions](decisions.qmd) page.

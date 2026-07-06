@@ -90,6 +90,27 @@ candidate that games the metric is caught at the gate and never reaches producti
 too: with no model key the training step is skipped and CT runs the gate as a health check, so a run
 always produces an auditable report.
 
+Each CT cycle also **registers** to a versioned, staged model registry (`mlops/model_registry.py`):
+the run is recorded, and a promotable candidate is registered as `proposed`. Promotion to production
+is the one manual step (`make registry-promote`), which archives the incumbent so exactly one model
+is live. That is what makes "the model is registered on a weekly cadence" true and reviewable, with
+retraining and evaluation automated and only the deploy human-gated.
+
+## What we monitor: four pillars
+
+Monitoring is not one dashboard, it is four questions, each read off the same trace store so there
+is one source of truth:
+
+- **Data** (has the input shifted?): the four drift monitors below, logged to the `skein-drift`
+  MLflow experiment.
+- **Model** (is the answer still good?): RAGAS faithfulness/relevance/context, routing accuracy, and
+  the offline eval gate.
+- **System** (is it fast and up?): p95 latency, error rate, cost per turn, and throughput at
+  `/api/admin/health`.
+- **Business** (is it earning its keep?): containment vs escalation, answer rate, thumbs, and unit
+  economics ($/turn, $/answer, $/session) at `/api/admin/business`, so the cost model is instrumented
+  on live traffic, not just documented.
+
 ## Drift: detect, decide, act
 
 Four monitors (`mlops/drift.py` and the routing re-eval) watch four kinds of drift: input (the

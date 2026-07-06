@@ -104,9 +104,10 @@ def get_settings() -> Settings:
         # reviewer). Empty by default, so the gate is open in local dev unless you set it.
         gate_username=os.getenv("GATE_USERNAME", ""),
         gate_password=os.getenv("GATE_PASSWORD", ""),
-        # linear streams tokens (the proven default); agent runs the full M6 brain (supervisor,
-        # gate, escalation to the review queue) as a buffered response.
-        chat_brain=os.getenv("CHAT_BRAIN", "linear"),
+        # omni (default) is the master orchestrator: it routes each turn to a lane and streams
+        # through the one gated pipeline. "linear" is that pipeline with no routing; "agent" runs
+        # the LangGraph supervisor brain (buffered). All three share the same safety gates.
+        chat_brain=os.getenv("CHAT_BRAIN", "omni"),
         review_queue_db=os.getenv("REVIEW_QUEUE_DB", ".review_queue.db"),
         mlflow_url=os.getenv("MLFLOW_TRACKING_URI") or os.getenv("MLFLOW_URI", ""),
         # the Langfuse UI, shown in the admin console only when tracing is fully configured (both

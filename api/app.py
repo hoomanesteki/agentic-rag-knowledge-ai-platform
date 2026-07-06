@@ -32,7 +32,13 @@ from api.ratelimit import RateLimiter
 from api.resilience import is_transient
 from data.introspect import lineage_view, metrics_view, ontology_view
 from data.lakehouse import load_manifest
-from evaluation.monitoring import aggregate_gaps, aggregate_health, aggregate_quality, read_jsonl
+from evaluation.monitoring import (
+    aggregate_business,
+    aggregate_gaps,
+    aggregate_health,
+    aggregate_quality,
+    read_jsonl,
+)
 from pipeline.answer import (
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_TRACE_PATH,
@@ -221,7 +227,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                chat_brain: str | None = None) -> FastAPI:
     app = FastAPI(title="Skein Lite API")
     settings = get_settings()
-    brain = chat_brain or settings.chat_brain  # "linear" streams; "agent" runs the M6 brain
+    # "omni" (default) routes each turn to a lane then streams; "linear" is that pipeline with no
+    # routing; "agent" runs the M6 LangGraph supervisor brain (buffered).
+    brain = chat_brain or settings.chat_brain
     limiter = RateLimiter(rate_limit or settings.rate_limit)
     # Default allows the web app at either localhost or 127.0.0.1 (browsers pick either), so local
     # dev works without CORS surprises. Production sets ALLOWED_ORIGINS to the real origin.
@@ -606,6 +614,13 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     def admin_health(_: dict = Depends(require_admin)):
         # live platform health from recent traffic (p95 latency, throughput, error rate, cost)
         return aggregate_health(read_jsonl(DEFAULT_TRACE_PATH, limit=5000))
+
+    @app.get("/api/admin/business")
+    def admin_business(_: dict = Depends(require_admin)):
+        # business KPIs from the same traffic: containment vs escalation, answer rate, unit econ
+        traces = read_jsonl(DEFAULT_TRACE_PATH, limit=5000)
+        feedback = read_jsonl(_FEEDBACK_PATH, limit=5000)
+        return aggregate_business(traces, feedback)
 
     @app.get("/api/admin/gaps")
     def admin_gaps(_: dict = Depends(require_admin)):

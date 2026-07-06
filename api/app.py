@@ -227,7 +227,9 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                chat_brain: str | None = None) -> FastAPI:
     app = FastAPI(title="Skein Lite API")
     settings = get_settings()
-    brain = chat_brain or settings.chat_brain  # "linear" streams; "agent" runs the M6 brain
+    # "omni" (default) routes each turn to a lane then streams; "linear" is that pipeline with no
+    # routing; "agent" runs the M6 LangGraph supervisor brain (buffered).
+    brain = chat_brain or settings.chat_brain
     limiter = RateLimiter(rate_limit or settings.rate_limit)
     # Default allows the web app at either localhost or 127.0.0.1 (browsers pick either), so local
     # dev works without CORS surprises. Production sets ALLOWED_ORIGINS to the real origin.

@@ -21,8 +21,9 @@ DuckDB, Neo4j) are config swaps.
 - **Grounded or honest.** Hybrid retrieval (dense + sparse, RRF) with a reranker, sentence-level
   citation checks, and an abstain gate. Retrieved text is sanitized against prompt injection.
 - **A master orchestrator, not a prompt.** The default brain (`CHAT_BRAIN=omni`) is a master
-  orchestrator that reads every turn and routes it to a specialized lane, stylist (Sara), care,
-  complaint, answers, or escalation (Tiffany), through **one gated pipeline**, so specialization
+  orchestrator that reads every turn and routes it to a specialized lane, shopping, care, complaint,
+  answers, or escalation, through **one gated pipeline** (the assistant Sara voices the first four;
+  escalation is the care specialist Tiffany), so specialization
   sharpens tone and focus but never creates a second, weaker safety surface. Routing is a cheap-first
   cascade: free deterministic guards decide the majority (81.6% correct at zero marginal cost), a
   cheap 8B tie-break lifts the ambiguous minority to 85.9% with 100% escalation recall. A two-in-one
@@ -173,9 +174,9 @@ analytics and semantic layer is real dbt: tested, documented, and lineage-traced
 A leak linter in `make check` greps every engine folder for each pack's brand, product, metric,
 and glossary vocabulary and fails the build on a hit, which is what keeps the engine reusable
 across domains. The apparel pack's content is written for realism: 158 products, 810 reviews in
-total (including 304 human-voice reviews, one positive and one honest-critical per product), 140
-product descriptions grounded in fabric, fit, and care detail, and synthetic orders whose fake PII
-exercises the order gate below. See [docs/semantic-layer.md](docs/semantic-layer.md).
+total (including 304 human-voice reviews, a positive and an honest-critical one for most products),
+140 product descriptions grounded in fabric, fit, and care detail, and synthetic orders whose fake
+PII exercises the order gate below. See [docs/semantic-layer.md](docs/semantic-layer.md).
 
 ## How one turn works
 
@@ -232,7 +233,7 @@ make doctor                # if a step hangs or fails, this says why (Docker, .e
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker (preflighted)
 make dbt-build             # build + test the semantic layer (medallion + governance tests)
 make ingest && make graph-load                   # build the vector index and the graph
-make serve                 # API on :8000     (set CHAT_BRAIN=agent for the full brain)
+make serve                 # API on :8000     (omni master orchestrator by default; CHAT_BRAIN=linear|agent to switch)
 cd web && npm install && npm run dev             # web chat on :3000
 ```
 

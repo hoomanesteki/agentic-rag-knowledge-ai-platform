@@ -11,15 +11,15 @@ Every request goes first to a **master orchestrator** that reads the turn and ha
 
 ## Meet the team
 
-Picture the assistant as a small team behind one chat box. A **manager** reads every message and passes it to whoever is best placed to help, and the specialists all answer through the same safety checks, so no one can cut a corner.
+Picture the assistant as a small team behind one chat box. A **manager** reads every message and passes it to the right focus, and every focus answers through the same safety checks, so no one can cut a corner. The assistant persona is **Sara**: she voices the first four focuses below (shopping, orders, complaints, questions), shifting tone to match, and hands to a separate care specialist, **Tiffany**, only when you ask for a person.
 
 ::: {.grid-cards}
 ::: {.card}
 ### 🧭 The orchestrator
-The manager. Reads each turn, decides who should handle it, splits a two-in-one request, and asks a clarifying question rather than guessing. Costs nothing on the easy majority.
+The manager. Reads each turn, decides which focus should handle it, splits a two-in-one request, and asks a clarifying question rather than guessing. Costs nothing on the easy majority.
 :::
 ::: {.card}
-### 🛍️ Sara · shopping
+### 🛍️ Shopping · Sara
 Gifts, outfits, what-goes-with-what. Asks one or two sharp questions, then recommends with a reason for each pick, and never re-asks what you already told her.
 :::
 ::: {.card}

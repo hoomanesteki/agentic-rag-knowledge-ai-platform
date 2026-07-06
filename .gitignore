@@ -237,6 +237,10 @@ evaluation/ragas_scores.json
 mlruns/
 mlartifacts/
 
+# The model registry is operational state written by the CT cycle, not source. In CI it is a
+# per-run artifact; a real deployment persists it to a durable store.
+evaluation/reports/model_registry.json
+
 # Quarto showcase build output (rendered by CI for Pages)
 showcase/_site/
 showcase/.quarto/

@@ -9,7 +9,8 @@ automated, deployment is NOT. A human reviews the proposal and runs this to move
   make registry-promote V=3 STAGE=staging
 
 Promotion to production archives the previous champion, so exactly one model is live at a time.
-When an MLflow tracking server is configured, this also mirrors the transition to the real Registry.
+The parallel `make promote` path mirrors a config promotion to the real MLflow Model Registry when a
+tracking server is configured; this tool manages the JSON registry that works offline and in CI.
 """
 from __future__ import annotations
 

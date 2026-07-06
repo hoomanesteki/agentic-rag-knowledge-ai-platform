@@ -76,7 +76,7 @@ flowchart LR
   class KEEP rej;
 ```
 
-The weekly [continuous-training](#continuous-training) cycle records **every** run and, when it produced a promotable candidate, **registers it as `proposed`** (`mlops/model_registry.py`), so the model is versioned on a cadence with an audit trail. `make registry` shows every version, its stage, and the current champion. Promotion to production is the one deliberately manual step, `make registry-promote V=<n>` archives the incumbent so exactly one model is ever live. **Retraining and evaluation are automated; deployment is human-gated**, which is the guardrail against a candidate that games the metric shipping itself. When an MLflow tracking server is configured, `make promote` mirrors the same transition to the real Registry with the measured RAGAS score attached.
+The weekly [continuous-training](#continuous-training) cycle records **every** run and, when it produced a promotable candidate, **registers it as `proposed`** (`mlops/model_registry.py`), so the model is versioned on a cadence with an audit trail. `make registry` shows every version, its stage, and the current champion. Promotion to production is the one deliberately manual step, `make registry-promote V=<n>` archives the incumbent so exactly one model is ever live. **Retraining and evaluation are automated; deployment is human-gated**, which is the guardrail against a candidate that games the metric shipping itself. The registry is a JSON store, uploaded as the workflow artifact for review in the demo; a real deployment persists it to a durable store, and when an MLflow tracking server is configured `make promote` mirrors the same transition to the real Registry with the measured RAGAS score attached.
 
 ## How a change would reach real users
 
@@ -101,12 +101,12 @@ An ML system is not one thing to watch, it is four, and a good dashboard answers
 
 | Pillar | The question it answers | What is watched | Where it lives |
 |---|---|---|---|
-| **Data** | Has the input shifted? | Four drift monitors: query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate, by language | `mlops/drift.py`, `make drift`, `skein-drift` in MLflow |
+| **Data** | Has the input shifted? | Four drift monitors: query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate (the two PSI monitors stratified by language) | `mlops/drift.py`, `make drift`, `skein-drift` in MLflow |
 | **Model** | Is the answer still good? | RAGAS faithfulness / relevance / context, routing accuracy, the offline eval gate | `evaluation/`, `make ragas`, `make gate` |
 | **System** | Is it fast, and up? | p95 latency, error rate, cost per turn, throughput | `/api/admin/health`, Langfuse spans |
 | **Business** | Is it earning its keep? | Containment vs escalation, answer rate, thumbs, and \$ per turn / answer / session | `/api/admin/business`, `mlops/cost_model.py` |
 
-A drift run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content. The **admin dashboards** at `/admin` turn those traces into quality, health, business, and unmet-demand views for an operator, and every loop, drift, eval, CT cycle, and promotion, is logged to **MLflow**, so a decision is never a screenshot, it is a run you can open.
+A drift run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content. The **admin dashboards** at `/admin` turn those traces into quality, health, business, and unmet-demand views for an operator, and every loop, drift, eval, CT cycle, and promotion, logs to **MLflow** when a tracking server is configured (the demo defaults to a local `./mlruns` file store), so a decision is never a screenshot, it is a run you can open.
 
 ## The metrics that matter
 

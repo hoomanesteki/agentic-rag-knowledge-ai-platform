@@ -45,10 +45,15 @@ jobs:
         run: |
           make ct CT_ARGS="--scheduled ${{ github.event.inputs.auto_promote == 'true' && '--auto-promote' || '' }}"
 
-      - name: Upload the CT report (the promotion proposal for human review)
+      - name: Upload the CT report + model registry (the promotion proposal for human review)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ct-report
-          path: evaluation/reports/ct_report.json
+          # the registry is the audit trail: every cycle's record + any proposed version. On the
+          # ephemeral runner it is per-run; a real deployment persists it to a durable store (or the
+          # MLflow Model Registry via make promote), which is the documented scale-up.
+          path: |
+            evaluation/reports/ct_report.json
+            evaluation/reports/model_registry.json
           if-no-files-found: warn

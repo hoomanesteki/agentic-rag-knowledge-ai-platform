@@ -102,8 +102,8 @@ def aggregate_quality(traces: list[dict], feedback: list[dict]) -> dict:
 
 def aggregate_business(traces: list[dict], feedback: list[dict], *,
                        turns_per_session: int = 8) -> dict:
-    """The business-facing view of the same traffic: how many turns the assistant RESOLVES itself
-    (containment) versus hands to a human (escalation), how many it ANSWERS versus abstains on, the
+    """The business-facing view of the same traffic: how many turns the assistant HANDLES without a
+    human (containment) versus hands off (escalation), how many it ANSWERS versus abstains on, the
     thumbs satisfaction, and what a turn, an answer, and a session cost. These are the numbers a
     business stakeholder reads: self-serve resolution, human deflection, and unit economics, all
     derived from the same trace store the technical dashboards use, so there is one source of truth.
@@ -134,7 +134,7 @@ def aggregate_business(traces: list[dict], feedback: list[dict], *,
     return {
         "served_turns": served,
         "answer_rate": round(answered / denom, 3),           # a real answer, not abstain/escalate
-        "containment_rate": round((served - escalated) / denom, 3),  # resolved without a human
+        "containment_rate": round((served - escalated) / denom, 3),  # handled without a human
         "escalation_rate": round(escalated / denom, 3),      # handed to a human
         "abstain_rate": round(tiers.get("abstain", 0) / denom, 3),
         "satisfaction": round(up / thumbs, 3) if thumbs else None,   # share of thumbs that are up

@@ -29,6 +29,16 @@ For a *streaming conversational* assistant, tokens-per-second is a feature, not 
 **If your constraints differ.** The LLM sits behind one `make_llm` seam and a `.generate()` interface. For higher reasoning quality on hard multi-step questions, point it at a frontier model (Claude, GPT-4-class), the prompts are model-agnostic. For a stronger *judge* in the RAGAS eval, set `JUDGE_MODEL` independently so the app model isn't grading itself.
 :::
 
+## The frontier model, measured and declined
+
+**Chosen:** Groq only, no separate frontier vendor, decided on numbers.
+
+The obvious "make it smarter" move is to add a frontier model for routing or for the escalation persona. I made that a measurement, not a preference. On the labeled routing set a 70B tie-break scored 83.1% against an 8B's 84.1%, both trailing or matching the free deterministic router, so a bigger model bought nothing on classification at three to five times the per-turn cost. The escalation persona's job, gather the shopper's details, confirm them, and file a ready case, is structured and format-driven rather than reasoning-heavy, which the 70B handles well. So the system stays Groq-only, and a frontier model is reserved for the one place it earns its cost: an offline, occasional judge on the hardest reviewed cases, never in the serving path. The numbers are on the [evaluation](evaluation.qmd) page and the dollars are in the [cost model](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform).
+
+::: {.callout-note appearance="simple"}
+**If your constraints differ.** The tier is a config value and the eval is one command, so revisiting this is `run_agent_eval.py` with a new model in the comparison. The discipline is to let the number, not the instinct, decide.
+:::
+
 ## A knowledge graph, worth it, but scoped
 
 **Chosen:** Neo4j, used for relationship questions only.

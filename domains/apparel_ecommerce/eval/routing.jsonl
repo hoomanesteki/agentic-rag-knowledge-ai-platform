@@ -181,7 +181,7 @@
 {"id": "r180", "query": "what is your return window", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
 {"id": "r181", "query": "do you ship to Canada?", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
 {"id": "r182", "query": "how does sizing run on your jeans, true to size?", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
-{"id": "r183", "query": "what materials is the Aria sweater made of", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
+{"id": "r183", "query": "what materials is the Aster Aurora Pullover made of", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
 {"id": "r184", "query": "is there a fee for returns or is it free?", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
 {"id": "r185", "query": "do u have a size chart somewhere", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}
 {"id": "r186", "query": "how long does standard shipping usually take", "signed_in": false, "intended_lane": "answers", "tags": [], "stratum": "answers"}

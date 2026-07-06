@@ -46,10 +46,21 @@ A map to how this system is built and how it is kept honest. Start here.
   insights layer that turns interaction data into stakeholder reports, built on the pieces already
   in the architecture.
 
+## Cost and operations
+
+- [cost-and-business-metrics.md](cost-and-business-metrics.md) is the reproducible cost model: a
+  text session is about 2.5 cents against ten dollars for a human agent, with the tier comparison
+  and the business instruments to measure what it is worth.
+- [model-lifecycle-and-operations.md](model-lifecycle-and-operations.md) is the production story:
+  the dev-to-shadow-to-canary-to-production rollout ladder, the self-improvement loop (propose
+  automatically, promote through a human), drift resolution, scaling and resilience, and the
+  fallback for each failure mode.
+
 ## Running the numbers yourself
 
 ```
 PYTHONPATH=. uv run python scripts/run_agent_eval.py --with-llm   # routing eval + model-tier A/B
 PYTHONPATH=. uv run python scripts/run_prompt_opt.py              # optimize the tie-break prompt
 PYTHONPATH=. uv run python scripts/run_enrichment.py             # reviews -> governed features
+PYTHONPATH=. uv run python -m mlops.cost_model                    # cost per turn and per user
 ```

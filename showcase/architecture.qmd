@@ -7,7 +7,30 @@ pagetitle: "Skein Lite: Architecture"
 How a question becomes a grounded answer
 :::
 
-Every request follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+Every request is first routed to a specialized lane by a master orchestrator, then it follows the same path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+
+## The master orchestrator
+
+Every turn goes first to a master orchestrator that decides which lane should handle it, then answers through the one gated pipeline below. Routing is a cheap-first cascade, so the common case costs nothing and only genuine ambiguity pays for a model call.
+
+```{mermaid}
+flowchart TD
+  T([Shopper turn]) --> L0{Layer 0<br/>reach a person?}
+  L0 -->|yes| ESC[Escalation, Tiffany:<br/>gather, confirm, file a case]
+  L0 -->|no| L1{Layer 1<br/>intent guards}
+  L1 -->|complaint / care / stylist| LANE[The chosen lane]
+  L1 -->|nothing fires| L2{Layer 2<br/>cheap 8B tie-break}
+  L2 -->|a lane| LANE
+  L2 -->|unclear| CLARIFY[Ask one question,<br/>do not guess]
+  LANE --> PIPE[The shared gated answer path,<br/>with the lane's focus]
+
+  classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  class L0,L1,L2 guard;
+  class LANE,PIPE,ESC core;
+```
+
+The lanes, stylist, care, complaint, answers, and escalation, are data rows, not a class hierarchy: each is a short focus added to the same system prompt, so a new lane is a new row, not new code. Every lane still answers through the one gated pipeline below, so specialization never creates a second, weaker safety surface. A two-in-one turn ("suggest a gift and check my order") is split, each part routed and answered, then stitched back with a complaint clause leading. A turn the router genuinely cannot place is asked about, not guessed. The escalation lane is the AI care specialist Tiffany, who confirms what a person will need and files a ready case, so the human picks up warm. The routing quality, and the measured decision to keep it Groq-only, are on the [evaluation](evaluation.qmd) page.
 
 ## The answer path
 
@@ -57,7 +80,8 @@ Anything numeric (return rate by size, cheapest in a category, stock) resolves t
 | Layer | Choice | Why it's here |
 |---|---|---|
 | API | FastAPI, SSE streaming | Tokens stream to the browser as they're generated |
-| Brain | LangGraph on langchain-core + a linear pipeline | A bounded agent loop that can re-retrieve, compiled to a langchain-core `Runnable`; or a fast one-pass path |
+| Brain | Master orchestrator over LangGraph + a linear pipeline | Routes each turn to a lane, then answers through one gated path; `CHAT_BRAIN` selects linear, agent, or omni |
+| Routing | Deterministic cascade + a cheap 8B tie-break | Layer 0/1 decide the majority at zero marginal cost; the 8B tie-breaks only genuine ambiguity |
 | Embeddings / rerank | Cohere `embed-v4.0` + `rerank-v3.5` | Strong multilingual retrieval; the reranker does the heavy lifting |
 | LLM | Groq, Llama 3.3 70B | Fast enough to stream conversationally; swappable behind one seam |
 | Vectors | Qdrant (hybrid) | Native sparse+dense in one query |

@@ -112,6 +112,17 @@ def main() -> int:
 
     base_test, _ = _evaluate(_TIEBREAK_SYSTEM, test, small)
     best_test, _ = _evaluate(result["best_prompt"], test, small)
+    # Decide promotion and safety and WRITE the candidate BEFORE building the report, so the report
+    # records the candidate path actually written (or "") and the explicit safety result. The CT
+    # loop reads those instead of guessing from a possibly-stale file. A real held-out margin is
+    # required (not a single flipped case), and the hard safety gate is re-checked.
+    promote = result["improved"] and best_test > base_test + 0.01
+    safety_ok = bool(safety(result["best_prompt"]))
+    candidate_path = ""
+    if promote and safety_ok:
+        candidate_path = save_candidate("tiebreak_system", result["best_prompt"],
+                                        {"baseline_test": round(base_test, 4),
+                                         "candidate_test": round(best_test, 4)})
     report = {
         "target": "rag.router._TIEBREAK_SYSTEM",
         "train_size": len(train), "test_size": len(test),
@@ -119,6 +130,8 @@ def main() -> int:
         "baseline_test": round(base_test, 4), "candidate_test": round(best_test, 4),
         "improved_on_train": result["improved"],
         "generalizes": best_test > base_test,
+        "safety_passed": safety_ok,
+        "candidate_path": candidate_path,  # "" when nothing beat the baseline safely
         "candidates_tried": result["candidates_tried"], "history": result["history"],
     }
     os.makedirs(os.path.dirname(_REPORT), exist_ok=True)
@@ -128,13 +141,8 @@ def main() -> int:
     print("tie-break prompt optimization")
     print("  baseline: train {:.1%}  test {:.1%}".format(result["baseline_score"], base_test))
     print("  candidate: train {:.1%}  test {:.1%}".format(result["best_train_score"], best_test))
-    # require a real held-out margin, not a single flipped case, and re-check the safety gate
-    promote = result["improved"] and best_test > base_test + 0.01
-    if promote and safety(result["best_prompt"]):
-        path = save_candidate("tiebreak_system", result["best_prompt"],
-                              {"baseline_test": round(base_test, 4),
-                               "candidate_test": round(best_test, 4)})
-        print("  candidate beats baseline and generalizes -> written to", path,
+    if candidate_path:
+        print("  candidate beats baseline and generalizes -> written to", candidate_path,
               "\n  (human-gated: review it, then promote by editing rag/router.py)")
     else:
         print("  no candidate beat the baseline on the held-out test; keeping the baseline")

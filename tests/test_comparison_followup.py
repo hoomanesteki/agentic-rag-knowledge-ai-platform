@@ -15,7 +15,11 @@ def test_compare_followup_detects_superlatives_and_comparisons():
 
 def test_compare_followup_ignores_plain_requests():
     for q in ["show me a warm jacket", "I want the blue hoodie", "a gift for my dad",
-              "do you have leggings", "something cozy for the house"]:
+              "do you have leggings", "something cozy for the house",
+              # a fresh "the <adjective> <noun>" request is NOT a comparison of the shown items, so
+              # it must not fire pinning and drag the previous turn's products into retrieval
+              "the best rain jacket for hiking", "the light hoodie in black",
+              "the softest sweater you have", "the warmest coat you sell"]:
         assert not _COMPARE_FOLLOWUP.search(q), q
 
 

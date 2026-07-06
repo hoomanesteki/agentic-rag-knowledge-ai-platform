@@ -62,10 +62,12 @@ third loop, distinct from the other two:
   retrained candidate better, and safe to promote?*
 
 "Training" here is not gradient descent on model weights, since the LLM is a hosted Groq model. It is
-the data-and-prompt layer this system owns, retrained on a cadence and versioned like a model: the
-retrieval index (re-embed new reviews and descriptions, incrementally via `run_ingest.py --only`),
-the governed enrichment features (recompute consensus on new reviews), and the router and answer
-prompts (the OPRO loop). Each is gated the way a model would be.
+the data-and-prompt layer this system owns, versioned and gated like a model: the router tie-break
+prompt (the OPRO loop, which the scheduled cycle re-optimizes), the retrieval index (re-embed new
+reviews and descriptions, incrementally via `run_ingest.py --only`), and the governed enrichment
+features (recompute consensus on new reviews). The wired cycle re-optimizes the prompt and gates it;
+the re-index and the enrichment recompute run on the same cadence as the flywheel and batch jobs CT
+reads its signals from.
 
 A CT cycle (`make ct`; policy in `mlops/ct.py`, wiring in `scripts/run_ct.py`, scheduled by
 `.github/workflows/ct.yml`) is deterministic control flow:
@@ -73,13 +75,15 @@ A CT cycle (`make ct`; policy in `mlops/ct.py`, wiring in `scripts/run_ct.py`, s
 1. **Trigger.** Fire on the weekly schedule, when the drift monitors cross threshold, or when the
    review-queue flywheel has accumulated enough new verified answers to be worth retraining on. If
    nothing changed, the cycle does nothing and says so.
-2. **Retrain.** Re-index the new data and re-optimize the target prompt against the ground-truth
-   eval (the safety-gated prompt-optimization loop).
+2. **Retrain.** Re-optimize the target prompt against the ground-truth eval (the safety-gated
+   prompt-optimization loop). The re-index and enrichment recompute of new data run alongside, on the
+   flywheel and batch cadence.
 3. **Gate.** Score the candidate on a held-out split and run the same regression gate CI runs.
 4. **Propose.** Promote only when the candidate beats the baseline by a margin with the gate and the
    safety check green, and even then only *propose* it: the cycle writes
-   `evaluation/reports/ct_report.json`, logs the run to MLflow, and the workflow uploads that report
-   as the artifact a human approves. Nothing retrains and ships itself.
+   `evaluation/reports/ct_report.json`, logs the run to MLflow when a tracking server is configured,
+   and the workflow uploads that report as the artifact a human approves. Nothing retrains and ships
+   itself.
 
 This is the self-improvement rule made operational: automatic proposal, human-gated promotion, so a
 candidate that games the metric is caught at the gate and never reaches production. It is resilient

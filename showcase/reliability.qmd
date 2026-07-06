@@ -50,7 +50,7 @@ When a shopper states a gender, opposite-gender products are redacted from the r
 
 - **Synthetic-data demo.** This is a portfolio piece on a hobby budget. The scale is a single store, one demo customer, and a few hundred products, enough to exercise the machinery, not to prove it at enterprise volume.
 - **Single demo account.** The order-PII flow is demonstrated with one customer. In a real deployment, order access would be bound to the authenticated account, not to whatever name and email are typed, the name+email check here is the demo stand-in for that.
-- **MLOps runs on demand.** The drift monitors, MLflow logging, and RAGAS eval are real and reproducible, but they run when invoked, not on a hosted schedule. The hooks (non-zero exits, an MLflow experiment) are in place for a cron to drive.
+- **Continuous training is scheduled; promotion stays manual.** The drift monitors, MLflow logging, RAGAS eval, and the prompt-optimization loop are real and reproducible, and the CT workflow (`.github/workflows/ct.yml`) now runs the drift check, retrain, and eval gate weekly rather than only on demand. What stays deliberately manual is the deploy: CT proposes a promotion as an artifact and a human approves it, so nothing self-ships.
 - **The store-relationship graph is thin.** The supplier relationship is fully populated; the product→store relationship is derived from a few historical sales and returns nothing for most of the catalog. It's a modeled capability that needs real inventory data to be broadly useful.
 
 ## What the review found {#what-the-review-found}

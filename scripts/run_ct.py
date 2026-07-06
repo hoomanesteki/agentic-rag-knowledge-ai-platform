@@ -29,7 +29,6 @@ from rag.hitl import ReviewQueue
 _TRACES = os.getenv("TRACE_PATH", "traces/requests.jsonl")
 _PROMPT_OPT_REPORT = "evaluation/reports/prompt_opt.json"
 _CT_REPORT = "evaluation/reports/ct_report.json"
-_CANDIDATE = "mlops/prompt_registry/tiebreak_system.candidate.json"
 
 
 def _read_jsonl(path: str) -> list[dict]:
@@ -49,15 +48,20 @@ def _read_jsonl(path: str) -> list[dict]:
 
 def _drift_signal() -> tuple[float | None, str]:
     """Number of drift monitors flagged between an earlier and the current traffic window, or None
-    when there is not enough traffic to split two windows."""
+    when there is not enough traffic to split two windows. Uses a bounded recency window (the last
+    800 traces) so an old one-time regime shift does not re-trigger CT forever, and honors the
+    authoritative `drifted` flag, which folds in per-language drift the overall monitors miss."""
     from mlops.drift import drift_report
-    traces = sorted(_read_jsonl(_TRACES), key=lambda t: t.get("ts", 0.0))
+    traces = sorted(_read_jsonl(_TRACES), key=lambda t: t.get("ts", 0.0))[-800:]
     if len(traces) < 40:
         return None, "not enough traffic to measure drift ({} traces)".format(len(traces))
     cut = len(traces) // 2
     rep = drift_report(traces[:cut], traces[cut:])
     flagged = sum(1 for m in rep["monitors"].values() if m.get("drift"))
-    return float(flagged), "{} drift monitor(s) flagged".format(flagged)
+    flagged += sum(1 for lang in rep["by_language"].values()
+                   for m in lang.values() if m.get("drift"))
+    score = float(max(flagged, 1 if rep.get("drifted") else 0))  # drifted always triggers
+    return score, "{} drift monitor(s) flagged (drifted={})".format(flagged, rep.get("drifted"))
 
 
 def _new_labeled(domain: str) -> int:
@@ -78,15 +82,24 @@ def _train() -> dict:
     except Exception as exc:  # noqa: BLE001 - any launch failure degrades to a health check
         return {"note": "training skipped ({}: {})".format(type(exc).__name__, exc)}
     if proc.returncode != 0 or not os.path.exists(_PROMPT_OPT_REPORT):
-        return {"note": "training skipped: prompt-opt produced no report (missing Groq key?)"}
-    rep = json.load(open(_PROMPT_OPT_REPORT, encoding="utf-8"))
-    generalizes = bool(rep.get("generalizes"))
+        tail = (proc.stderr or "").strip()[-300:]
+        return {"note": "training skipped: prompt-opt produced no report (missing Groq key?)"
+                + (" | stderr: " + tail if tail else "")}
+    with open(_PROMPT_OPT_REPORT, encoding="utf-8") as f:
+        rep = json.load(f)
+    # Read the candidate path the loop ACTUALLY wrote (or ""), not a file that may be stale from a
+    # prior run. A promotable score is exposed only when a candidate exists, so noise on the small
+    # held-out split can never recommend a no-op promotion; safety comes from the loop's own gate.
+    candidate_path = rep.get("candidate_path", "")
     return {
         "baseline_score": rep.get("baseline_test"),
-        "candidate_score": rep.get("candidate_test"),
-        "safety_passed": generalizes,
-        "candidate_path": _CANDIDATE if generalizes and os.path.exists(_CANDIDATE) else "",
-        "note": "retrained the router tie-break prompt on routing.jsonl (fixed train/test split)",
+        "candidate_score": (rep.get("candidate_test") if candidate_path
+                            else rep.get("baseline_test")),
+        "safety_passed": rep.get("safety_passed"),
+        "candidate_path": candidate_path,
+        "note": "retrained the tie-break prompt; held-out {} vs baseline {}{}".format(
+            rep.get("candidate_test"), rep.get("baseline_test"),
+            "" if candidate_path else " (no promotable candidate written)"),
     }
 
 
@@ -169,7 +182,9 @@ def main() -> int:
     for n in report.notes:
         print("  note:", n)
     print("wrote", args.out)
-    return 0
+    # go red when the regression gate actually failed, so a real regression surfaces in the workflow
+    # status instead of hiding in a green run's artifact; a quiet or skipped cycle is fine.
+    return 1 if (report.triggered and report.gate_passed is False) else 0
 
 
 if __name__ == "__main__":

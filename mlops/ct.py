@@ -5,17 +5,21 @@ CI, CD, and CT are three different loops, kept distinct on purpose:
 
   CI  runs on every push: lint, tests, and the eval gate -> is the CODE correct?  (ci.yml)
   CD  ships once CI is green -> is the code DEPLOYED?
-  CT  runs on a schedule, on measured DRIFT, or on enough new human-verified data: it re-indexes the
-      new data, recomputes governed features, and RE-OPTIMIZES the prompts against the ground-truth
-      eval, then GATES the candidate on held-out accuracy AND safety. CT only ever PROPOSES a
-      promotion; a human approves the deploy. Nothing retrains-and-ships itself, which is the drift
-      and reward-hacking guardrail (a candidate that games the metric never reaches production).
+  CT  runs on a schedule, on measured DRIFT, or on enough new human-verified data: it RE-OPTIMIZES
+      the prompt against the ground-truth eval, then GATES the candidate on held-out accuracy AND
+      safety. CT only ever PROPOSES a promotion; a human approves the deploy. Nothing
+      retrains-and-ships itself, which is the drift and reward-hacking guardrail (a candidate that
+      games the metric never reaches production).
 
 "Training" here is not gradient descent on model weights (the LLM is a hosted Groq model): it is the
-data-and-prompt layer we DO own, retrained on a cadence. The retrainable assets are the retrieval
-index (re-embed new reviews and descriptions), the governed enrichment features (recompute consensus
-on new reviews), and the router/answer PROMPTS (the OPRO loop in mlops.prompt_opt). Each is
-versioned and gated the same way a model would be.
+data-and-prompt layer we DO own, retrained on a cadence. Three assets are retrainable and each is
+versioned and gated like a model: the router/answer PROMPTS (the OPRO loop in mlops.prompt_opt,
+which the CT cycle runs), the retrieval index (re-embed new reviews and descriptions, incrementally
+via run_ingest.py --only), and the governed enrichment features (recompute consensus on new
+reviews). The wired scheduled cycle re-optimizes the prompt and gates it; the index and feature
+refresh are the flywheel and batch jobs on the same cadence, which CT reads drift and new-data
+signals from. That split is deliberate: the prompt loop runs offline in CI, the re-index needs the
+live embedder and store.
 
 This module is the pure decision core (trigger policy + promotion policy + the report), so it is
 unit-testable offline with no infrastructure. scripts/run_ct.py wires the real drift report, the
@@ -29,7 +33,8 @@ from dataclasses import dataclass, field
 @dataclass
 class CTReport:
     """The outcome of one CT cycle: what fired it, what training produced, and whether a promotion
-    is recommended (and, only in auto mode, applied). Serialized to
+    is recommended (and, only in auto mode, marked approved). CT records the approval; it never
+    edits served code, so the deploy stays a separate step. Serialized to
     evaluation/reports/ct_report.json and logged to MLflow so every cycle is auditable."""
     triggered: bool
     reasons: list = field(default_factory=list)
@@ -99,8 +104,9 @@ def run_ct_cycle(*, trigger_fired: bool, reasons, train, gate, min_gain: float =
     """Run one CT cycle over injected steps. `train()` retrains the prompt against the ground truth
     and returns {baseline_score, candidate_score, safety_passed, candidate_path, note}; `gate()`
     runs the regression gate and returns {passed, score}. CT then decides whether to recommend the
-    promotion, and applies it only when auto_promote is on (default OFF: CT proposes, a human
-    approves). Pure control flow, so the policy is tested without any infrastructure."""
+    promotion, and marks it approved only when auto_promote is on (default OFF: CT proposes, a human
+    approves). Even in auto mode CT only records the approval; it never edits served code, so the
+    deploy is always a separate step. Pure control flow, so the policy is tested without infra."""
     report = CTReport(triggered=bool(trigger_fired), reasons=list(reasons))
     if not trigger_fired:
         report.notes.append("no trigger fired; nothing to retrain this cycle")
@@ -125,7 +131,8 @@ def run_ct_cycle(*, trigger_fired: bool, reasons, train, gate, min_gain: float =
 
     if report.promote_recommended and auto_promote:
         report.promoted = True
-        report.notes.append("auto-promoted: candidate beat baseline with gate and safety green")
+        report.notes.append("auto-approved for promotion (recorded); the deploy stays separate, "
+                            "CT never edits served code")
     elif report.promote_recommended:
         report.notes.append(
             "promotion PROPOSED (human-gated): review {} then promote".format(

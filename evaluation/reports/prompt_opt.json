@@ -2,48 +2,50 @@
   "target": "rag.router._TIEBREAK_SYSTEM",
   "train_size": 132,
   "test_size": 88,
-  "baseline_train": 0.75,
-  "best_train": 0.8182,
-  "baseline_test": 0.7386,
-  "candidate_test": 0.7955,
+  "baseline_train": 0.7879,
+  "best_train": 0.7955,
+  "baseline_test": 0.8409,
+  "candidate_test": 0.8409,
   "improved_on_train": true,
-  "generalizes": true,
+  "generalizes": false,
+  "safety_passed": true,
+  "candidate_path": "",
   "candidates_tried": 6,
   "history": [
     {
       "round": 0,
       "candidate": "baseline",
-      "score": 0.75
+      "score": 0.7879
     },
     {
       "round": 1,
       "candidate": 0,
-      "score": 0.803
+      "score": 0.7879
     },
     {
       "round": 1,
       "candidate": 1,
-      "score": 0.8182
+      "score": 0.7955
     },
     {
       "round": 1,
       "candidate": 2,
-      "score": 0.8106
+      "score": 0.7955
     },
     {
       "round": 2,
       "candidate": 0,
-      "score": 0.7803
+      "score": 0.7652
     },
     {
       "round": 2,
       "candidate": 1,
-      "score": 0.7803
+      "score": 0.7955
     },
     {
       "round": 2,
       "candidate": 2,
-      "score": 0.803
+      "score": 0.7576
     }
   ]
 }

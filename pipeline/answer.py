@@ -1045,11 +1045,13 @@ def _product_genders(domain: str) -> frozenset:
 
 
 # A comparison or superlative follow-up ("which is warmest", "the cheaper one", "compare those"),
-# which asks the assistant to weigh the items it JUST recommended, not to fetch a fresh set.
+# which asks the assistant to weigh the items it JUST recommended, not to fetch a fresh set. The
+# "the <adj> ..." branch REQUIRES a "one"/"of those" tail so a fresh "the best <item>" request is
+# not mistaken for a comparison of the shown items and does not pin the prior products.
 _COMPARE_FOLLOWUP = re.compile(
     r"\bwhich (is|one|of (them|those|these))\b"
-    r"|\bthe (warm\w*|cheap\w*|light\w*|soft\w*|thick\w*|warm\w*|cool\w*|better|best|nic\w*|"
-    r"bigger|biggest|smaller|smallest|priciest|dearest) (one|of (them|those|these))?\b"
+    r"|\bthe (warm\w*|cheap\w*|light\w*|soft\w*|thick\w*|cool\w*|better|best|nic\w*|"
+    r"bigger|biggest|smaller|smallest|priciest|dearest) (one|of (them|those|these))\b"
     r"|\b(compare|versus|vs\.?)\b", re.I)
 
 
@@ -1493,7 +1495,9 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # instead of a freshly retrieved, different set; the prompt then compares only among what shown.
     pinned = _prior_products(history, domain) if _COMPARE_FOLLOWUP.search(query or "") else []
     if pinned:
-        retrieval_q = (" ".join(pinned) + " " + rquery).strip()[:400]
+        # keep the (expanded) question FIRST so the comparison term survives the 400-char cap, then
+        # append up to five prior product names to anchor retrieval; a truncated pin is fine
+        retrieval_q = (rquery + " " + " ".join(pinned[:5])).strip()[:400]
     hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
                     auth_text=auth_text, gender=sticky_gender)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
@@ -1509,11 +1513,13 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # below stays reachable. Both intents read the expanded query so complaint follow-ups classify.
     # The omni stylist lane is a stronger shopping signal than the narrow _shopping_intent regex
     # (which misses phrasings like "cozy loungewear for the house"): when the router routed the turn
-    # to stylist and products were retrieved, recommend rather than firing the generic abstain. lane
-    # is None on the linear path, so its abstain behavior is unchanged.
-    if (abstained and hits and (lane == "stylist" or _shopping_intent(rquery))
-            and not _problem_intent(rquery)):
-        abstained = False  # shopping/stylist turn + any retrieved product -> recommend not abstain
+    # to stylist and a real PRODUCT was retrieved (not just a guide or FAQ chunk, which ANN always
+    # returns), recommend rather than firing the generic abstain. lane is None on linear, so
+    # its abstain behavior is unchanged, and the original shopping-intent path keeps its old guard.
+    has_product = any((h.get("payload") or {}).get("doc_type") == "product" for h in hits)
+    if (abstained and not _problem_intent(rquery)
+            and ((_shopping_intent(rquery) and hits) or (lane == "stylist" and has_product))):
+        abstained = False  # shopping/stylist turn + a retrieved product -> recommend, not abstain
     # a signed-in shopper's OWN order surfaced but the query words barely overlap the record text
     # (natural phrasings like "did my package arrive"): answer from the authorized order rather than
     # abstaining into a generic clarifier. Fires only for a proven identity's own account question

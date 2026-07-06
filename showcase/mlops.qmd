@@ -26,11 +26,11 @@ The **leak linter** is the load-bearing one for the "swap one folder" claim: it 
 
 CI asks "is the code correct?" on every push. CD ships it once green. **Continuous training (CT)** asks a different question on a cadence: *as new data and drift arrive, is a retrained candidate better, and safe to promote?* It runs weekly and on demand as its own workflow (`.github/workflows/ct.yml`), separate from the per-push CI.
 
-"Training" here is not gradient descent on model weights, the LLM is a hosted Groq model. It is the data-and-prompt layer this project *does* own, retrained on a schedule and versioned like a model would be: the retrieval index (re-embed new reviews and descriptions), the governed enrichment features (recompute consensus on new reviews), and the router and answer prompts (the OPRO loop below).
+"Training" here is not gradient descent on model weights, the LLM is a hosted Groq model. It is the data-and-prompt layer this project *does* own, versioned and gated like a model: the router tie-break prompt (the OPRO loop below, which the scheduled cycle re-optimizes), the retrieval index (re-embed new reviews and descriptions, incrementally via `run_ingest.py --only`), and the governed enrichment features (recompute consensus on new reviews). The wired cycle re-optimizes the prompt and gates it; the index and feature refresh run on the same cadence as the flywheel and batch job, which is where CT reads its drift and new-data signals.
 
 ```{mermaid}
 flowchart LR
-  T{Trigger:<br/>schedule, drift,<br/>or new labeled data} -->|fires| TR[Retrain:<br/>re-index new data,<br/>re-optimize the prompt]
+  T{Trigger:<br/>schedule, drift,<br/>or new labeled data} -->|fires| TR[Retrain:<br/>re-optimize the prompt<br/>against the ground truth]
   T -->|quiet| SKIP[No cycle:<br/>nothing changed]
   TR --> G{Held-out eval<br/>+ safety gate}
   G -->|beats baseline,<br/>gate + safety green| PROP[Promotion PROPOSED<br/>as an artifact]

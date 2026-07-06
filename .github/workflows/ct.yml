@@ -11,13 +11,19 @@ on:
   workflow_dispatch:
     inputs:
       auto_promote:
-        description: "Apply a recommended promotion automatically (default: propose only)"
+        description: "Mark a recommended promotion approved (recorded only; CT never deploys)"
         type: boolean
         default: false
+
+# One CT run at a time; do not cancel an in-flight retrain when a manual run overlaps the cron.
+concurrency:
+  group: continuous-training
+  cancel-in-progress: false
 
 jobs:
   continuous-training:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

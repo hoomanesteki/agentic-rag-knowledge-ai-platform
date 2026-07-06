@@ -1,0 +1,40 @@
+{
+  "assumptions": {
+    "prompt_tokens": 1500,
+    "completion_tokens": 250,
+    "spoken_chars": 320,
+    "session_turns": 8
+  },
+  "text_turn_breakdown_70b": {
+    "routing": 1.4e-05,
+    "retrieval": 0.002003,
+    "generation": 0.001082,
+    "total": 0.0031
+  },
+  "voice_turn_breakdown_70b": {
+    "routing": 1.4e-05,
+    "retrieval": 0.002003,
+    "generation": 0.001082,
+    "total": 0.035217,
+    "stt": 0.000117,
+    "tts": 0.032
+  },
+  "per_turn": {
+    "text_8b": 0.002112,
+    "text_70b": 0.0031,
+    "text_sonnet5": 0.010267,
+    "text_opus": 0.015767,
+    "voice_70b": 0.035217,
+    "human_agent": 1.3333
+  },
+  "per_session": {
+    "text_70b": 0.0248,
+    "voice_70b": 0.2817,
+    "human_agent": 10.6664
+  },
+  "ratios_vs_text_70b": {
+    "sonnet5": 3.3,
+    "opus": 5.1,
+    "human_agent": 430.0
+  }
+}

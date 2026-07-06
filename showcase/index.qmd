@@ -11,14 +11,14 @@ Retrieval-augmented generation · built end to end
 # A shopping assistant that knows when it doesn't know {.hero-title}
 
 ::: {.lede}
-Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storefront, an apparel brand called Aster Athletics with an assistant named Aria, but the engine underneath knows nothing about apparel. Swap one folder and it becomes a different store.
+Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storefront, an apparel brand called Aster Athletics with a shopping assistant named Sara and an escalation care specialist named Tiffany, but the engine underneath knows nothing about apparel. Swap one folder and it becomes a different store.
 :::
 :::
 
 ::: {.stat-strip}
 ::: {.stat}
 ::: {.n}
-404
+462
 :::
 ::: {.k}
 tests, all green
@@ -26,10 +26,10 @@ tests, all green
 :::
 ::: {.stat}
 ::: {.n}
-5
+84%
 :::
 ::: {.k}
-retrieval + graph + metric layers
+router accuracy, $0 marginal
 :::
 :::
 ::: {.stat}
@@ -59,11 +59,11 @@ The assistant is grounded in synthetic data for a fictional brand. Every product
 ::: {.grid-cards}
 ::: {.card}
 ### [Architecture →](architecture.qmd)
-The path a question takes from keypress to grounded answer: hybrid retrieval, the reranker, the graph and metric seams, and the domain-agnostic engine.
+The path a question takes from keypress to grounded answer: a master-orchestrator router over specialized lanes, hybrid retrieval, the reranker, the graph and metric seams, and the domain-agnostic engine.
 :::
 ::: {.card}
 ### [Evaluation →](evaluation.qmd)
-Four layers of quality control, an offline CI gate, RAGAS on a golden set, drift monitors, and an eval-gated model-promotion flow, and what each one actually catches.
+A labeled routing eval, the single-vs-multi and model-tier experiments, a prompt-optimization loop that lifts a prompt on held-out data, an offline CI gate, RAGAS, and drift monitors, with every number regenerated from a command.
 :::
 ::: {.card}
 ### [Decisions →](decisions.qmd)

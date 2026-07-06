@@ -46,10 +46,10 @@ _ANSWERS = Lane(
     "Answer their question directly and only from the context. If the answer is not there, say so "
     "plainly and offer a sensible next step instead of guessing.")
 
-# Escalation speaks as the specialist persona (Tiffany); its detailed contract (gather, confirm,
-# hand back) lives in the escalation prompt itself, so the lane fragment stays empty here. Tiffany
-# runs on the SAME Groq LLM as the rest of the app (no separate frontier vendor or second API); a
-# more capable tier, if ever wanted, is a bigger Groq model set by config, never a Claude/GPT API.
+# Escalation speaks as the specialist persona; its detailed contract (gather, confirm, hand back)
+# lives in the escalation prompt itself, so the lane fragment stays empty here. That specialist runs
+# on the SAME Groq LLM as the rest of the app (no separate frontier vendor or second API); a more
+# capable tier, if ever wanted, is a bigger Groq model set by config, never a second-vendor API.
 _ESCALATION = Lane("escalation", "agent", "")
 
 LANES: dict[str, Lane] = {

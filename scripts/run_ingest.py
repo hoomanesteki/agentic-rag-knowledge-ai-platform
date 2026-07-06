@@ -10,6 +10,7 @@ Run: make ingest   (needs the embedder API key in .env and Qdrant up via make up
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -35,6 +36,13 @@ def _load_jsonl(path: str) -> list[dict]:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="",
+                    help="ingest only sources whose file path contains this substring, for an "
+                         "incremental re-index of newly added data (e.g. --only reviews_curated). "
+                         "Upsert is by id, so this adds/updates just those points.")
+    args = ap.parse_args()
+
     settings = get_settings()
     pack = os.path.join("domains", settings.domain)
     manifest_path = os.path.join(pack, "domain.yaml")
@@ -48,6 +56,11 @@ def main() -> int:
     with open(manifest_path, encoding="utf-8") as f:
         manifest = yaml.safe_load(f)
     sources = (manifest.get("sources", {}) or {}).get("unstructured", []) or []
+    if args.only:
+        sources = [s for s in sources if args.only in s["file"]]
+        if not sources:
+            print("no unstructured source matches --only {}".format(args.only))
+            return 1
 
     chunks = []
     for src in sources:

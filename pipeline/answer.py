@@ -465,11 +465,28 @@ _VOICE_BREVITY = (
     "one or two sentences."
 )
 
-# Approximate Groq prices per 1M tokens (input, output). Update as pricing changes.
+# Approximate Groq prices per 1M tokens (input, output). Update as pricing changes. The app is
+# Groq-only by design (see docs/omni-plan-v2.md, decision 1): the escalation persona uses the
+# large Groq model, not a separate frontier vendor, so there are no frontier prices to track here.
 _PRICES = {
-    "llama-3.3-70b-versatile": (0.59, 0.79),
     "llama-3.1-8b-instant": (0.05, 0.08),
+    "llama-3.3-70b-versatile": (0.59, 0.79),
 }
+
+# Coarse model-size tier a model belongs to, used to attribute per-turn cost by tier so the
+# routing-is-cheap story is measurable. Unknown models default to the workhorse tier rather than
+# guessing a size. The omni brain populates several tiers per turn (small router, large lane);
+# the linear path bills the whole answer to one tier.
+_MODEL_TIER = {
+    "llama-3.1-8b-instant": "small",
+    "llama-3.3-70b-versatile": "large",
+}
+
+
+def _tier_of(model: str | None) -> str | None:
+    if not model:
+        return None
+    return _MODEL_TIER.get(model, "large")
 
 _CITE = re.compile(r"\[(\d+)\]")
 _SENTENCE = re.compile(r"[^.!?]+[.!?]?")
@@ -660,11 +677,16 @@ def _build_prompt(query: str, contexts: list[dict], history: list[dict] | None =
     )
 
 
-def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float | None:
+def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
+                   cache_read_tokens: int = 0, cache_creation_tokens: int = 0) -> float | None:
     if model not in _PRICES:
         return None  # unknown model: do not pretend the cost is zero
     price_in, price_out = _PRICES[model]
-    return round(prompt_tokens / 1e6 * price_in + completion_tokens / 1e6 * price_out, 6)
+    # regular input + output, plus cached tokens billed on their own rates: cache reads at ~0.1x the
+    # input price, cache writes at ~1.25x. Defaults of 0 keep the Groq path (no prompt cache) exact.
+    return round(prompt_tokens / 1e6 * price_in + completion_tokens / 1e6 * price_out
+                 + cache_read_tokens / 1e6 * price_in * 0.1
+                 + cache_creation_tokens / 1e6 * price_in * 1.25, 6)
 
 
 def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
@@ -1296,11 +1318,17 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     grounding = grounding_score(result.text, contexts)
     citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
                  for c in _used_citations(result.text, contexts)]
+    answer_cost = _estimate_cost(result.model, result.prompt_tokens, result.completion_tokens)
+    answer_tier = _tier_of(result.model)
     trace.update(
         tier="auto", model=result.model, grounding=round(grounding, 3),
         prompt_hash=hashlib.sha256(prompt.encode()).hexdigest()[:16],
         prompt_tokens=result.prompt_tokens, completion_tokens=result.completion_tokens,
-        cost=_estimate_cost(result.model, result.prompt_tokens, result.completion_tokens),
+        cost=answer_cost,
+        # cost attributed by model-size tier. In the linear path the answer is the whole turn, so
+        # one tier carries the cost; the omni brain adds the router and lane tiers alongside it.
+        cost_by_tier=({answer_tier: answer_cost} if answer_cost is not None and answer_tier
+                      else {}),
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
     write_trace(trace, trace_path)
@@ -1316,13 +1344,17 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   trace_path: str = DEFAULT_TRACE_PATH, message_id: str | None = None,
                   lang: str | None = None, persona: str | None = None,
                   history: list[dict] | None = None, concise: bool = False,
-                  auth_identity: tuple[str, str] | None = None, notes: str | None = None):
+                  auth_identity: tuple[str, str] | None = None, notes: str | None = None,
+                  role_fragment: str = "", lane: str | None = None):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
     persona="agent" answers in the human specialist's voice after an escalation.
     history (prior turns) lets the model resolve follow-ups and multi-turn verification.
     concise=True keeps the reply short and speakable for voice.
+    role_fragment is an optional lane focus the omni orchestrator appends to the system prompt;
+    it sharpens tone and focus only, never the safety or grounding rules, and defaults to empty so
+    the linear path is unchanged. lane is recorded in the trace for observability.
     Streaming responses do not report token usage (the trace omits it)."""
     started = time.perf_counter()
     message_id = message_id or uuid.uuid4().hex
@@ -1331,6 +1363,10 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     system = _agent_system(domain) if persona == "agent" else _system(domain)
     if concise:
         system = system + _VOICE_BREVITY
+    if role_fragment:
+        # a lane focus appended by the omni orchestrator; the safety and grounding rules in the
+        # base prompt still apply, a lane only sharpens tone and focus
+        system = system + " " + role_fragment
     _first = auth_identity[0].split(" ")[0] if (auth_identity and auth_identity[0]) else None
     chat = _smalltalk(query, persona, domain, first_name=_first, history=history, concise=concise)
     if chat is not None:  # greetings / who-are-you: answer like a person, skip retrieval
@@ -1386,6 +1422,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         "reranked": reranker is not None,
         "metric": has_metric,
         "graph": has_graph,
+        "lane": lane,  # the omni lane that produced this turn (None on the linear path)
         "retrieved": [{"id": c["id"], "score": c["score"]} for c in contexts],
         "confidence": round(confidence, 3),
     }

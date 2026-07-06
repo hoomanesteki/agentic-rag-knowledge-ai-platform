@@ -11,32 +11,32 @@ APPAREL = "apparel_ecommerce"
 
 def test_persona_is_read_from_the_pack():
     a = _persona(APPAREL)
-    assert a["assistant"] == "Aria" and a["specialist"] == "Sara"
+    assert a["assistant"] == "Sara" and a["specialist"] == "Tiffany"
     assert a["brand"] == "Aster" and a["industry"] == "an athletic apparel brand"
 
 
 def test_system_prompts_use_the_active_pack_identity():
     apparel = _system(APPAREL) + _agent_system(APPAREL)
-    assert "Aria" in apparel and "Sara" in apparel and "Aster" in apparel
+    assert "Sara" in apparel and "Tiffany" in apparel and "Aster" in apparel
     # the identity comes from the pack, not from engine code: a slug with no manifest falls back to
     # a neutral voice and never carries the apparel persona, so nothing is hardcoded in the prompt.
     neutral = _system("does_not_exist") + _agent_system("does_not_exist")
-    for token in ("Aria", "Sara", "Aster"):
+    for token in ("Sara", "Tiffany", "Aster"):
         assert token not in neutral, token
 
 
 def test_greetings_and_intros_speak_as_the_active_pack():
-    assert "Aria" in _smalltalk("hi", None, APPAREL)
-    # the human specialist greeting uses the specialist name
-    assert "Sara" in _smalltalk("hi", "agent", APPAREL)
+    assert "Sara" in _smalltalk("hi", None, APPAREL)
+    # the escalation care specialist greeting uses the specialist name
+    assert "Tiffany" in _smalltalk("hi", "agent", APPAREL)
     # "who are you" introduces the pack's assistant
-    assert "Aria" in _smalltalk("who are you", None, APPAREL)
+    assert "Sara" in _smalltalk("who are you", None, APPAREL)
 
 
 def test_greeting_recognizes_either_persona_name():
     # "hey <assistant>" and "hey <specialist>" must both be caught as greetings: the trailing-name
     # group has to space-prefix every alternative, not just the first.
-    for q in ("hey aria", "hi sara", "hey there sara", "hello aria"):
+    for q in ("hey sara", "hi tiffany", "hey there tiffany", "hello sara"):
         assert _smalltalk(q, None, APPAREL) is not None, q
 
 
@@ -44,4 +44,4 @@ def test_missing_persona_falls_back_to_neutral_voice():
     # a pack slug with no manifest must not crash; it yields neutral placeholders
     p = _persona("does_not_exist")
     assert p["assistant"] and p["brand"] and p["industry"]
-    assert "Aria" not in _system("does_not_exist")
+    assert "Sara" not in _system("does_not_exist")

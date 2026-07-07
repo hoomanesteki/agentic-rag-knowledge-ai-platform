@@ -40,6 +40,29 @@ When you ask for a human, Tiffany (an AI care specialist) gathers and confirms w
 :::
 :::
 
+In one picture: one manager, five specialists, and a single answer path they all share.
+
+```{mermaid}
+flowchart TD
+  T([A shopper turn]) --> ORCH[Master orchestrator<br/>rag/omni.py]
+  ORCH -->|shopping| S[Stylist · Sara]
+  ORCH -->|your order| C[Care]
+  ORCH -->|a problem| K[Complaint]
+  ORCH -->|the facts| A[Answers]
+  ORCH -->|a human| E[Escalation · Tiffany]
+  S --> P[One gated pipeline<br/>retrieve · ground · answer or abstain]
+  C --> P
+  K --> P
+  A --> P
+  E --> EP[Gather · confirm · file a case]
+  P --> OUT([Grounded, cited answer])
+  EP --> OUT
+  classDef orch fill:#dfeef0,stroke:#0f7b84,color:#13191e;
+  classDef lane fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  class ORCH orch;
+  class S,C,K,A,E lane;
+```
+
 ## One turn, narrated
 
 Say you type *"a gift for my dad who hikes, around \$100."* Here is what happens, in order:

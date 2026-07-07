@@ -6,31 +6,22 @@
 architecture, evaluation, the decisions behind it, and an honest look at the failure modes. The
 site's source is in [`showcase/`](showcase/) (Quarto, rendered to GitHub Pages by CI).
 
-A local-first, domain-swappable **agentic RAG platform**. It answers questions over a mix of
-structured and unstructured data, grounds every answer in citations (or abstains), routes every turn
-through a **master orchestrator** to a specialized lane (all sharing one gated pipeline), and hands
-off to a human when it is unsure, then learns from that answer. One engine serves any topic: a
-domain is a config folder, not code.
+A local-first, **domain-swappable agentic RAG platform**. It answers over a mix of structured and
+unstructured data, cites every answer (or honestly says it does not know), and routes each turn
+through a **master orchestrator** to the right specialist, handing off to a human when unsure.
 
-Built step by step, MVP first, each step reviewed by an independent model before it merged. Tests
-and CI run entirely offline on fakes; the hosted models (Groq, Cohere) and the stores (Qdrant,
-DuckDB, Neo4j) are config swaps.
+**One engine, any topic** — a new domain is a config folder, not code. Tests and CI run fully
+offline on fakes; the models (Groq, Cohere) and stores (Qdrant, DuckDB, Neo4j) are config swaps.
 
 ## What it does
 
 - **Grounded or honest.** Hybrid retrieval (dense + sparse, RRF) with a reranker, sentence-level
   citation checks, and an abstain gate. Retrieved text is sanitized against prompt injection.
-- **A master orchestrator, not a prompt.** The default brain (`CHAT_BRAIN=omni`) is a master
-  orchestrator that reads every turn and routes it to a specialized lane, shopping, care, complaint,
-  answers, or escalation, through **one gated pipeline** (the assistant Sara voices the first four;
-  escalation is the care specialist Tiffany), so specialization
-  sharpens tone and focus but never creates a second, weaker safety surface. Routing is a cheap-first
-  cascade: free deterministic guards decide the majority (81.6% correct at zero marginal cost), a
-  cheap 8B tie-break lifts the ambiguous minority to 85.9% with 100% escalation recall. A two-in-one
-  turn is split, routed, answered, and stitched back; a genuinely unclear turn is asked about, not
-  guessed. An alternate brain (`CHAT_BRAIN=agent`) is a LangGraph supervisor over three specialists
-  (Retriever, governed Metrics, knowledge Graph) with a gate and a bounded retry loop; both compile
-  to a langchain-core `Runnable`, and Langfuse traces the whole run as one span.
+- **A master orchestrator, not a prompt.** The default brain (`CHAT_BRAIN=omni`) routes each turn to
+  a specialist lane, shopping (Sara), care, complaint, answers, or escalation (Tiffany), all sharing
+  **one gated pipeline**, so specialization sharpens tone, never safety. Free deterministic layers
+  handle most turns (81.6%); a cheap 8B tie-break lifts the rest to 85.9% with 100% escalation
+  recall. (A `linear` and a LangGraph `agent` brain are also selectable.) Diagram below.
 - **Guards that do not trust the model.** Order PII, prompt injection, customer enumeration, and
   gender-correct recommendations are enforced deterministically in code, before the prompt. See
   [the guardrails](#guardrails-enforced-in-code-not-in-the-prompt).
@@ -44,11 +35,10 @@ DuckDB, Neo4j) are config swaps.
   supplier makes X") answer from the graph via allowlisted traversals, not free Cypher.
 - **Human-in-the-loop flywheel.** Escalations land in a review queue; an operator answers; the
   answer becomes a retrievable verified chunk and grows the eval set.
-- **Observability and MLOps.** Langfuse traces every turn and LLM call (model, tokens, latency,
-  cost). Four monitoring pillars read the one trace store, data drift, model quality (RAGAS +
-  routing), system health (p95 latency, errors, cost), and business KPIs (containment, answer rate,
-  $/session). Weekly **continuous training** retrains and gates a candidate and registers it to a
-  versioned **model registry** as `proposed`; a human promotes it, so nothing self-ships.
+- **Observability and MLOps.** Langfuse traces every turn. Four monitoring pillars read the one
+  trace store, data drift, model quality, system health, and business KPIs. Weekly **continuous
+  training** retrains, gates, and registers a candidate to a versioned **model registry**; a human
+  promotes it, so nothing self-ships.
 - **Guided and voiced.** Per-domain starter prompts, spoken input (Groq Whisper), spoken replies
   (browser voice by default, ElevenLabs when keyed), a storefront-style demo UI with the chat
   widget, and a backoffice dashboard at `/admin`.
@@ -80,59 +70,55 @@ Every provider sits behind an adapter interface, and the defaults are offline fa
 
 ## The system at a glance
 
+A turn flows top to bottom: the API hands it to the brain, the brain answers through one gated path
+over three retrieval backends.
+
 ```text
-     Browser (storefront chat + /admin)        Voice
-          |  text                                |  audio
-          v                                      v
-   +-----------------------------------------------------+
-   |                      FastAPI                        |  JWT auth, rate limit,
-   |  /api/chat (SSE)   /api/transcribe   /api/tts       |  Turnstile, degraded mode
-   |  /api/admin/*                                       |
-   +--------------------------+--------------------------+
-                              |  CHAT_BRAIN=omni (default)
-                              v
-   +-----------------------------------------------------+
-   |         MASTER ORCHESTRATOR   (rag/omni.py)         |
-   |   route each turn -> the right lane -> one path     |
-   |                                                     |
-   |   Layer 0  reach a person?     (regex,        $0)   |
-   |   Layer 1  intent guards       (complaint/         |
-   |            deterministic        care/stylist, $0)   |
-   |   Layer 2  cheap 8B tie-break  (only if ambiguous)  |
-   |                        |                            |
-   |    +--------+--------+--+-----+--------+---------+   |
-   |    v        v        v        v        v         v   |
-   | stylist   care   complaint  answers  escalation      |  lanes are DATA ROWS:
-   | (Sara)  (order) (make right)(facts)  (Tiffany:       |  a focus added to ONE
-   |                                       file a case)   |  shared system prompt
-   +--------------------------+--------------------------+
-                              |  every lane answers through
-                              v  the SAME gated pipeline
-   +-----------------------------------------------------+
-   |  understand -> retrieve -> ground -> answer/abstain  |
-   |  (typo repair, (hybrid    (PII gate, (cited [1][2],  |
-   |   follow-up     + rerank)  gender     or "I don't    |
-   |   expand)                  redaction) have that")    |
-   +-----------|------------|------------|---------------+
-               v            v            v
-         +----------+ +-----------+ +-----------+
-         |  Qdrant  | |  DuckDB   | |   Neo4j   |
-         |  hybrid  | | governed  | | knowledge |
-         |  vectors | | metrics   | |   graph   |
-         +----------+ +-----------+ +-----------+
-               ^
-               |  verified answers grow the index (the flywheel)
-         +---------------------------------+
-         |  review queue  ->  /admin       |  human in the loop
-         +---------------------------------+
+   Browser (chat + /admin)   ·   Voice
+              |
+              v
+   FastAPI          SSE chat, auth, rate limit, degraded mode
+              |
+              v   CHAT_BRAIN=omni
+   The brain        route the turn, then answer through ONE gated pipeline
+              |
+              v
+   Retrieval        Qdrant vectors  +  DuckDB metrics  +  Neo4j graph
+              |
+              v
+   A grounded, cited answer   ·   or an honest abstain / handoff to a human
 ```
 
-The orchestrator (`rag/omni.py`) routes with the cascade in `rag/router.py` and answers each lane
-through the one gated pipeline in `pipeline/answer.py`, so the order-PII gate, the gender filter, and
-the abstain gate are identical on every lane. `CHAT_BRAIN` selects the brain: `omni` (the default
-above), `linear` (the single pipeline, no routing), or `agent` (a LangGraph supervisor that fans out
-to a Retriever, a governed Metrics, and a knowledge Graph specialist, then reconciles, in
-`rag/supervisor.py` + `rag/agent.py`).
+## The brain: a manager and five specialists
+
+The default brain is the master orchestrator. It routes each turn to one specialist, and they all
+answer through the same gated pipeline, so no lane gets a weaker safety surface.
+
+```text
+                        a shopper turn
+                             |
+                             v
+              +------------------------------+
+              |     MASTER ORCHESTRATOR      |   three cheap-first layers:
+              |          rag/omni.py         |     0  reach a person?   (regex, $0)
+              +--------------+---------------+     1  intent guards      ($0, most turns)
+                             |                     2  cheap 8B tie-break (only if unclear)
+       +--------+--------+---+-----+--------+-----------+
+       v        v        v         v        v           v
+    stylist   care   complaint  answers  escalation   (unclear?
+    (Sara)  (order) (make right)(facts)  (Tiffany)     ask one
+                                                        question)
+       |        |        |         |        |
+       +--------+----+---+---------+--------+
+                     v
+      ONE gated pipeline   ·   pipeline/answer.py
+      understand -> retrieve -> ground -> answer / abstain
+      the SAME PII gate, gender filter, and abstain gate on every lane
+```
+
+The lanes are **data rows, not code**, a short focus added to one shared prompt, so a new specialist
+is a new row. Routing lives in `rag/router.py`; `CHAT_BRAIN` also selects `linear` (no routing) or
+`agent` (a LangGraph supervisor over three specialists in `rag/supervisor.py`).
 
 ## The data architecture
 

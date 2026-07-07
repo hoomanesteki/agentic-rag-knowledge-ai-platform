@@ -45,7 +45,7 @@ CI eval-gate score
 430×
 :::
 ::: {.k}
-cheaper per session than a human agent
+[cheaper than a human / session — proof](cost.qmd)
 :::
 :::
 :::
@@ -64,6 +64,10 @@ The path a question takes from keypress to grounded answer: a master-orchestrato
 ::: {.card}
 ### [Evaluation →](evaluation.qmd)
 A labeled routing eval, the single-vs-multi and model-tier experiments, a prompt-optimization loop that lifts a prompt on held-out data, an offline CI gate, RAGAS, and drift monitors, with every number regenerated from a command.
+:::
+::: {.card}
+### [Cost & the business case →](cost.qmd)
+The full proof behind "430× cheaper than a human": every assumption, the price of each stage of a turn, the session total, and the division, all regenerated from one command.
 :::
 ::: {.card}
 ### [Decisions →](decisions.qmd)

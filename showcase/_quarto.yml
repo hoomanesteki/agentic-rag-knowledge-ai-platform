@@ -19,6 +19,8 @@ website:
         href: evaluation.qmd
       - text: "Shipping & ops"
         href: mlops.qmd
+      - text: "Cost"
+        href: cost.qmd
       - text: "Decisions"
         href: decisions.qmd
       - text: "Reliability"

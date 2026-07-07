@@ -10,7 +10,7 @@ A local-first, **domain-swappable agentic RAG platform**. It answers over a mix 
 unstructured data, cites every answer (or honestly says it does not know), and routes each turn
 through a **master orchestrator** to the right specialist, handing off to a human when unsure.
 
-**One engine, any topic** — a new domain is a config folder, not code. Tests and CI run fully
+**One engine, any topic:** a new domain is a config folder, not code. Tests and CI run fully
 offline on fakes; the models (Groq, Cohere) and stores (Qdrant, DuckDB, Neo4j) are config swaps.
 
 ## What it does

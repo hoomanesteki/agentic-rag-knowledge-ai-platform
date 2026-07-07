@@ -166,4 +166,4 @@ Operating cost is a first-class number, not an afterthought, and it is the numbe
 
 The business case is not "replace the humans", it is **deflection**: the assistant resolves the routine majority itself (the `containment_rate` on the [business dashboard](#the-four-things-we-monitor)) so the human team spends its expensive minutes on the cases that actually need them. The measured decision to skip a frontier model is the same discipline in miniature, it would 3–5× the per-turn cost and the eval showed no lift, so the money stays where it buys something.
 
-Every figure regenerates from the model, so the economics stay honest as prices and models change. The full derivation of the 430×, every assumption, the per-stage math, and the division, is on the dedicated **[Cost](cost.qmd)** page, so the headline stat is provable, not asserted.
+Every figure regenerates from the model, so the economics stay honest as prices and models change. The full derivation of the 430×, every assumption, the per-stage math, and the division, is on the dedicated **[Cost](cost.qmd)** page.

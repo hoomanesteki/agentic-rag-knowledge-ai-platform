@@ -45,7 +45,7 @@ CI eval-gate score
 430×
 :::
 ::: {.k}
-[cheaper than a human / session — proof](cost.qmd)
+[cheaper per session than a human](cost.qmd)
 :::
 :::
 :::

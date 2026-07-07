@@ -65,7 +65,7 @@ flowchart TD
 
 ## One turn, narrated
 
-Say you type *"a gift for my dad who hikes, around \$100."* Here is what happens, in order:
+Say you type *"a gift for my dad who hikes, around \$100."* The turn unfolds in four steps:
 
 1. The **orchestrator** reads it. It is a shopping request, not an order problem and not a request for a human, so it routes to **Sara**.
 2. Sara's turn runs through the **one gated pipeline**: it repairs typos, expands the follow-up with the conversation so far, and retrieves men's hiking pieces, filtered to the recipient's gender, which stays fixed even when a later *"which is warmest?"* never restates it.

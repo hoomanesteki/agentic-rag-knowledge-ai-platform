@@ -1,5 +1,5 @@
 ---
-title: "The experience"
+title: "Experience"
 pagetitle: "Skein Lite: voice, text, personalization, and privacy"
 ---
 

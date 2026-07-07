@@ -1,6 +1,6 @@
 ---
-title: "Shipping & operating"
-pagetitle: "Skein Lite: shipping and operating it"
+title: "MLOps"
+pagetitle: "Skein Lite: MLOps, shipping and operating it"
 ---
 
 ::: {.eyebrow}

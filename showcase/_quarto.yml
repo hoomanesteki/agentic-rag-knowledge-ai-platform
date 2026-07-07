@@ -13,11 +13,11 @@ website:
         href: index.qmd
       - text: "Architecture"
         href: architecture.qmd
-      - text: "The data"
+      - text: "Data"
         href: data.qmd
       - text: "Evaluation"
         href: evaluation.qmd
-      - text: "Shipping & ops"
+      - text: "MLOps"
         href: mlops.qmd
       - text: "Cost"
         href: cost.qmd
@@ -25,7 +25,7 @@ website:
         href: decisions.qmd
       - text: "Reliability"
         href: reliability.qmd
-      - text: "The experience"
+      - text: "Experience"
         href: experience.qmd
       - text: "Try it"
         href: usage.qmd

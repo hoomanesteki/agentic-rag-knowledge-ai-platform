@@ -42,10 +42,10 @@ CI eval-gate score
 :::
 ::: {.stat}
 ::: {.n}
-0
+430×
 :::
 ::: {.k}
-domain terms in engine code
+cheaper per session than a human agent
 :::
 :::
 :::

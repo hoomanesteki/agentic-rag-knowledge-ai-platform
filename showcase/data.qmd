@@ -1,5 +1,5 @@
 ---
-title: "The data"
+title: "Data"
 pagetitle: "Skein Lite: the data, end to end"
 ---
 

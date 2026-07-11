@@ -70,6 +70,7 @@ def _score_retrieval(g, embedder, store, top_k, top_k_in, entity_fields, min_con
     abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
     return {
         "lang": g.get("lang", "unknown"),
+        "difficulty": g.get("difficulty", "untagged"),
         "hit": hit_at_k(flags),
         "rr": reciprocal_rank(flags),
         "erecall": _entity_recall(hits, g["expected_entities"], entity_fields),
@@ -83,7 +84,8 @@ def _score_abstain(g, embedder, store, top_k, top_k_in, min_confidence, reranker
     hits = retrieve(g["question"], embedder, store, top_k, reranker=reranker,
                     top_k_in=top_k_in, dense_only=dense_only)
     abstained, _ = should_abstain(g["question"], _contexts(hits), min_confidence)
-    return {"lang": g.get("lang", "unknown"), "abstained": 1.0 if abstained else 0.0}
+    return {"lang": g.get("lang", "unknown"), "difficulty": g.get("difficulty", "untagged"),
+            "abstained": 1.0 if abstained else 0.0}
 
 
 def _agg_retrieval(records: list[dict]) -> dict:
@@ -109,6 +111,14 @@ def _route_counts(items: list[dict]) -> dict:
     return counts
 
 
+def _difficulty_counts(items: list[dict]) -> dict:
+    counts: dict[str, int] = {}
+    for g in items:
+        diff = g.get("difficulty") or "untagged"
+        counts[diff] = counts.get(diff, 0) + 1
+    return counts
+
+
 def evaluate(golden: list[dict], *, embedder: Embedder, store: HybridStore,
              entity_fields: list[str], reranker: Reranker | None = None, top_k: int = 8,
              top_k_in: int = 50, min_confidence: float = DEFAULT_MIN_CONFIDENCE,
@@ -125,15 +135,22 @@ def evaluate(golden: list[dict], *, embedder: Embedder, store: HybridStore,
         "dense_only": dense_only,
         "reranked": reranker is not None,
         "coverage": {"measured": len(measurable), "deferred": len(deferred),
-                     "deferred_by_route": _route_counts(deferred), "abstain_set": len(abstain)},
+                     "deferred_by_route": _route_counts(deferred), "abstain_set": len(abstain),
+                     "by_difficulty": _difficulty_counts(golden)},
         "degenerate": bool(m_records) and overall["total_hits"] == 0,
         "overall": {"retrieval": overall, "gate": _agg_gate(a_records)},
         "by_language": {},
+        "by_difficulty": {},
     }
     for lang in sorted({r["lang"] for r in m_records} | {r["lang"] for r in a_records}):
         scorecard["by_language"][lang] = {
             "retrieval": _agg_retrieval([r for r in m_records if r["lang"] == lang]),
             "gate": _agg_gate([r for r in a_records if r["lang"] == lang]),
+        }
+    for diff in sorted({r["difficulty"] for r in m_records} | {r["difficulty"] for r in a_records}):
+        scorecard["by_difficulty"][diff] = {
+            "retrieval": _agg_retrieval([r for r in m_records if r["difficulty"] == diff]),
+            "gate": _agg_gate([r for r in a_records if r["difficulty"] == diff]),
         }
     return scorecard
 

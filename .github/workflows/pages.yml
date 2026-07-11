@@ -43,7 +43,7 @@ jobs:
         env:
           QUARTO_PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: quarto render showcase
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: showcase/_site
 

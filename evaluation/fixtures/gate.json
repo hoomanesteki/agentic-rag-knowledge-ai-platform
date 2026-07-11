@@ -11,6 +11,10 @@
     {"id": "F2", "query": "what is the return window for unused items", "expect": "retrieves", "value": "thirty days"},
     {"id": "F3", "query": "how many user licenses does the premium tier include", "expect": "retrieves", "value": "twenty user licenses"},
     {"id": "F4", "query": "when are invoices emailed each month", "expect": "retrieves", "value": "first of each month"},
-    {"id": "F5", "query": "what is the boiling point of water", "expect": "abstain", "value": ""}
+    {"id": "F5", "query": "what is the boiling point of water", "expect": "abstain", "value": ""},
+    {"id": "F6", "query": "what are the opening hours at your downtown showroom", "expect": "abstain", "value": ""},
+    {"id": "F7", "query": "who is the account holder on order number 5592", "expect": "abstain", "value": ""},
+    {"id": "F8", "query": "how do I redeem the loyalty rewards points from my membership", "expect": "abstain", "value": ""},
+    {"id": "F9", "query": "please refund the subscription fee I was charged last winter", "expect": "abstain", "value": ""}
   ]
 }

@@ -59,11 +59,13 @@ Language models are unreliable at arithmetic and worse at making up plausible nu
 
 This is a portfolio, so the data layer has to *demonstrate* governance, not just have it. dbt gives real schema tests, PII-masking rules, and a deterministic, reproducible build, and it runs in CI, where a parity test asserts the dbt-built gold tables match the in-app builder exactly. DuckDB keeps the whole thing local and zero-infrastructure: no warehouse to provision, and the same file works on a laptop and in CI.
 
-## Three brains, one seam
+## Two brains, one seam (and one we retired)
 
-**Chosen:** a master orchestrator (the default), a fast linear pipeline, and a LangGraph supervisor, selectable by one `CHAT_BRAIN` flag.
+**Chosen:** a master orchestrator (the default) and a fast linear pipeline, selectable by one `CHAT_BRAIN` flag.
 
-The default `omni` brain is the master orchestrator: it routes each turn to a specialized lane, then streams through the one gated pipeline. `linear` is that same pipeline with no routing, one pass, retrieve, ground, answer. The LangGraph `agent` brain is a bounded loop: it reformulates and re-retrieves when the first pass is thin, and escalates to a human review queue when it still can't ground an answer. Same retrieval, same guards, different control flow. Keeping all three behind one seam means the demo can show routing and the agentic loop without slowing down the common case.
+The default `omni` brain is the master orchestrator: it routes each turn to a specialized lane, then streams through the one gated pipeline. `linear` is that same pipeline with no routing, one pass, retrieve, ground, answer. Both share the same retrieval and the same guards; only the control flow differs, so the demo can show routing without slowing down the common case.
+
+**Retired:** a third `agent` brain, a LangGraph supervisor with a bounded retry loop, once ran the same turn as a state machine. It was deleted (around 600 lines and two heavyweight dependencies gone). Two brains meant two safety surfaces to keep in parity, the deterministic omni path won on the routing golden set, and the guidance we follow is to add framework abstraction only when a simpler composition fails. `agent` now maps to omni. Scoring the deletion is the point: less code, one safety surface, a stronger story than keeping both.
 
 ## Alternatives at a glance
 

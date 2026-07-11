@@ -4,8 +4,9 @@ A staged plan to take the platform from "works" to "best-in-class, and legible t
 ten minutes." Each stage is a self-contained, committable increment. Ordered by impact-per-effort
 for a hiring-manager demo, not by layer.
 
-The guiding principle: most of the hard machinery already exists (medallion ETL, a LangGraph
-agentic brain, MLflow + drift, a RAGAS/golden eval suite with a CI gate, resilient fallbacks). The
+The guiding principle: most of the hard machinery already exists (medallion ETL, a deterministic
+master-orchestrator brain, MLflow + drift, a RAGAS/golden eval suite with a CI gate, resilient
+fallbacks). The
 work is to **deepen the thin parts, close the real gaps, and make the invisible sophistication
 visible** through content, UX, dashboards, and honest documentation.
 
@@ -19,7 +20,7 @@ What already exists, so we deepen instead of rebuild:
 | --- | --- | --- |
 | Medallion ETL (bronze/silver) | Yes | `dbt/models/staging`, `dbt/models/silver` |
 | Semantic / metrics layer | Yes | `docs/semantic-layer.md`, metrics governance |
-| Agentic brain (LangGraph) | Yes | `rag/{agent,supervisor,graph,specialists,state}.py` |
+| Master-orchestrator brain (deterministic) | Yes | `rag/omni.py`, `rag/router.py`, `pipeline/answer.py` |
 | Human-in-the-loop + flywheel | Yes | `rag/hitl.py`, `rag/flywheel.py` |
 | Eval: RAGAS, golden, CI gate, monitoring | Yes | `evaluation/*` |
 | Drift monitoring | Yes | `mlops/drift.py` |
@@ -74,8 +75,8 @@ The demo lives or dies here. A reviewer types real shopper questions and reads t
 
 ## Stage 5, Agentic workflow, loops, fallbacks, scale
 
-- A **diagram + doc** of the LangGraph loop (understand → retrieve → govern → answer → verify →
-  escalate → flywheel) so the agentic design is visible.
+- A **diagram + doc** of the orchestrator flow (route → retrieve → govern → answer → verify →
+  escalate → flywheel) so the design is visible.
 - **Loops with cost caps**: the feedback flywheel (re-index verified answers), a retrain/refresh
   trigger, and capped retries (e.g., 3 attempts) on transient failures.
 - **Fallback chain**, documented and tested: reranker → cache → skip; LLM → smaller model →

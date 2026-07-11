@@ -87,13 +87,12 @@ The demo runs on a hobby budget, so the following is the intended path, with the
 - **Rollback.** Because a config is just providers plus a prompt behind factory seams, rollback is switching back to the previous config, not a redeploy. The champion in the registry is always a known-good target.
 - **Fallback at runtime.** Additive dependencies (graph, metric layer, voice) degrade rather than fail, and the retry seams ride out a transient provider blip, so a bad minute does not become a bad outage.
 
-## The stack: LangChain-core, LangGraph, Langfuse
+## The stack: deterministic orchestration, Langfuse
 
-Three pieces, one job each, wired so a turn is inspectable end to end.
+Two pieces, one job each, wired so a turn is inspectable end to end.
 
-- **LangChain-core** is the runtime substrate. The brain compiles to a langchain-core `Runnable` (`CompiledStateGraph`) and is driven through the standard `.invoke()` interface, so it composes and traces like any LangChain runnable.
-- **LangGraph** is the orchestration: a typed `understand -> dispatch -> reconcile` state graph with a gate and a bounded retry loop, so the agent's steps are a diagram, not a black box.
-- **Langfuse** is the observability: one root span per turn (`@observe`), every LLM generation nested under it with model, tokens, latency, and cost. The LLM is a custom Groq adapter rather than a LangChain LLM, so tracing uses spans instead of the callback handler, a deliberate choice noted in the code. One turn maps to one trace in the Langfuse UI.
+- **The omni orchestrator** is deterministic Python. It routes each turn through a cheap-first 3-layer cascade (`rag/router.py`), then answers through the one gated pipeline (`pipeline/answer.py`). The LLM is called only at the decision points (an ambiguous-route tie-break, then generation), not inside a framework loop. This is Anthropic's routing plus orchestrator-worker pattern and 12-Factor Agents' "own your control flow". An earlier LangGraph supervisor brain was retired because a second control-flow framework was a second safety surface to keep in parity, with no measured win over the deterministic path.
+- **Langfuse** is the observability: one root span per turn (`@observe`), every LLM generation nested under it with model, tokens, latency, and cost. The LLM is a custom Groq adapter, so tracing uses spans directly. One turn maps to one trace in the Langfuse UI.
 
 ## The four things we monitor
 

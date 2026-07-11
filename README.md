@@ -21,7 +21,7 @@ offline on fakes; the models (Groq, Cohere) and stores (Qdrant, DuckDB, Neo4j) a
   a specialist lane, shopping (Sara), care, complaint, answers, or escalation (Tiffany), all sharing
   **one gated pipeline**, so specialization sharpens tone, never safety. Free deterministic layers
   handle most turns (81.6%); a cheap 8B tie-break lifts the rest to 85.9% with 100% escalation
-  recall. (A `linear` and a LangGraph `agent` brain are also selectable.) Diagram below.
+  recall. (A `linear` no-routing brain is also selectable.) Diagram below.
 - **Guards that do not trust the model.** Order PII, prompt injection, customer enumeration, and
   gender-correct recommendations are enforced deterministically in code, before the prompt. See
   [the guardrails](#guardrails-enforced-in-code-not-in-the-prompt).
@@ -56,7 +56,7 @@ offline on fakes; the models (Groq, Cohere) and stores (Qdrant, DuckDB, Neo4j) a
 | Layer | Choice | Where |
 | --- | --- | --- |
 | API | FastAPI: SSE chat, JWT auth, rate limiting, Turnstile, degraded mode | `api/` |
-| Brain | Master orchestrator (routes each turn to a lane) over one gated pipeline; `CHAT_BRAIN` also selects a linear or a LangGraph-supervisor brain | `rag/`, `pipeline/` |
+| Brain | Master orchestrator (routes each turn to a lane) over one gated pipeline; `CHAT_BRAIN` also selects a linear (no-routing) brain | `rag/`, `pipeline/` |
 | Retrieval | Qdrant hybrid (dense + sparse, server-side RRF), Cohere `embed-v4.0` + `rerank-v3.5` | `adapters/`, `retrieval/` |
 | Generation | Groq Llama 3.3 70B (large) and Llama 3.1 8B (small) | `adapters/groq.py` |
 | Voice | Groq Whisper in; browser voice or ElevenLabs Flash v2.5 out (key stays server-side) | `adapters/groq_whisper.py`, `adapters/elevenlabs.py` |
@@ -117,8 +117,9 @@ answer through the same gated pipeline, so no lane gets a weaker safety surface.
 ```
 
 The lanes are **data rows, not code**, a short focus added to one shared prompt, so a new specialist
-is a new row. Routing lives in `rag/router.py`; `CHAT_BRAIN` also selects `linear` (no routing) or
-`agent` (a LangGraph supervisor over three specialists in `rag/supervisor.py`).
+is a new row. Routing lives in `rag/router.py`; `CHAT_BRAIN` also selects `linear` (no routing). An
+earlier LangGraph `agent` brain was retired for one deterministic orchestrator, so `agent` now maps
+to omni.
 
 ## The data architecture
 
@@ -219,7 +220,7 @@ make doctor                # if a step hangs or fails, this says why (Docker, .e
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker (preflighted)
 make dbt-build             # build + test the semantic layer (medallion + governance tests)
 make ingest && make graph-load                   # build the vector index and the graph
-make serve                 # API on :8000     (omni master orchestrator by default; CHAT_BRAIN=linear|agent to switch)
+make serve                 # API on :8000     (omni master orchestrator by default; CHAT_BRAIN=linear to switch)
 cd web && npm install && npm run dev             # web chat on :3000
 ```
 

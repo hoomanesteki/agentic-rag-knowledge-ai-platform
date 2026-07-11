@@ -692,11 +692,12 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
     if model not in _PRICES:
         return None  # unknown model: do not pretend the cost is zero
     price_in, price_out = _PRICES[model]
-    # regular input + output, plus cached tokens billed on their own rates: cache reads at ~0.1x the
-    # input price, cache writes at ~1.25x. Defaults of 0 keep the Groq path (no prompt cache) exact.
+    # regular input + output, plus cached input. Groq prices a cache HIT at a flat 0.5x the input
+    # rate (gpt-oss-120b: $0.15 -> $0.075) with NO cache-write surcharge, unlike Anthropic's
+    # 0.1x-read / 1.25x-write. Defaults of 0 keep the no-cache path (llama-3.3-70b) exact.
     return round(prompt_tokens / 1e6 * price_in + completion_tokens / 1e6 * price_out
-                 + cache_read_tokens / 1e6 * price_in * 0.1
-                 + cache_creation_tokens / 1e6 * price_in * 1.25, 6)
+                 + cache_read_tokens / 1e6 * price_in * 0.5
+                 + cache_creation_tokens / 1e6 * price_in, 6)
 
 
 def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:

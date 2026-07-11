@@ -26,6 +26,7 @@ from adapters.config import get_settings
 from evaluation.ci_gate import load_gate, run_gate
 from mlops.ct import classify_signals, evaluate_trigger, run_ct_cycle
 from mlops.model_registry import ModelRegistry
+from mlops.notify import build_issue, post_issue
 from rag.hitl import ReviewQueue
 
 _TRACES = os.getenv("TRACE_PATH", "traces/requests.jsonl")
@@ -205,6 +206,12 @@ def main() -> int:
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2)
     _log_mlflow(d)
+
+    # NOTIFY: open or update one deduped GitHub issue with the signal, the candidate, and the exact
+    # next human commands. A dry run (no gh/token) just prints the issue, so notify never breaks CT.
+    if report.triggered:
+        posted = post_issue(build_issue(d))
+        d["notified"] = posted.get("posted", False)
 
     print("CT cycle: {}".format("TRIGGERED" if report.triggered else "no trigger this cycle"))
     print("  signals: drift={} ({}), new_verified={} (min {})".format(

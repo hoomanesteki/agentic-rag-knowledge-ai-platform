@@ -240,10 +240,16 @@ mlartifacts/
 # The model registry is operational state written by the CT cycle, not source. In CI it is a
 # per-run artifact; a real deployment persists it to a durable store.
 evaluation/reports/model_registry.json
+# Same: per-run CT outputs, not source. site_stats.json (committed) is the site's source of truth.
+evaluation/reports/ct_report.json
+evaluation/reports/learning_curve.jsonl
 
 # Quarto showcase build output (rendered by CI for Pages)
 showcase/_site/
 showcase/.quarto/
+# Quarto freeze cache: execution results are re-created fresh in CI (jupyter is installed), so the
+# cache is local-only and not committed, keeping with "nothing built is committed".
+showcase/_freeze/
 
 # ------------------------------------------------------------------------------
 # Operating system files

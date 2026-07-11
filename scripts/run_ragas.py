@@ -94,7 +94,7 @@ def main() -> int:
             "question": g["question"], "answer": result.answer, "abstained": result.abstained,
             "contexts": [c["text"] for c in result.contexts],
             "ground_truth": "; ".join(g.get("expected_answer_contains", []) or []),
-            "lang": g.get("lang", "unknown")})
+            "lang": g.get("lang", "unknown"), "difficulty": g.get("difficulty", "untagged")})
 
     report = evaluate_ragas(items, judge, embedder)
     aggregate = _aggregate(report)

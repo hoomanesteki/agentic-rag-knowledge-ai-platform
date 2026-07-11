@@ -172,18 +172,23 @@ def ragas_scores(item: dict, judge, embedder) -> dict:
 
 
 def evaluate_ragas(items: list[dict], judge, embedder=None) -> dict:
-    """Score every item and average each metric overall and by language."""
+    """Score every item and average each metric overall, by language, and by difficulty, so the
+    worst stratum stops hiding inside a blended average and a regression is diagnosable."""
     overall: dict = defaultdict(list)
     by_language: dict[str, dict] = defaultdict(lambda: defaultdict(list))
+    by_difficulty: dict[str, dict] = defaultdict(lambda: defaultdict(list))
     for item in items:
         lang = item.get("lang") or "unknown"
+        difficulty = item.get("difficulty") or "untagged"
         for metric, score in ragas_scores(item, judge, embedder).items():
             if score is not None:
                 overall[metric].append(score)
                 by_language[lang][metric].append(score)
+                by_difficulty[difficulty][metric].append(score)
 
     def finalize(b: dict) -> dict:
         return {metric: round(mean(values), 3) for metric, values in b.items() if values}
 
     return {"count": len(items), "overall": finalize(overall),
-            "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())}}
+            "by_language": {lang: finalize(b) for lang, b in sorted(by_language.items())},
+            "by_difficulty": {d: finalize(b) for d, b in sorted(by_difficulty.items())}}

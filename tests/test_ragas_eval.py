@@ -87,3 +87,16 @@ def test_scorecard_by_language():
     assert card["overall"]["faithfulness"] == 1.0
     # fr had nothing to score, so it gets no bucket
     assert "en" in card["by_language"] and "fr" not in card["by_language"]
+
+
+def test_scorecard_stratifies_by_difficulty():
+    items = [
+        {"question": "q1", "answer": "a1", "contexts": ["c"], "ground_truth": "g",
+         "lang": "en", "difficulty": "common"},
+        {"question": "q2", "answer": "a2", "contexts": ["c"], "ground_truth": "g",
+         "lang": "en", "difficulty": "edge"},
+    ]
+    card = evaluate_ragas(items, RagasFakeLLM(), make_embedder("fake"))
+    # the worst stratum stops hiding inside a blended average: each difficulty gets its own bucket
+    assert set(card["by_difficulty"]) == {"common", "edge"}
+    assert card["by_difficulty"]["edge"]["faithfulness"] == 1.0

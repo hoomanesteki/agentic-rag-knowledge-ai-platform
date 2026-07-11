@@ -63,7 +63,12 @@ reasoning heavy.
 
 - Multilingual routing leans on the LLM tie-break, since the deterministic cues are English. That
   is a known trade-off, not a bug: the cheap layer covers the common case and the model covers the
-  long tail.
+  long tail. Measured on the multilingual stratum, deterministic-only scores 27%, the 8B tie-break
+  lifts it to 87%, and the 70B to 100% (escalation goes 90% -> 100%). The English guards correctly
+  DEFER non-English to the multilingual model rather than guessing a wrong lane, so the right fix is
+  a multilingual model on the long tail, not brittle per-language regexes. The stratified scorecard
+  (by stratum in routing_eval.json, by difficulty and language in the RAGAS card) keeps this visible
+  so it can never hide inside a blended average.
 - The set is synthetic. The router cues were written from phrasings a person would recognize, not
   by fitting the specific cases, and the ambiguous and answers strata are graded on whether the
   brain defers rather than on a single lane, so a router cannot score well here by memorizing.

@@ -1236,10 +1236,32 @@ def _user_authored_text(query: str, history: list[dict] | None) -> str:
     return " ".join(parts)
 
 
+def _rerank_skip_enabled() -> bool:
+    # read at call time so tests and ops can toggle it without a reimport; default off
+    return os.getenv("RERANK_SKIP", "off").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _rerank_skip_reason(query: str, hits: list[dict], top_k: int) -> str | None:
+    """Why reranking this query cannot change the answer, or None if it might. The cross-encoder
+    rerank is the single largest cost line of a text turn, so skip it only where it is provably
+    irrelevant: an identity-gated own-order lookup (a tiny, self-relevant set) or a pool no larger
+    than the cut (nothing to prune). A third heuristic, skip-on-clean-hybrid-margin, was tried and
+    REJECTED: the golden calibration showed it halved abstain_recall (0.208 -> 0.083), because an
+    out-of-catalog query often has a spuriously dominant top hit that only the reranker down-scores.
+    See evaluation/reports/rerank_skip_calibration.json."""
+    if not _rerank_skip_enabled():
+        return None
+    if _account_intent(query):
+        return "own-order lookup"
+    if len(hits) <= top_k:
+        return "pool<=top_k"
+    return None
+
+
 def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
              reranker: Reranker | None = None, top_k_in: int = 50,
-             dense_only: bool = False, auth_text: str | None = None, gender=_GENDER_UNSET
-             ) -> list[dict]:
+             dense_only: bool = False, auth_text: str | None = None, gender=_GENDER_UNSET,
+             rerank_skip_out: dict | None = None) -> list[dict]:
     """Hybrid retrieval used by both the answer pipeline and the eval harness.
 
     With a reranker, fetch a wider pool (top_k_in) then rerank down to top_k; the hit score
@@ -1282,6 +1304,11 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     hits = _gender_filter(hits, gender)
     if reranker is None or not hits:
         return hits[:top_k]
+    skip = _rerank_skip_reason(query, hits, top_k)
+    if skip is not None:
+        if rerank_skip_out is not None:
+            rerank_skip_out.update({"skipped": True, "reason": skip})
+        return hits[:top_k]  # skip the paid rerank where it cannot change the answer
     texts = [((h.get("payload") or {}).get("text") or " ") for h in hits]  # avoid empty inputs
     # Fallback: if the reranker (Cohere) is unavailable, keep the hybrid order rather than fail. The
     # reranker sharpens precision; without it retrieval is coarser but still relevant.
@@ -1505,8 +1532,9 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         # keep the (expanded) question FIRST so the comparison term survives the 400-char cap, then
         # append up to five prior product names to anchor retrieval; a truncated pin is fine
         retrieval_q = (rquery + " " + " ".join(pinned[:5])).strip()[:400]
+    rerank_skip: dict = {}
     hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
-                    auth_text=auth_text, gender=sticky_gender)
+                    auth_text=auth_text, gender=sticky_gender, rerank_skip_out=rerank_skip)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
     # use the expanded query for graph/metric evidence too, so "what about size M?" can still
     # slot-fill a governed stock metric with the product from the prior turn
@@ -1614,6 +1642,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         cached_tokens=cached_tokens, cost=answer_cost,
         cost_by_tier=({answer_tier: answer_cost}
                       if answer_cost is not None and answer_tier else {}),
+        rerank_skipped=rerank_skip.get("reason"),  # None when rerank ran; the reason when skipped
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
     write_trace(trace, trace_path)

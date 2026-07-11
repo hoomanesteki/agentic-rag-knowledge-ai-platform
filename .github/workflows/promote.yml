@@ -28,10 +28,10 @@ jobs:
     # The gate: the run cannot proceed past this until a required reviewer approves the environment.
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 

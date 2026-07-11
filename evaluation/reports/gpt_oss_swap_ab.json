@@ -1,0 +1,68 @@
+{
+  "eval": "gpt-oss-120b workhorse swap A/B (RAGAS answer quality)",
+  "method": "same pipeline + same live index; judge FIXED to llama-3.3-70b for both runs so only the generation model varies. Judge shares the baseline's family, so self-preference bias tilts toward llama: a conservative test for the candidate.",
+  "count": 97,
+  "offline": false,
+  "baseline_model": "llama-3.3-70b-versatile",
+  "candidate_model": "openai/gpt-oss-120b",
+  "aggregate": {
+    "baseline": 0.8745,
+    "candidate": 0.8712,
+    "delta": -0.0033
+  },
+  "overall": {
+    "answer_relevance": {
+      "baseline": 0.776,
+      "candidate": 0.781,
+      "delta": 0.005
+    },
+    "context_precision": {
+      "baseline": 0.861,
+      "candidate": 0.852,
+      "delta": -0.009
+    },
+    "context_recall": {
+      "baseline": 0.868,
+      "candidate": 0.882,
+      "delta": 0.014
+    },
+    "faithfulness": {
+      "baseline": 0.993,
+      "candidate": 0.97,
+      "delta": -0.023
+    }
+  },
+  "by_language": {
+    "baseline": {
+      "en": {
+        "faithfulness": 0.992,
+        "answer_relevance": 0.772,
+        "context_precision": 0.86,
+        "context_recall": 0.868
+      },
+      "fr": {
+        "faithfulness": 1.0,
+        "answer_relevance": 0.802,
+        "context_precision": 0.866,
+        "context_recall": 0.867
+      }
+    },
+    "candidate": {
+      "en": {
+        "faithfulness": 0.966,
+        "answer_relevance": 0.772,
+        "context_precision": 0.842,
+        "context_recall": 0.849
+      },
+      "fr": {
+        "faithfulness": 1.0,
+        "answer_relevance": 0.84,
+        "context_precision": 0.898,
+        "context_recall": 1.0
+      }
+    }
+  },
+  "regression_tolerance": 0.02,
+  "decision": "HOLD (not flipped). faithfulness regressed 0.023 (> 0.02 tolerance) on the hallucination guard, while aggregate quality is flat; the ~70% workhorse cost cut does not justify trading the project's strongest safety property wholesale. Revisit as a targeted answers-lane swap or after the Phase 2 faithfulness ladder is in place.",
+  "cost_note": "gpt-oss-120b $0.15/$0.60 per 1M vs llama-3.3-70b $0.59/$0.79, plus a 0.5x prompt-cache discount; ~70% cheaper on the workhorse line if adopted."
+}

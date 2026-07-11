@@ -8,12 +8,7 @@ name: CT
 on:
   schedule:
     - cron: "0 6 * * 1" # every Monday 06:00 UTC
-  workflow_dispatch:
-    inputs:
-      auto_promote:
-        description: "Mark a recommended promotion approved (recorded only; CT never deploys)"
-        type: boolean
-        default: false
+  workflow_dispatch: {}  # CT only ever PROPOSES; a human approves promotion, so there is no input
 
 # One CT run at a time; do not cancel an in-flight retrain when a manual run overlaps the cron.
 concurrency:
@@ -43,7 +38,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           LLM_PROVIDER: ${{ secrets.GROQ_API_KEY && 'groq' || 'fake' }}
         run: |
-          make ct CT_ARGS="--scheduled ${{ github.event.inputs.auto_promote == 'true' && '--auto-promote' || '' }}"
+          make ct CT_ARGS="--scheduled"
 
       - name: Upload the CT report + model registry (the promotion proposal for human review)
         if: always()

@@ -24,7 +24,7 @@ import time
 
 from adapters.config import get_settings
 from evaluation.ci_gate import load_gate, run_gate
-from mlops.ct import evaluate_trigger, run_ct_cycle
+from mlops.ct import classify_signals, evaluate_trigger, run_ct_cycle
 from mlops.model_registry import ModelRegistry
 from rag.hitl import ReviewQueue
 
@@ -49,7 +49,7 @@ def _read_jsonl(path: str) -> list[dict]:
     return out
 
 
-def _drift_signal() -> tuple[float | None, str]:
+def _drift_signal() -> tuple[float | None, str, dict]:
     """Number of drift monitors flagged between an earlier and the current traffic window, or None
     when there is not enough traffic to split two windows. Uses a bounded recency window (the last
     800 traces) so an old one-time regime shift does not re-trigger CT forever, and honors the
@@ -57,14 +57,15 @@ def _drift_signal() -> tuple[float | None, str]:
     from mlops.drift import drift_report
     traces = sorted(_read_jsonl(_TRACES), key=lambda t: t.get("ts", 0.0))[-800:]
     if len(traces) < 40:
-        return None, "not enough traffic to measure drift ({} traces)".format(len(traces))
+        return None, "not enough traffic to measure drift ({} traces)".format(len(traces)), {}
     cut = len(traces) // 2
     rep = drift_report(traces[:cut], traces[cut:])
     flagged = sum(1 for m in rep["monitors"].values() if m.get("drift"))
     flagged += sum(1 for lang in rep["by_language"].values()
                    for m in lang.values() if m.get("drift"))
     score = float(max(flagged, 1 if rep.get("drifted") else 0))  # drifted always triggers
-    return score, "{} drift monitor(s) flagged (drifted={})".format(flagged, rep.get("drifted"))
+    note = "{} drift monitor(s) flagged (drifted={})".format(flagged, rep.get("drifted"))
+    return score, note, rep
 
 
 def _new_labeled(domain: str) -> int:
@@ -150,29 +151,34 @@ def main() -> int:
     ap.add_argument("--drift-threshold", type=float,
                     default=float(os.getenv("CT_DRIFT_THRESHOLD", "1")))
     ap.add_argument("--min-gain", type=float, default=float(os.getenv("CT_MIN_GAIN", "0.01")))
-    ap.add_argument("--auto-promote", action="store_true",
-                    help="apply a recommended promotion (default OFF: propose, a human approves)")
     ap.add_argument("--skip-train", action="store_true",
                     help="gate-only health check, no retraining (fast, no Groq key needed)")
     ap.add_argument("--out", default=_CT_REPORT)
     args = ap.parse_args()
 
     domain = get_settings().domain
-    drift_score, drift_note = _drift_signal()
+    drift_score, drift_note, drift_rep = _drift_signal()
     new_labeled = _new_labeled(domain)
     fired, reasons = evaluate_trigger(
         drift_score=drift_score, drift_threshold=args.drift_threshold,
         new_labeled=new_labeled, min_new_labeled=args.min_new_labeled,
         scheduled=args.scheduled, forced=args.force)
 
+    # Signal-to-action: open a prompt experiment ONLY when a quality signal warrants it (or a human
+    # forced/scheduled the cycle). Data/index drift stops at notify: a prompt cannot fix it.
+    classification = classify_signals(drift_rep, new_labeled=new_labeled,
+                                      min_new_labeled=args.min_new_labeled)
+    warranted = bool(args.force or args.scheduled or classification["experiment_warranted"])
+
     train = (lambda: {"note": "training skipped (--skip-train)"}) if args.skip_train else _train
     report = run_ct_cycle(trigger_fired=fired, reasons=reasons, train=train, gate=_gate,
-                          min_gain=args.min_gain, auto_promote=args.auto_promote)
+                          min_gain=args.min_gain, experiment_warranted=warranted)
 
     d = report.to_dict()
     d["domain"] = domain
     d["signals"] = {"drift_score": drift_score, "drift_note": drift_note,
-                    "new_labeled": new_labeled, "min_new_labeled": args.min_new_labeled}
+                    "new_labeled": new_labeled, "min_new_labeled": args.min_new_labeled,
+                    "classification": classification}
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     d["at"] = stamp
 

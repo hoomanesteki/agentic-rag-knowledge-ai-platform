@@ -15,6 +15,8 @@ fully-loaded human-agent rate; verify against current pricing before quoting ext
 from __future__ import annotations
 
 import json
+import os
+from collections import Counter
 
 # LLM prices per 1M tokens (input, output). Groq values match pipeline.answer._PRICES; the frontier
 # rows are list prices used only for the comparison, the app itself is Groq-only.
@@ -101,9 +103,87 @@ def build() -> dict:
     }
 
 
+# --- measured mode: reconcile the bottom-up estimate above against real metered traffic ---------
+# The estimate uses hand-set token assumptions. Once turns are metered (streamed usage or the
+# non-streamed cost path), this reads the trace log and reports p50/p95 tokens and cost per turn,
+# side by side with the assumptions, flagging any that drift. That is what turns the 430x claim
+# from a stated assumption into a measured number.
+
+def _percentile(values: list[float], p: float) -> float | None:
+    if not values:
+        return None
+    s = sorted(values)
+    k = (len(s) - 1) * p
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
+def measured_from_traces(trace_path: str | None = None) -> dict | None:
+    """Per-turn tokens and cost measured from the metered trace log. Returns None when no turn has
+    recorded usage yet, so the caller can say 'not measured' instead of inventing a zero."""
+    path = trace_path or os.getenv("TRACE_PATH", "traces/requests.jsonl")
+    if not os.path.exists(path):
+        return None
+    metered = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("cost") is not None and r.get("prompt_tokens"):
+                metered.append(r)
+    if not metered:
+        return None
+    pt = [r["prompt_tokens"] for r in metered]
+    ct = [r.get("completion_tokens", 0) or 0 for r in metered]
+    cost = [r["cost"] for r in metered]
+    return {
+        "n": len(metered),
+        "prompt_tokens": {"p50": round(_percentile(pt, 0.5)), "p95": round(_percentile(pt, 0.95))},
+        "completion_tokens": {"p50": round(_percentile(ct, 0.5)),
+                              "p95": round(_percentile(ct, 0.95))},
+        "cost_per_turn": {"p50": round(_percentile(cost, 0.5), 6),
+                          "p95": round(_percentile(cost, 0.95), 6),
+                          "mean": round(sum(cost) / len(cost), 6)},
+        "models": dict(Counter(r.get("model") for r in metered)),
+    }
+
+
+def estimate_vs_measured(trace_path: str | None = None, tolerance: float = 0.25) -> dict:
+    """The assumptions next to the measured p50, flagging any assumption off by more than tol."""
+    m = measured_from_traces(trace_path)
+    if m is None:
+        return {"measured": None,
+                "note": "no metered turns yet; run live traffic to populate traces"}
+
+    def off_by(assumed: float, measured: float | None) -> float | None:
+        return None if not measured else round((measured - assumed) / assumed, 3)
+
+    pt_off = off_by(PROMPT_TOKENS, m["prompt_tokens"]["p50"])
+    ct_off = off_by(COMPLETION_TOKENS, m["completion_tokens"]["p50"])
+    flags = []
+    if pt_off is not None and abs(pt_off) > tolerance:
+        flags.append("prompt_tokens assumption {} off by {:+.0%}".format(PROMPT_TOKENS, pt_off))
+    if ct_off is not None and abs(ct_off) > tolerance:
+        flags.append("completion_tokens assumption {} off by {:+.0%}".format(
+            COMPLETION_TOKENS, ct_off))
+    return {
+        "measured": m,
+        "assumptions": {"prompt_tokens": PROMPT_TOKENS, "completion_tokens": COMPLETION_TOKENS},
+        "prompt_tokens_off_by": pt_off,
+        "completion_tokens_off_by": ct_off,
+        "flags": flags,
+    }
+
+
 if __name__ == "__main__":
-    import os
     model = build()
+    model["measured_vs_estimate"] = estimate_vs_measured()
     os.makedirs("evaluation/reports", exist_ok=True)
     with open("evaluation/reports/cost_model.json", "w", encoding="utf-8") as f:
         json.dump(model, f, indent=2)

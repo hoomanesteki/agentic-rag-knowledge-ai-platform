@@ -44,9 +44,27 @@ def _evaluate(prompt, cases, small):
     return (correct / graded if graded else 0.0), misrouted
 
 
+def _diagnose(current, ex, proposer):
+    """GEPA-style reflection: before rewriting, have the proposer diagnose the PATTERN behind the
+    failures in natural language. Feeding that diagnosis into the rewrite is what makes reflective
+    prompt evolution generalize where a blind rewrite flatlines on held-out data."""
+    try:
+        r = proposer.generate(
+            "Here is a router SYSTEM PROMPT and examples it misroutes. In 2-3 sentences, diagnose "
+            "the PATTERN behind the errors: what kind of message it mishandles and why. Do NOT "
+            "rewrite the prompt yet.\n\nPROMPT:\n" + current + "\n\nMISROUTED:\n" + ex,
+            system="You diagnose router prompt failures precisely and concisely.", max_tokens=180)
+        return r.text.strip()
+    except Exception:
+        return ""
+
+
 def _propose(current, misrouted, n, proposer):
     ex = "\n".join("- {!r} should be {} but got {}".format(m["query"], m["want"], m["got"])
                    for m in misrouted) or "(none)"
+    diagnosis = _diagnose(current, ex, proposer)
+    diag_block = ("\n\nDIAGNOSIS OF THE FAILURE PATTERN (address this):\n" + diagnosis
+                  if diagnosis else "")
     ask = (
         "You are improving a shopping assistant's router SYSTEM PROMPT. The current prompt sorts a "
         "message into one of stylist, care, complaint, answers, unclear as JSON {\"lane\": L}. It "
@@ -55,7 +73,7 @@ def _propose(current, misrouted, n, proposer):
         "for general or policy questions, and unclear only when a message genuinely reads as two "
         "different specific intents. Keep it short, keep the exact JSON output contract, do not "
         "invent lanes. Reply with ONLY the new system prompt text, no preamble.\n\n"
-        "CURRENT PROMPT:\n" + current + "\n\nMISROUTED EXAMPLES:\n" + ex)
+        "CURRENT PROMPT:\n" + current + "\n\nMISROUTED EXAMPLES:\n" + ex + diag_block)
     out = []
     for i in range(n):
         try:

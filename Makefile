@@ -92,6 +92,9 @@ shadow: ## Human-triggered shadow replay: champion vs challenger on real traffic
 consolidate: ## Human-triggered: propose a knowledge pack from recent traffic for a person to approve
 	PYTHONPATH=. uv run python scripts/run_consolidate.py
 
+site-stats: ## Emit the site's headline numbers to evaluation/reports/site_stats.json (pages read it)
+	PYTHONPATH=. uv run python scripts/build_site_stats.py
+
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 

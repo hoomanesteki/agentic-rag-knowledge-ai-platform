@@ -1,0 +1,21 @@
+{
+  "tests": 542,
+  "golden_items": 121,
+  "routing": {
+    "deterministic_pct": 81.6,
+    "deterministic_escalation_recall_pct": 84.4,
+    "tiebreak_8b_pct": 85.9,
+    "tiebreak_8b_escalation_recall_pct": 100.0,
+    "tiebreak_70b_pct": 85.3
+  },
+  "cost": {
+    "human_vs_ai_ratio": 430.0,
+    "text_turn_usd": 0.0031,
+    "human_turn_usd": 1.3333
+  },
+  "catalog": {
+    "products": 158,
+    "variants": 578
+  },
+  "routing_eval_set": 350
+}

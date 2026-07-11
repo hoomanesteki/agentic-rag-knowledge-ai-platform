@@ -1,4 +1,4 @@
-"""M8.3 drift monitors: PSI, query-embedding drift, and the four-monitor report by language."""
+"""M8.3 drift monitors: PSI, query-embedding drift, and the five-monitor report by language."""
 from adapters.factory import make_embedder
 from mlops.drift import drift_report, embedding_drift, psi
 
@@ -37,6 +37,25 @@ def test_drift_report_flags_retrieval_drop_and_stratifies():
     assert report["drifted"] is True
     assert report["monitors"]["retrieval_score"]["drift"] is True
     assert "en" in report["by_language"]
+
+
+def test_drift_report_flags_a_grounding_slide_ignoring_abstains():
+    # answered turns slide from well-grounded to poorly-grounded -> grounding PSI must flag it
+    reference = [{"lang": "en", "tier": "auto", "grounding": 0.95} for _ in range(20)]
+    current = [{"lang": "en", "tier": "auto", "grounding": 0.45} for _ in range(20)]
+    # a pile of abstains (grounding 0.0) must NOT be read as a groundedness collapse
+    current += [{"lang": "en", "tier": "abstain", "grounding": 0.0} for _ in range(20)]
+    report = drift_report(reference, current)
+    assert report["monitors"]["grounding"]["drift"] is True
+    assert report["drifted"] is True
+
+
+def test_grounding_monitor_ignores_abstain_only_traffic():
+    # abstains carry grounding 0.0 but are excluded, so an abstain-heavy window is not false drift
+    reference = [{"lang": "en", "tier": "auto", "grounding": 0.9} for _ in range(20)]
+    current = [{"lang": "en", "tier": "abstain", "grounding": 0.0} for _ in range(20)]
+    report = drift_report(reference, current)
+    assert report["monitors"]["grounding"]["psi"] is None  # nothing answered to compare against
 
 
 def test_drift_report_flags_feedback_rate_rise():

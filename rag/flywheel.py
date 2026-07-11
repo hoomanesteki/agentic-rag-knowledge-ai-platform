@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 from retrieval.sparse import SparseEncoder
 
@@ -21,13 +22,15 @@ def _verified_id(item: dict) -> str:
 
 
 def reindex_verified(items: list[dict], embedder, store,
-                     encoder: SparseEncoder | None = None) -> int:
+                     encoder: SparseEncoder | None = None, indexed_at: str | None = None) -> int:
     """Index each resolved answer as a retrievable verified chunk (idempotent by id). The question
     and answer are embedded together so the question matches; the clean answer is what is stored
-    and shown."""
+    and shown. Each chunk is stamped with indexed_at, so staleness monitoring can flag a verified
+    answer that has outlived the data behind it."""
     items = [it for it in items if (it.get("answer") or "").strip()]
     if not items:
         return 0
+    stamp = indexed_at or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     encoder = encoder or SparseEncoder()
     embed_texts = ["{} {}".format(it["question"], it["answer"]).strip() for it in items]
     dense = embedder.embed(embed_texts, input_type="document")
@@ -39,7 +42,7 @@ def reindex_verified(items: list[dict], embedder, store,
             "id": vid, "text": item["answer"],
             "payload": {"doc_type": "verified", "source": "hitl", "chunk_id": vid,
                         "question": item["question"], "answered_by": item.get("answered_by"),
-                        "domain": item.get("domain")},
+                        "domain": item.get("domain"), "indexed_at": stamp},
             "dense": vector, "sparse": {"indices": sparse.indices, "values": sparse.values}})
     store.upsert(points)
     return len(points)

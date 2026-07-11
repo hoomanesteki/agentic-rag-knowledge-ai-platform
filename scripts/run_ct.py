@@ -25,6 +25,7 @@ import time
 from adapters.config import get_settings
 from evaluation.ci_gate import load_gate, run_gate
 from mlops.ct import classify_signals, evaluate_trigger, run_ct_cycle
+from mlops.learning_curve import append_point
 from mlops.model_registry import ModelRegistry
 from mlops.notify import build_issue, post_issue
 from rag.hitl import ReviewQueue
@@ -206,6 +207,14 @@ def main() -> int:
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2)
     _log_mlflow(d)
+
+    # provable self-learning: append one learning-curve point per cycle (the held-out score against
+    # the growing verified eval set), so quality-over-time is a graph the showcase plots
+    append_point(os.getenv("LEARNING_CURVE_PATH", "evaluation/reports/learning_curve.jsonl"),
+                 at=stamp,
+                 score=(report.candidate_score if report.candidate_score is not None
+                        else report.baseline_score),
+                 n_examples=new_labeled, version=d.get("registered_version"))
 
     # NOTIFY: open or update one deduped GitHub issue with the signal, the candidate, and the exact
     # next human commands. A dry run (no gh/token) just prints the issue, so notify never breaks CT.

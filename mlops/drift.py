@@ -1,15 +1,18 @@
 """M8.3 drift monitors: compare a reference window of traffic to a current one and flag drift.
 
-Four named monitors:
+Five named monitors:
 - query-embedding drift: cosine distance between the reference and current query-embedding
   centroids (needs an embedder; the same one the app uses).
 - retrieval-score distribution: PSI of the top vector-hit score per request (governed metric and
   graph blocks are excluded, since their score is a constant 1.0 that would mask a real drop).
 - confidence distribution: PSI of the lexical-overlap gate confidence, read from the same field
   across answer paths so a change in brain or metric-traffic mix is not misread as drift.
+- grounding distribution: PSI of the grounding score on ANSWERED turns (tier=auto), so a slow
+  slide in groundedness after a prompt or model change raises an alarm instead of hiding on the
+  dashboard. An abstain's 0.0 is excluded, since it is not a groundedness signal.
 - feedback rate: change in the thumbs-down rate.
 
-The retrieval-score and confidence monitors are also stratified by language.
+The retrieval-score, confidence, and grounding monitors are also stratified by language.
 
 Everything is derived from the traces and feedback the app already writes, so drift is measured on
 real traffic with no extra store. Trace fields are generic, so this stays domain agnostic.
@@ -111,6 +114,12 @@ def _gate_confidence(trace: dict):
     return trace.get("overlap_confidence", trace.get("confidence"))
 
 
+def _grounding(trace: dict):
+    # grounding of ANSWERED turns only; an abstain's 0.0 is a refusal, not a groundedness signal,
+    # so it must not pull the distribution down and mask a real slide on the answers that shipped
+    return trace.get("grounding") if trace.get("tier") == "auto" else None
+
+
 def _down_rate(feedback: list) -> float | None:
     verdicts = [f.get("verdict") for f in feedback if f.get("verdict") in ("up", "down")]
     return round(verdicts.count("down") / len(verdicts), 3) if verdicts else None
@@ -128,12 +137,14 @@ def _numeric_monitors(reference: list, current: list) -> dict:
         "confidence": _psi_monitor(
             [_gate_confidence(t) for t in reference], [_gate_confidence(t) for t in current],
             _PSI_THRESHOLD),
+        "grounding": _psi_monitor(
+            [_grounding(t) for t in reference], [_grounding(t) for t in current], _PSI_THRESHOLD),
     }
 
 
 def drift_report(reference: list, current: list, *, feedback_ref: list | None = None,
                  feedback_cur: list | None = None, embedder=None) -> dict:
-    """Overall and per-language drift across the four monitors, with a single `drifted` flag."""
+    """Overall and per-language drift across the five monitors, with a single `drifted` flag."""
     monitors = _numeric_monitors(reference, current)
     if embedder is not None:
         distance = embedding_drift([t.get("query", "") for t in reference],

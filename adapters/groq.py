@@ -58,11 +58,14 @@ class GroqClient:
                          model=self.model)
 
     def stream(self, prompt: str, *, system: str | None = None,
-               max_tokens: int = 512) -> Iterator[str]:
+               max_tokens: int = 512, usage_out: dict | None = None) -> Iterator[str]:
         if not self.api_key:
             raise RuntimeError("GROQ_API_KEY is not set; put it in .env")
+        # stream_options.include_usage adds a final chunk carrying token usage (with cached tokens),
+        # so a streamed turn is metered exactly like a non-streamed one, not left at zero cost.
         body = {"model": self.model, "messages": self._messages(prompt, system),
-                "max_tokens": max_tokens, "temperature": 0, "stream": True}
+                "max_tokens": max_tokens, "temperature": 0, "stream": True,
+                "stream_options": {"include_usage": True}}
         req = urllib.request.Request(
             self.base_url + "/chat/completions", data=json.dumps(body).encode(), method="POST")
         req.add_header("Content-Type", "application/json")
@@ -85,10 +88,17 @@ class GroqClient:
                     if data == "[DONE]":
                         break
                     try:
-                        choice = json.loads(data)["choices"][0]
-                    except (json.JSONDecodeError, KeyError, IndexError):
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
                         continue
-                    piece = (choice.get("delta") or {}).get("content")
+                    # the final chunk (include_usage) carries usage and an empty choices list
+                    if usage_out is not None:
+                        if isinstance(chunk.get("usage"), dict):
+                            usage_out.update(chunk["usage"])
+                        if chunk.get("model"):
+                            usage_out.setdefault("model", chunk["model"])
+                    choices = chunk.get("choices") or []
+                    piece = (choices[0].get("delta") or {}).get("content") if choices else None
                     if piece:
                         yield piece
             except (OSError, http.client.HTTPException) as exc:

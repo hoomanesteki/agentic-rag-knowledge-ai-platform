@@ -475,6 +475,10 @@ _VOICE_BREVITY = (
 _PRICES = {
     "llama-3.1-8b-instant": (0.05, 0.08),
     "llama-3.3-70b-versatile": (0.59, 0.79),
+    # gpt-oss on Groq: cheaper than the llama workhorse and the only tier with prompt caching, so a
+    # metered turn on it reflects the cached-input discount (see mlops/model_map.py).
+    "openai/gpt-oss-120b": (0.15, 0.60),
+    "openai/gpt-oss-20b": (0.10, 0.50),
 }
 
 # Coarse model-size tier a model belongs to, used to attribute per-turn cost by tier so the
@@ -484,6 +488,8 @@ _PRICES = {
 _MODEL_TIER = {
     "llama-3.1-8b-instant": "small",
     "llama-3.3-70b-versatile": "large",
+    "openai/gpt-oss-20b": "small",
+    "openai/gpt-oss-120b": "large",
 }
 
 
@@ -1580,16 +1586,33 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         profile = (profile + " " + shared) if profile else shared
     prompt = _build_prompt(query, contexts, history, profile=profile)
     parts = []
-    for piece in llm.stream(prompt, system=system):
+    usage: dict = {}  # filled from the stream's final usage chunk, so the turn is metered
+    for piece in llm.stream(prompt, system=system, usage_out=usage):
         parts.append(piece)
         yield {"type": "token", "text": piece}
     answer = "".join(parts)
     grounding = grounding_score(answer, contexts)
     citations = [{"n": c["n"], "id": c["id"], "source": c["source"], "doc_type": c["doc_type"]}
                  for c in _used_citations(answer, contexts)]
+    # measured token usage + cost from the streamed call (Groq stream_options.include_usage), so the
+    # streamed chat path carries the same cost signal the non-streamed path already does.
+    model_used = usage.get("model") or getattr(llm, "model", None)
+    prompt_tokens = int(usage.get("prompt_tokens") or 0)  # total input (cached + fresh)
+    completion_tokens = int(usage.get("completion_tokens") or 0)
+    cached_tokens = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)
+    # cost bills the fresh input at full rate and the cached input at ~0.1x, so split the total to
+    # avoid double-counting the cached tokens (they matter once the workhorse is a caching model).
+    answer_cost = (_estimate_cost(model_used, max(prompt_tokens - cached_tokens, 0),
+                                  completion_tokens, cache_read_tokens=cached_tokens)
+                   if model_used else None)
+    answer_tier = _tier_of(model_used) if model_used else None
     trace.update(
-        tier="auto", model=getattr(llm, "model", None), grounding=round(grounding, 3),
+        tier="auto", model=model_used, grounding=round(grounding, 3),
         streamed=True, prompt_hash=hashlib.sha256(prompt.encode()).hexdigest()[:16],
+        prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+        cached_tokens=cached_tokens, cost=answer_cost,
+        cost_by_tier=({answer_tier: answer_cost}
+                      if answer_cost is not None and answer_tier else {}),
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
     write_trace(trace, trace_path)

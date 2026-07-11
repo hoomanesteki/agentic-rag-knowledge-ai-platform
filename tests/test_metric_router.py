@@ -36,7 +36,7 @@ class SmartFakeLLM:
         return LLMResult(text=self._text(prompt), prompt_tokens=1, completion_tokens=1,
                          model="fake")
 
-    def stream(self, prompt, *, system=None, max_tokens=512):
+    def stream(self, prompt, *, system=None, max_tokens=512, usage_out=None):
         yield self._text(prompt)
 
 

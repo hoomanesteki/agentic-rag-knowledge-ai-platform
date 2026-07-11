@@ -56,7 +56,7 @@ The through-line: additive dependencies degrade quality and never break the answ
 
 ## Change is human-gated
 
-Nothing in the MLOps loop ships itself. Drift detection opens one deduped GitHub issue per signal. A candidate is registered only when a quality signal warrants it. A human runs the shadow replay of the challenger against real traffic, reads the delta, and approves the promotion. There is no auto-promote path anywhere in the codebase. Details on [MLOps](mlops.qmd).
+Nothing in the MLOps loop ships itself. Drift detection opens one deduped GitHub issue per signal. A candidate is registered only when a quality signal warrants it. A human runs the shadow replay of the challenger against real traffic, reads the delta, and approves the promotion. There is no auto-promote path in CI or the serving loop. Details on [MLOps](mlops.qmd).
 
 ## The hardening record
 

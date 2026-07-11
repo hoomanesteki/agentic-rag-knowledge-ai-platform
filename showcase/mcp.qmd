@@ -40,11 +40,11 @@ The MCP server holds no business logic and no second copy of a gate. Each tool d
 
 ## The tools
 
-Four sharp, read-only tools over the `{python} S["catalog"]["products"]`-product catalog and the governed metric layer. A small, credible surface, not an auto-generated dump of every endpoint.
+Five sharp, read-only tools over the `{python} S["catalog"]["products"]`-product catalog and the governed metric layer. A small, credible surface, not an auto-generated dump of every endpoint.
 
 | Tool | What it returns | Why it is safe |
 |---|---|---|
-| `skein_ask` | A grounded, cited answer from store data | Runs anonymous, so the order-PII gate refuses any order or account question exactly as it does for a signed-out web visitor |
+| `skein_ask` | A grounded, cited answer from store data | Runs with order and account disclosure blocked, so no order or account data is ever returned, even for a matching name and email |
 | `skein_search_products` | Catalog cards by text, gender, and price | Reads the governed gold catalog, read-only, truncated to protect the client's context |
 | `skein_get_product_facts` | One product's price, sizes, and honest reviews | Read-only lookup by id |
 | `skein_get_metric` / `skein_list_metrics` | A governed business metric by name | Name-validated against `metrics.yaml`; a single read-only SELECT, no free-form SQL, no raw PII layers |
@@ -77,12 +77,12 @@ Claude Desktop takes the same server as a JSON entry:
 
 The security posture is subtraction, not addition. There is no write, admin, login, TTS, or order-lookup tool, so no MCP client has a path to a shopper's private data in the first place.
 
-- **Anonymous by default.** `skein_ask` passes no identity, so the deterministic order-PII gate treats it like an unauthenticated caller and refuses to disclose an order.
+- **Order and account PII is blocked outright.** `skein_ask` runs anonymous and tells the pipeline to drop every order and account document before generation, so a name and email in the question discloses nothing. This is stricter than the website, where a signed-out visitor who supplies a matching name and email does unlock their own orders. Over MCP, that path is closed.
 - **Gates stay server-side.** Injection, enumeration, and per-citation grounding all run inside the shared pipeline, never in the MCP layer and never trusting the client's input.
 - **Bounded output.** Every tool truncates its result, so a large table cannot flood a model's context.
 - **Clean framing.** Nothing writes to stdout (over stdio that is the JSON-RPC channel); diagnostics go to logs, and every tool returns a clean error instead of crashing the client.
 
-A test proves the parity: the offline suite asserts the tool surface is exactly the read-only set, and that an order-PII request through MCP is refused just as it is through the web route.
+The offline suite locks this in: it snapshots the tool surface as the read-only set with no write, admin, or order tool, and asserts that an order request carrying a matching name and email still discloses no order id, no destination, and no order-document citation over MCP.
 
 ## What was deliberately deferred
 

@@ -64,7 +64,7 @@ Routing is cheap-first: two free deterministic layers decide the majority, and o
 |---|---|---|
 | 0 | Regex intercept for an explicit "get me a person", refusals excluded | \$0 |
 | 1 | Intent guards for complaint, care, and shopping cues | \$0 |
-| 2 | One llama-3.1-8b classification call, only when layers 0 and 1 pass | ~\$0.0005 |
+| 2 | One llama-3.1-8b classification call, only when layers 0 and 1 pass | < \$0.00001 |
 
 On the labeled routing set of `{python} S["routing_eval_set"]` shopper turns:
 

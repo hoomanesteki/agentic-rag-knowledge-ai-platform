@@ -105,7 +105,7 @@ gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regressio
 promote: ## Gate the current config through MLflow stages (dev -> staging -> prod) by eval score
 	PYTHONPATH=. uv run python scripts/promote_model.py
 
-drift: ## Report drift across the four monitors from recent traffic
+drift: ## Report drift across the five monitors from recent traffic
 	PYTHONPATH=. uv run python scripts/run_drift.py
 
 ct: ## Run one Continuous Training cycle (trigger -> retrain -> gate -> propose promotion)

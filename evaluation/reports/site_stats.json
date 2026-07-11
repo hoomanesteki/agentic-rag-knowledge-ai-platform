@@ -1,5 +1,5 @@
 {
-  "tests": 549,
+  "tests": 555,
   "golden_items": 121,
   "routing": {
     "deterministic_pct": 81.6,
@@ -17,5 +17,15 @@
     "products": 158,
     "variants": 578
   },
-  "routing_eval_set": 350
+  "routing_eval_set": 350,
+  "prompt_opt": {
+    "baseline_pct": 73.9,
+    "candidate_pct": 79.5,
+    "delta_pts": 5.7
+  },
+  "gate": {
+    "total": 9,
+    "retrieves": 4,
+    "abstain": 5
+  }
 }

@@ -15,7 +15,7 @@ S = json.load(open("../evaluation/reports/site_stats.json"))
 Detect, notify, propose. A person promotes.
 :::
 
-Nothing that changes what Sara says to a shopper ships itself. The loop detects a signal, notifies a human, registers a candidate only when the signal warrants one, and produces shadow evidence. A person makes the last call. There is no auto-promote path anywhere in the codebase.
+Nothing that changes what Sara says to a shopper ships itself. The loop detects a signal, notifies a human, registers a candidate only when the signal warrants one, and produces shadow evidence. A person makes the last call. There is no auto-promote path in CI or the serving loop: the score-gated `make promote` is human-invoked, and serving never reads the registry stage, so no shopper-facing change happens without a person.
 
 ## The human-gated loop
 

@@ -92,7 +92,7 @@ Three findings, each a decision:
 
 ### The eval as a target
 
-The routing eval found the tie-break guessing a lane on ambiguous turns instead of deferring. An [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about eighty lines) rewrote that prompt from its own failures and scored candidates on a held-out split: 73.9% to 79.5%. A human promoted the winner; the loop never edits served code. Why not DSPy is on the [Decisions](decisions.qmd) page.
+The routing eval found the tie-break guessing a lane on ambiguous turns instead of deferring. An [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about sixty lines) rewrote that prompt from its own failures and scored candidates on a held-out split: `{python} pct(S["prompt_opt"]["baseline_pct"])` to `{python} pct(S["prompt_opt"]["candidate_pct"])`. A human promoted the winner, which is the served tie-break prompt; a later re-run of the loop found no further held-out gain against it. The loop never edits served code. Why not DSPy is on the [Decisions](decisions.qmd) page.
 
 ## Hallucination defense, three layers
 
@@ -108,7 +108,7 @@ The lexical confidence gate abstains on thin evidence before generation. After g
 
 ## The offline CI gate
 
-Five fixtures over a neutral corpus run on deterministic fakes, no API keys: four must retrieve the right fact, one must abstain. A lexical judge scores them on every push.
+The gate runs `{python} S["gate"]["total"]` fixtures over a neutral corpus on deterministic fakes, no API keys: `{python} S["gate"]["retrieves"]` must retrieve the right fact, `{python} S["gate"]["abstain"]` must abstain. A lexical judge scores them on every push.
 
 [score 1.0]{.chip .good} &nbsp; min 1.0 &nbsp; any single failure blocks the merge
 

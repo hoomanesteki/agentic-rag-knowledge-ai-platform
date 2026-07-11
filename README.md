@@ -26,7 +26,7 @@ in [`showcase/`](showcase/).
 
 | Measure | Value |
 | --- | --- |
-| Test suite (fully offline) | 549 |
+| Test suite (fully offline) | 555 |
 | Golden eval set | 121 graded items; it gates every cost-motivated model flip |
 | Routing, deterministic layers only | 81.6% of 350 labeled turns, at zero model cost |
 | Routing with the 8B tie-break | 85.9%, with 100% escalation recall |
@@ -94,7 +94,7 @@ Nothing self-ships. The loop is detect, notify, propose, and a person decides:
    trail in one thread.
 3. A candidate is registered **only when a quality signal warrants it** (`make ct`).
 4. A human runs **shadow replay**, champion vs challenger on real traffic (`make shadow`).
-5. A human promotes (`make registry-promote`). There is no auto-promote path anywhere.
+5. A human promotes (`make registry-promote`). There is no auto-promote path in CI or the serving loop.
 
 The data lifecycle is human-triggered the same way: `make consolidate` proposes a knowledge pack
 distilled from real conversations, staleness checks propose a refresh, and a person approves both.
@@ -118,14 +118,16 @@ claude mcp add skein -- uv run python -m mcp_server.server    # or: make mcp
 
 | Tool | What it does | Safety |
 | --- | --- | --- |
-| `skein_ask` | A grounded, cited answer from store data | Runs anonymous; the PII gate refuses any order or account lookup |
+| `skein_ask` | A grounded, cited answer from store data | Order and account disclosure is blocked, so a name and email in the question returns nothing |
 | `skein_search_products` | Search the catalog by text, gender, price | Reads the governed gold catalog, read-only |
 | `skein_get_product_facts` | One product's price, sizes, reviews | Read-only |
 | `skein_get_metric` / `skein_list_metrics` | Run a governed metric by name | Name-validated against `metrics.yaml`; a single read-only SELECT, no free-form SQL |
 
-Read-only by construction: there is no write, admin, login, or order-lookup tool, so no MCP client
-can reach a shopper's private data. stdio is the default transport; an HTTP mount and OAuth are the
-documented enterprise scale-up, and no tool code changes when they are added. Full write-up on the
+Read-only by construction: there is no write, admin, login, or order-lookup tool, and `skein_ask`
+drops every order and account document before generation, so no MCP client can reach a shopper's
+private data even by supplying a real name and email (stricter than the signed-out web flow, where
+that unlocks orders). stdio is the default transport; an HTTP mount and OAuth are the documented
+enterprise scale-up, and no tool code changes when they are added. Full write-up on the
 [MCP page](https://hoomanesteki.github.io/agentic-rag-knowledge-ai-platform/mcp.html).
 
 ## Run it
@@ -134,7 +136,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
 make setup                 # venv + locked dependencies
-make check                 # lint, 549 tests, leak check, eval gate: fully offline, no keys
+make check                 # lint, 555 tests, leak check, eval gate: fully offline, no keys
 cp .env.example .env       # add GROQ_API_KEY and COHERE_API_KEY for real answers
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
 make dbt-build && make ingest && make graph-load

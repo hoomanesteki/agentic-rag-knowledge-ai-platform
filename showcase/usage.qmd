@@ -83,7 +83,7 @@ Voice mode speaks one or two sentences and puts the fuller set on screen. Interr
 | --- | --- |
 | `make reproduce` | The whole offline verification from a clean clone, one command |
 | `make eval` | Retrieval and abstain quality against the `{python} S["golden_items"]`-item golden set |
-| `make drift` | Drift across the four monitors from recent traffic |
+| `make drift` | Drift across the five monitors from recent traffic |
 | `make shadow` | Champion vs challenger replay on real traffic, before a human promotes |
 | `make site-stats` | Regenerates the numbers this site reads |
 

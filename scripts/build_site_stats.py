@@ -89,6 +89,44 @@ def _catalog() -> dict:
     return {"products": len({r["name"] for r in rows}), "variants": len(rows)}
 
 
+def _prompt_opt() -> dict:
+    # The promoted tie-break prompt's held-out scores, read from the registry candidate record so
+    # the OPRO gain the pages quote is derived, never hand-typed. (prompt_opt.json is the LATEST
+    # loop run, which found no further gain against the now-served prompt; the served prompt's own
+    # promotion numbers are here.)
+    path = "mlops/prompt_registry/tiebreak_system.candidate.json"
+    d = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            d = {}
+    base, cand = d.get("baseline_test"), d.get("candidate_test")
+    if base is None or cand is None:
+        return {}
+    return {"baseline_pct": round(base * 100, 1),
+            "candidate_pct": round(cand * 100, 1),
+            "delta_pts": round((cand - base) * 100, 1)}
+
+
+def _gate_fixtures() -> dict:
+    # The CI eval-gate fixtures, split by expectation, so the page never hand-types the count.
+    path = "evaluation/fixtures/gate.json"
+    fx: list = []
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                fx = json.load(f).get("fixtures", [])
+        except (OSError, json.JSONDecodeError):
+            fx = []
+    if not fx:
+        return {}
+    return {"total": len(fx),
+            "retrieves": sum(1 for f in fx if f.get("expect") == "retrieves"),
+            "abstain": sum(1 for f in fx if f.get("expect") == "abstain")}
+
+
 def build() -> dict:
     stats = {
         "tests": _test_count(),
@@ -97,6 +135,8 @@ def build() -> dict:
         "cost": _cost(),
         "catalog": _catalog(),
         "routing_eval_set": _read("routing_eval.json").get("scorecards", [{}])[0].get("n"),
+        "prompt_opt": _prompt_opt(),
+        "gate": _gate_fixtures(),
     }
     return {k: v for k, v in stats.items() if v not in (None, {}, [])}
 

@@ -58,7 +58,7 @@ per text turn
 
 The hard problem in a retrieval system is refusing well. A model that always answers will confidently invent an order number, a price, or a color it never saw. Most of the work here sits in the seams around the model: a per-citation grounding check, a sampled online faithfulness judge from a different model family, and an abstain gate for thin evidence.
 
-The other half is what runs before the model. One deterministic orchestrator routes each turn through a cheap-first cascade: `{python} f"{S['routing']['deterministic_pct']}%"` of `{python} S["routing_eval_set"]` labeled turns are decided free, and a small-model tie-break lifts accuracy to `{python} f"{S['routing']['tiebreak_8b_pct']}%"` while never missing a genuine "get me a human". Order privacy, prompt injection, and customer enumeration are refused in code, before the prompt.
+The other half is what runs before the model. One deterministic orchestrator routes each turn through a cheap-first cascade: the two deterministic layers alone reach `{python} f"{S['routing']['deterministic_pct']}%"` accuracy on `{python} S["routing_eval_set"]` labeled turns at zero model cost, and a small-model tie-break lifts that to `{python} f"{S['routing']['tiebreak_8b_pct']}%"` while never missing a genuine "get me a human". Order privacy, prompt injection, and customer enumeration are refused in code, before the prompt.
 
 Every product, review, and order is synthetic, invented for a fictional brand. What's real is the machinery: the ingestion, the hybrid retrieval, the `{python} S["golden_items"]`-item golden set that gates model changes, and the CI that blocks a regression before it ships.
 

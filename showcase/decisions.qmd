@@ -30,7 +30,7 @@ Sara is one deterministic orchestrator over one gated pipeline, Groq-only. Each 
 | Release | human-gated promotion, everywhere | any auto-promote path | the reward-hacking guardrail |
 | Workhorse model | `llama-3.3-70b` | a `gpt-oss-120b` swap | faithfulness `{python} F["baseline"]` vs `{python} F["candidate"]` on the graded golden set |
 | Routing tie-break | the 8B small model | a 70B tie-break | `{python} pct(R["tiebreak_8b_pct"])` vs `{python} pct(R["tiebreak_70b_pct"])`, the big model loses |
-| Prompt tuning | an ~80-line OPRO loop | DSPy | +5.6 points held-out, no framework adopted |
+| Prompt tuning | an ~60-line OPRO loop | DSPy | +`{python} S["prompt_opt"]["delta_pts"]` points held-out, no framework adopted |
 | Hallucination check | an offline sampled judge | an in-loop critic before streaming | the answer streams; the judge never blocks it |
 
 ## One orchestrator, no framework brain
@@ -53,7 +53,7 @@ On the `{python} S["routing_eval_set"]`-turn routing eval, the 70B tie-break sco
 
 ## An OPRO loop over DSPy
 
-The prompts are hand-tuned and safety-critical, so adopting a framework that wants to own the prompting layer was a large dependency for a small gain. The loop in `mlops/prompt_opt.py` is about eighty lines: an LLM proposes rewrites from the failing cases, the eval scores them on a held-out split, a safety gate checks the contract, and a human promotes the winner. It lifted the tie-break prompt from 73.9% to 79.5% held-out, which is the gain that mattered, without the framework.
+The prompts are hand-tuned and safety-critical, so adopting a framework that wants to own the prompting layer was a large dependency for a small gain. The loop in `mlops/prompt_opt.py` is about sixty lines: an LLM proposes rewrites from the failing cases, the eval scores them on a held-out split, a safety gate checks the contract, and a human promotes the winner. It lifted the tie-break prompt from `{python} pct(S["prompt_opt"]["baseline_pct"])` to `{python} pct(S["prompt_opt"]["candidate_pct"])` held-out, which is the gain that mattered, without the framework.
 
 ## An offline judge over an in-loop critic
 

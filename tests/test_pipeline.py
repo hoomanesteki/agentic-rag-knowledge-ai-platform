@@ -50,8 +50,11 @@ def _seed_store():
 
 def test_relevant_question_answers_with_citations(tmp_path):
     embedder, store = _seed_store()
+    # a real grounded answer cites the chunk it draws from; the offline echo fake emits no marker,
+    # and an uncited answer now honestly carries no citations, so use a citing answer here
     result = answer_question("how much does the daytrip belt bag cost",
-                             embedder=embedder, store=store, llm=make_llm("fake"),
+                             embedder=embedder, store=store,
+                             llm=CapturingLLM("the daytrip belt bag costs 38 dollars [1]"),
                              trace_path=str(tmp_path / "t.jsonl"))
     assert result.tier == "auto"
     assert not result.abstained

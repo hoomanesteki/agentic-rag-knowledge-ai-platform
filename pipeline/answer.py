@@ -499,6 +499,20 @@ def _tier_of(model: str | None) -> str | None:
     return _MODEL_TIER.get(model, "large")
 
 _CITE = re.compile(r"\[(\d+)\]")
+_CITE_GROUP = re.compile(r"\[([\d,\s]+)\]")  # also matches compact multi-cites like [1, 2, 5]
+
+
+def _cited_numbers(text: str) -> set[int]:
+    """The context numbers a passage cites, handling both [1] and compact [1, 2, 5] markers (the
+    model uses both). Without this the compact form parses as zero citations, so a well-cited
+    answer would read as ungrounded and its provenance would be dropped."""
+    nums: set[int] = set()
+    for group in _CITE_GROUP.findall(text):
+        for part in group.split(","):
+            part = part.strip()
+            if part.isdigit():
+                nums.add(int(part))
+    return nums
 _SENTENCE = re.compile(r"[^.!?]+[.!?]?")
 
 DEFAULT_MIN_CONFIDENCE = 0.22  # abstain only on very thin overlap; the reranked context and the
@@ -619,17 +633,28 @@ def _sentences(text: str) -> list[str]:
 
 
 def grounding_score(answer: str, contexts: list[dict]) -> float:
-    """Fraction of the answer's sentences that cite a real context. A cheap, model-free
-    grounding signal for M2.3 (it measures citation discipline, not faithfulness, which comes
-    from RAGAS at M8). A citation marker only counts if it points at an actual context."""
+    """Fraction of the answer's sentences that cite a chunk they actually draw from. A cheap,
+    model-free grounding signal: a sentence counts only if it bears a valid citation marker AND its
+    content words overlap the SPECIFIC chunk it cites, so citing [1] while asserting something not
+    in chunk 1 does not count. This is citation SUPPORT, still short of full faithfulness (which
+    the online RAGAS judge measures); a sentence that fails the support check is exactly what feeds
+    that sampled judge. A sentence with no content words of its own (all stopwords) cannot be
+    checked for support, so a valid marker alone is enough for it."""
     if not contexts:
         return 0.0
-    valid = {c["n"] for c in contexts}
+    by_n = {c["n"]: set(_content_tokens(c["text"])) for c in contexts}
     sentences = _sentences(answer)
     if not sentences:
         return 0.0
-    cited = sum(1 for s in sentences if {int(m) for m in _CITE.findall(s)} & valid)
-    return cited / len(sentences)
+    grounded = 0
+    for s in sentences:
+        cited = _cited_numbers(s) & set(by_n)
+        if not cited:
+            continue  # uncited sentence is not grounded
+        s_tokens = set(_content_tokens(s))
+        if not s_tokens or any(s_tokens & by_n[n] for n in cited):
+            grounded += 1
+    return grounded / len(sentences)
 
 
 def _format_history(history: list[dict] | None) -> str:
@@ -702,9 +727,10 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
 
 def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
     valid = {c["n"] for c in contexts}
-    used = {int(m) for m in _CITE.findall(answer_text)} & valid  # ignore out-of-range markers
-    cited = [c for c in contexts if c["n"] in used]
-    return cited or contexts  # fall back if the model cited nothing valid
+    used = _cited_numbers(answer_text) & valid  # ignore out-of-range markers
+    # honest provenance: when the answer cited nothing valid, show NO citations rather than falsely
+    # attributing it to every retrieved document
+    return [c for c in contexts if c["n"] in used]
 
 
 # Order and account documents carry customer PII (name, email, phone, address, purchase history).

@@ -76,7 +76,9 @@ def _test_count() -> int | None:
 
 def _golden_size() -> int:
     path = "domains/apparel_ecommerce/eval/golden.jsonl"
-    return sum(1 for ln in open(path, encoding="utf-8") if ln.strip()) if os.path.exists(path) else 0
+    if not os.path.exists(path):
+        return 0
+    return sum(1 for ln in open(path, encoding="utf-8") if ln.strip())
 
 
 def _catalog() -> dict:

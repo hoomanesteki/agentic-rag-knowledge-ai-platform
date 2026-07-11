@@ -242,6 +242,10 @@ class EchoLLM:
                          prompt_tokens=max(len(prompt) // 4, 1),
                          completion_tokens=3, model="fake")
 
-    def stream(self, prompt: str, *, system: str | None = None, max_tokens: int = 512):
+    def stream(self, prompt: str, *, system: str | None = None, max_tokens: int = 512,
+               usage_out: dict | None = None):
         for word in ("offline-fake-response",):
             yield word
+        if usage_out is not None:  # so the streamed-metering path is exercised offline
+            usage_out.update({"prompt_tokens": len(prompt.split()), "completion_tokens": 1,
+                              "model": getattr(self, "model", "fake")})

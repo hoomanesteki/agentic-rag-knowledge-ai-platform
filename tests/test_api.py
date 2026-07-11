@@ -98,9 +98,11 @@ def test_streaming_answer_keeps_citations():
         def generate(self, *a, **k):
             raise NotImplementedError
 
-        def stream(self, prompt, *, system=None, max_tokens=512):
+        def stream(self, prompt, *, system=None, max_tokens=512, usage_out=None):
             for piece in ("the belt bag costs 38 dollars ", "[1]."):
                 yield piece
+            if usage_out is not None:  # the metering path fills usage after the stream
+                usage_out.update({"prompt_tokens": 40, "completion_tokens": 6, "model": "fake"})
 
     events = _sse(_chat(_client(_components(llm=CiteStreamLLM())),
                         "how much does the belt bag cost").text)
@@ -117,7 +119,7 @@ def test_midstream_failure_degrades_with_message_id():
         def generate(self, *a, **k):
             raise NotImplementedError
 
-        def stream(self, prompt, *, system=None, max_tokens=512):
+        def stream(self, prompt, *, system=None, max_tokens=512, usage_out=None):
             yield "partial "
             raise RuntimeError("groq stream failed: connection reset")
 

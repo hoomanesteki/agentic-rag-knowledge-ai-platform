@@ -39,9 +39,11 @@ class LLMClient(Protocol):
     def generate(self, prompt: str, *, system: str | None = None,
                  max_tokens: int = 512) -> LLMResult: ...
 
-    # Yields answer text incrementally for streaming responses.
+    # Yields answer text incrementally for streaming responses. If a caller passes a mutable
+    # usage_out dict, the client fills it with the final token usage (and model) after the stream,
+    # so a streamed turn can be metered and costed exactly like a non-streamed one.
     def stream(self, prompt: str, *, system: str | None = None,
-               max_tokens: int = 512) -> Iterator[str]: ...
+               max_tokens: int = 512, usage_out: dict | None = None) -> Iterator[str]: ...
 
 
 @runtime_checkable

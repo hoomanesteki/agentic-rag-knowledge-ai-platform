@@ -47,3 +47,16 @@ def test_cycle_audit_log_and_reload_persist(tmp_path):
     reloaded = ModelRegistry(path)
     assert len(reloaded._data["cycles"]) == 2
     assert len(reloaded.versions()) == 1
+
+
+def test_champion_and_challenger_aliases(tmp_path):
+    # MLflow's post-2.9 vocabulary: the production version is @champion, the latest proposal the
+    # @challenger a human is deciding on
+    reg = ModelRegistry(str(tmp_path / "aliases.json"))
+    assert reg.aliases() == {"champion": None, "challenger": None}
+    v1 = reg.register(name="tiebreak", kind="prompt", source="ct", created_at="t1")
+    assert reg.aliases()["challenger"] == v1 and reg.champion() is None
+    reg.transition(v1, "production", at="t2")
+    assert reg.aliases() == {"champion": v1, "challenger": None}  # promoted, nothing left to review
+    v2 = reg.register(name="tiebreak", kind="prompt", source="ct", created_at="t3")
+    assert reg.aliases() == {"champion": v1, "challenger": v2}  # next proposal is the challenger

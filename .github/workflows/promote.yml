@@ -1,0 +1,49 @@
+name: Promote a model version
+
+# The human-approved promotion gate. CT only ever PROPOSES a candidate (registered as `proposed`);
+# promoting it to champion is a person's decision, enforced here as infrastructure rather than
+# convention. This job is bound to the `production` GitHub Environment, so if that environment has
+# required reviewers configured (Settings -> Environments -> production -> Required reviewers), the
+# run PAUSES for an approval before it can execute, and GitHub records who approved and when.
+#
+# Nothing runs on a schedule or a push: a promotion only happens when a person dispatches it with the
+# version they reviewed (after reading the shadow-replay deltas from `make shadow`).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Registered version number to promote to champion (from the CT/notify issue)"
+        required: true
+        type: string
+
+concurrency:
+  group: model-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The gate: the run cannot proceed past this until a required reviewer approves the environment.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Promote the approved version to champion
+        run: make registry-promote V="${{ github.event.inputs.version }}"
+
+      - name: Upload the updated registry as an audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-registry-after-promote
+          path: evaluation/reports/model_registry.json
+          if-no-files-found: ignore

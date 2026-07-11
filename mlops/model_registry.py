@@ -3,10 +3,13 @@ promotion stays human-gated (nothing self-ships).
 
 A "model" here is a serving artifact this project owns and versions: a prompt candidate, or a
 serving config (LLM + embedder + reranker + brain). Each registered version carries its metrics
-(baseline vs candidate, gate, safety), a stage, and provenance (what produced it, when). The stages
-mirror the MLflow Model Registry:
+(baseline vs candidate, gate, safety), a stage, and provenance (what produced it, when). MLflow
+deprecated stages in 2.9 in favour of aliases plus tags, so the stage here maps to the current
+champion/challenger vocabulary: the one `production` version is the `@champion`, the latest
+`proposed` candidate is the `@challenger` a human is deciding on, and the stage is kept as the
+`validation_status` tag.
 
-    proposed  ->  staging  ->  production        (and any version can be archived)
+    proposed (@challenger)  ->  staging  ->  production (@champion)   (any can be archived)
 
 It is JSON-backed so it works offline in CI and in the demo, where scripts/promote_model.py also
 writes the real MLflow Registry when a tracking server is configured; the two stay consistent by the
@@ -90,9 +93,22 @@ class ModelRegistry:
         return True
 
     def champion(self) -> dict | None:
-        """The current production version, or None if nothing has been promoted yet."""
+        """The `@champion`: the current production version, or None if nothing has been promoted."""
         prod = [v for v in self._data["versions"] if v["stage"] == "production"]
         return prod[-1] if prod else None
+
+    def challenger(self) -> dict | None:
+        """The `@challenger`: the latest proposed candidate awaiting a human's promotion decision,
+        or None when there is nothing to review."""
+        proposed = [v for v in self._data["versions"] if v["stage"] == "proposed"]
+        return proposed[-1] if proposed else None
+
+    def aliases(self) -> dict:
+        """The current champion/challenger aliases (MLflow's post-2.9 vocabulary), for the notify
+        issue and the audit view: which version serves and which one is up for review."""
+        champ, chall = self.champion(), self.challenger()
+        return {"champion": champ["version"] if champ else None,
+                "challenger": chall["version"] if chall else None}
 
     def record_cycle(self, cycle: dict) -> None:
         """Append a CT-cycle audit entry (kept for every cycle, promotable or not)."""

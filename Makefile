@@ -89,6 +89,9 @@ faithfulness: ## Drain the online faithfulness queue: score sampled live answers
 shadow: ## Human-triggered shadow replay: champion vs challenger on real traffic (evidence to promote with)
 	PYTHONPATH=. uv run python scripts/run_shadow.py
 
+consolidate: ## Human-triggered: propose a knowledge pack from recent traffic for a person to approve
+	PYTHONPATH=. uv run python scripts/run_consolidate.py
+
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 

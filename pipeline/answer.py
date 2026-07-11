@@ -475,6 +475,10 @@ _VOICE_BREVITY = (
 _PRICES = {
     "llama-3.1-8b-instant": (0.05, 0.08),
     "llama-3.3-70b-versatile": (0.59, 0.79),
+    # gpt-oss on Groq: cheaper than the llama workhorse and the only tier with prompt caching, so a
+    # metered turn on it reflects the cached-input discount (see mlops/model_map.py).
+    "openai/gpt-oss-120b": (0.15, 0.60),
+    "openai/gpt-oss-20b": (0.10, 0.50),
 }
 
 # Coarse model-size tier a model belongs to, used to attribute per-turn cost by tier so the
@@ -484,6 +488,8 @@ _PRICES = {
 _MODEL_TIER = {
     "llama-3.1-8b-instant": "small",
     "llama-3.3-70b-versatile": "large",
+    "openai/gpt-oss-20b": "small",
+    "openai/gpt-oss-120b": "large",
 }
 
 

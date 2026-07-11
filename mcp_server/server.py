@@ -9,8 +9,10 @@ a gate or trusts the client.
 
 Safe by construction:
   - Read-only only. There is no write, admin, login, TTS, or order-lookup tool.
-  - skein_ask runs anonymous (auth_identity=None), so the order-PII gate refuses a shopper's orders
-    over MCP exactly as it does for an unauthenticated HTTP caller. No tool can unlock private data.
+  - skein_ask runs anonymous AND passes block_order_pii=True, so the pipeline drops every order
+    and account document before generation. No order or account data is disclosed over MCP even if
+    the query supplies a real name and email, which makes this surface strictly safer than the
+    signed-out web flow (where a matching name+email unlocks orders). No tool reaches private data.
   - Tool results are truncated so a large table cannot flood a client's context.
   - Nothing writes to stdout: over stdio, stdout is the JSON-RPC channel, and a stray print would
     corrupt the framing. All diagnostics go through logging (stderr).
@@ -55,10 +57,11 @@ def skein_ask(query: str) -> dict:
     """Ask Sara, the apparel shopping assistant, a shopping or store question and get a short,
     grounded, cited answer drawn from the store's own data.
 
-    Runs anonymously: it CANNOT access any shopper's orders, account, or personal data. Order,
-    account, and "who bought X" questions are refused below this surface by the same deterministic
-    gates the website uses. Good for product, sizing, materials, care, shipping, and returns
-    questions. Returns {answer, citations, grounding, tier}.
+    It CANNOT access any shopper's orders, account, or personal data: the call runs anonymous and
+    with order/account disclosure blocked, so every order and account document is dropped before
+    the model sees it, even if the question includes a real name and email. Order, account, and
+    "who bought X" questions therefore return only generic help. Good for product, sizing,
+    materials, care, shipping, and returns questions. Returns {answer, citations, grounding, tier}.
     """
     try:
         from rag.omni import stream_omni
@@ -70,7 +73,7 @@ def skein_ask(query: str) -> dict:
             reranker=c.get("reranker"), metric_resolver=c.get("metric_resolver"),
             graph_retriever=c.get("graph_retriever"), answer_cache=c.get("answer_cache"),
             review_queue=c.get("review_queue"), domain=c["domain"],
-            auth_identity=None, concise=True,
+            auth_identity=None, concise=True, block_order_pii=True,
         ):
             if event.get("type") == "final":
                 final = event

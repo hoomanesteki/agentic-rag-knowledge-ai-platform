@@ -266,7 +266,8 @@ def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review
 def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=None,
                 graph_retriever=None, lang=None, persona=None, history=None, concise=False,
                 auth_identity=None, notes=None, message_id=None, small_llm=None, trace_path=None,
-                review_queue=None, domain=None, budget=None, answer_cache=None):
+                review_queue=None, domain=None, budget=None, answer_cache=None,
+                block_order_pii=False):
     """Yield the same event dicts as stream_answer (token chunks then one final), after routing.
 
     Every model call on this turn goes through one shared TurnBudget: routing tie-break, generation,
@@ -308,7 +309,7 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
     deps = dict(embedder=embedder, store=store, llm=b_llm, reranker=reranker,
                 metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
                 persona=persona, history=history, concise=concise, auth_identity=auth_identity,
-                notes=notes)
+                notes=notes, block_order_pii=block_order_pii)
     if trace_path is not None:
         deps["trace_path"] = trace_path
 

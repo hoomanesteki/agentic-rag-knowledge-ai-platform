@@ -6,6 +6,7 @@ Assertions are shape-only where data depends on a built lakehouse, so the suite 
 not `make lakehouse` has run (it has not, in CI's check job).
 """
 import asyncio
+import re
 
 import mcp_server.server as srv
 
@@ -57,11 +58,20 @@ def test_ask_runs_through_the_gated_pipeline():
 
 
 def test_order_pii_cannot_be_unlocked_over_mcp():
-    # There is no order tool, and skein_ask runs anonymous (auth_identity=None), so the order-PII
-    # gate refuses a shopper's orders over MCP exactly as it does for an unauthenticated HTTP call.
-    out = srv.skein_ask(
-        "where is my order? my email is info@esteki.ca and my name is Aaron Esteki")
-    assert "error" not in out
-    answer = (out.get("answer") or "").lower()
-    # anonymous over MCP: no order document (a tracking number) can be surfaced
-    assert "tracking number" not in answer
+    # skein_ask blocks order/account disclosure (block_order_pii), so no order document reaches the
+    # model. The first query is the exact condition that unlocks orders for a signed-out web visitor
+    # (a matching account name AND email); over MCP it must still disclose nothing, proving the MCP
+    # surface is strictly safer than the web flow, not merely equal to it.
+    for q in (
+        "where is my order? my email is info@esteki.ca and my name is Aaron Esteki",  # web unlock
+        "where is my order? my email is info@esteki.ca",                              # email only
+        "where is my order? my email is info@esteki.ca and my name is Wrong Person",  # mismatch
+    ):
+        out = srv.skein_ask(q)
+        assert "error" not in out
+        answer = out.get("answer") or ""
+        assert not re.search(r"\bAS\d{5,}\b", answer), "order id disclosed for: {}".format(q)
+        assert "vancouver" not in answer.lower(), "destination disclosed for: {}".format(q)
+        cites = out.get("citations") or []
+        order_cites = [c for c in cites if isinstance(c, dict) and c.get("doc_type") == "order"]
+        assert not order_cites, "an order document was cited for: {}".format(q)

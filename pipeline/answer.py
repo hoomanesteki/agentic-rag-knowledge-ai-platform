@@ -1532,7 +1532,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
                   lang: str | None = None, persona: str | None = None,
                   history: list[dict] | None = None, concise: bool = False,
                   auth_identity: tuple[str, str] | None = None, notes: str | None = None,
-                  role_fragment: str = "", lane: str | None = None):
+                  role_fragment: str = "", lane: str | None = None,
+                  block_order_pii: bool = False):
     """Stream an answer as events for the API. Yields {"type": "token", "text": ...} chunks,
     then one {"type": "final", ...} with the answer, tier, confidence, grounding, citations,
     and message_id. The caller may pass message_id so a degraded fallback can reuse it.
@@ -1571,7 +1572,12 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     # shopper also carries a JWT-proven identity (auth_identity = account name + email), so they
     # unlock their OWN orders without re-typing; third-party lookups are still blocked upstream.
     identity = " ".join(p for p in (auth_identity or ()) if p)
-    auth_text = (identity + " " + _user_authored_text(query, history)).strip()
+    # block_order_pii forces an empty auth_text so no order document can ever satisfy the identity
+    # gate, regardless of what the turn's text contains. The MCP surface sets this: an anonymous
+    # tool caller must never disclose order or account PII even if it supplies a real name+email,
+    # so the MCP boundary is strictly safer than the signed-out web flow (where name+email unlocks).
+    auth_text = "" if block_order_pii else (identity + " "
+                                            + _user_authored_text(query, history)).strip()
     # For a logged-in shopper asking about their account, add their email to the retrieval query so
     # their own order records surface (order docs are keyed on the email); the gate then authorizes
     # them from the proven identity, without the shopper having to re-type name and email.

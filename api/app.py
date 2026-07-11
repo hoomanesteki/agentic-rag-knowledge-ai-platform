@@ -443,7 +443,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                              auth_identity=auth_identity, notes=req.notes,
                                              small_llm=getattr(comp["llm"], "fallback", None),
                                              review_queue=comp.get("review_queue"),
-                                             domain=comp.get("domain")):
+                                             domain=comp.get("domain"),
+                                             answer_cache=comp.get("answer_cache")):
                         yield _sse(event)
                     return
                 # Linear path: tokens stream across threadpool resumes, so we do not open a span
@@ -619,6 +620,8 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
         # only items for this domain, resolved since the last run, so re-embedding is not repeated
         items = queue.closed_since(queue.flywheel_watermark(domain), domain=domain)
         indexed = reindex_verified(items, comp["embedder"], comp["store"])
+        if indexed and comp.get("answer_cache") is not None:
+            comp["answer_cache"].invalidate()  # never serve a cached answer after the index changed
         # a growing eval set under traces/ (gitignored), never written into a git-tracked pack
         eval_path = "traces/verified_eval_{}.jsonl".format(domain or "default")
         grown = grow_verified_eval(items, eval_path)

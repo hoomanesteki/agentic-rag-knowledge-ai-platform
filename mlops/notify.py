@@ -55,8 +55,8 @@ def build_issue(report: dict) -> dict:
             "- MLflow: experiment `skein-ct` (this run's metrics + candidate artifact)",
             "",
             "## Next (a human runs these)",
-            "1. `make shadow N=50` — replay real traffic through the candidate, read the deltas",
-            "2. `make registry-promote V=<n>` — promote only if the shadow evidence supports it",
+            "1. `make shadow N=50`: replay real traffic through the candidate, read the deltas",
+            "2. `make registry-promote V=<n>`: promote only if the shadow evidence supports it",
         ]
     else:
         lines += [

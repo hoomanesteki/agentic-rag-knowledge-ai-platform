@@ -8,9 +8,9 @@ not a rewrite. Groq (LLM) and Cohere (embeddings, rerank) stay as plain HTTPS ca
 
 Each row is badged:
 
-- **portable today** — runs on AWS with only config or a container, no code change.
-- **needs a seam** — one adapter or a small change, sized below.
-- **not built** — deliberately out of scope for the demo; noted so the gap is honest.
+- **portable today**: runs on AWS with only config or a container, no code change.
+- **needs a seam**: one adapter or a small change, sized below.
+- **not built**: deliberately out of scope for the demo; noted so the gap is honest.
 
 ## Component map
 

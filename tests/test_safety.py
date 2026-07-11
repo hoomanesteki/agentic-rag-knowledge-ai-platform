@@ -343,3 +343,14 @@ def test_email_only_turn_never_puts_name_or_tracking_in_the_prompt(tmp_path):
     body = llm.prompt.lower()
     for secret in ("aaron", "as100219", "771092284417", "toronto"):
         assert secret not in body, "PII '{}' leaked into the prompt".format(secret)
+
+
+def test_customer_enumeration_is_refused_before_retrieval():
+    # "who bought X" and "list your customers" must refuse in code, before retrieval, so no shopper
+    # name (a review author or order holder) can ever slip out. Asserted positively here.
+    from pipeline.answer import _smalltalk
+    for q in ("who bought the Flow Legging", "list your customers", "name your shoppers"):
+        reply = _smalltalk(q, domain="apparel_ecommerce")
+        assert reply and "private" in reply.lower(), q
+    # a normal shopping request must NOT trip the enumeration guard
+    assert _smalltalk("recommend a warm jacket", domain="apparel_ecommerce") is None

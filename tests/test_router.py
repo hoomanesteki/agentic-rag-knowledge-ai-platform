@@ -104,3 +104,41 @@ def test_negation_refinement_only_suppresses_genuine_refusals():
 def test_failure_verbs_route_to_complaint():
     assert route("the zipper broke after one wash").lane == "complaint"
     assert route("the strap snapped on the first wear").lane == "complaint"
+
+
+# --- Layer 2: the small-model tie-break's productive output, exercised with a fake model ---------
+
+class _Resp:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeLLM:
+    """A small-model stub whose .generate(...).text is a fixed tie-break reply."""
+
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def generate(self, *a, **k):
+        return _Resp(self._text)
+
+
+def test_tiebreak_surfaces_the_small_models_lane_at_layer_2():
+    # a genuinely ambiguous turn that no deterministic layer places, so the tie-break decides it
+    d = route("hmm not sure", small_llm=_FakeLLM('{"lane": "stylist"}'))
+    assert d.lane == "stylist" and d.layer == 2
+
+
+def test_tiebreak_is_the_escalation_safety_net_for_a_missed_human_request():
+    d = route("hmm not sure", small_llm=_FakeLLM('{"lane": "escalation"}'))
+    assert d.lane == "escalation" and d.layer == 2
+
+
+def test_tiebreak_unclear_asks_one_clarifying_question_instead_of_guessing():
+    d = route("hmm not sure", small_llm=_FakeLLM('{"lane": "unclear"}'))
+    assert d.layer == 2 and d.clarify is not None
+
+
+def test_tiebreak_unparseable_output_falls_back_to_the_answers_catch_all():
+    d = route("hmm not sure", small_llm=_FakeLLM("not json at all"))
+    assert d.lane == "answers"

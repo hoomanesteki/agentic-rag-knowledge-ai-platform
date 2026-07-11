@@ -1,8 +1,7 @@
 """The linear answer pipeline: retrieve (hybrid), ground, generate with citations, or abstain.
 
 Every request writes a trace (retrieved ids and scores, prompt hash, tokens, latency, cost,
-confidence, timestamp). This becomes the LangGraph graph at M6; for now it is one function so
-the first cited answer ships early.
+confidence, timestamp). It is one gated function, streamed so the first cited answer ships early.
 
 Known limit (M1.3): the confidence gate is a lexical overlap, so a question in one language
 whose only evidence is in another can wrongly abstain. M2 replaces it with a measured, tuned

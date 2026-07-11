@@ -1,1 +1,1 @@
-"""The linear answer pipeline. Becomes the LangGraph state machine at M6."""
+"""The one gated answer pipeline: retrieve, ground, and answer with citations or abstain."""

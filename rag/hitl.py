@@ -3,10 +3,8 @@
 When the gate escalates a turn, the question lands here. An operator lists open items, claims and
 answers one, and the closed row (which holds the answer) is the source of truth the flywheel
 (M7.3) re-indexes as gold; a verified JSONL is written as a convenience cache alongside it. This
-SQLite store is the durable part (it survives restarts). The LangGraph checkpointer persists a
-graph run's state within a process (MemorySaver); cross-restart resume needs SqliteSaver, wired
-at M9. SQLite throughout (a Postgres store is future work), mirroring the auth store; note it is
-ephemeral on Cloud Run and resets on cold start.
+SQLite store is the durable part (it survives restarts). SQLite throughout (a Postgres store is
+future work), mirroring the auth store; note it is ephemeral on Cloud Run and resets on cold start.
 """
 from __future__ import annotations
 

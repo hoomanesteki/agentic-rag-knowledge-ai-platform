@@ -1,1 +1,1 @@
-"""The LangGraph brain: typed state, nodes, and the supervisor (M6)."""
+"""The omni orchestrator: route each turn to a lane, then answer through the one gated pipeline."""

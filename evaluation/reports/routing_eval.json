@@ -80,13 +80,13 @@
     {
       "mode": "tiebreak_70b",
       "n": 350,
-      "accuracy": 0.8562,
+      "accuracy": 0.8531,
       "graded": 320,
       "deterministic_decision_rate": 0.66,
       "tiebreak_calls": 119,
       "tiebreak_cost_usd": 0.00059,
       "by_stratum": {
-        "ambiguous": 0.4667,
+        "ambiguous": 0.4333,
         "answers": 0.7333,
         "care": 0.9636,
         "complaint": 0.825,
@@ -97,10 +97,10 @@
         "stylist": 0.9818
       },
       "escalation": {
-        "precision": 1.0,
+        "precision": 0.9697,
         "recall": 1.0,
         "tp": 32,
-        "fp": 0,
+        "fp": 1,
         "fn": 0
       },
       "confusion": {

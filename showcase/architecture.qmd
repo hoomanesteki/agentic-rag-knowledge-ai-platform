@@ -147,7 +147,7 @@ Anything numeric (return rate by size, cheapest in a category, stock) resolves t
 | Layer | Choice | Why it's here |
 |---|---|---|
 | API | FastAPI, SSE streaming | Tokens stream to the browser as they're generated |
-| Brain | Master orchestrator over LangGraph + a linear pipeline | Routes each turn to a lane, then answers through one gated path; `CHAT_BRAIN` selects linear, agent, or omni |
+| Brain | Master orchestrator + a linear pipeline (deterministic) | Routes each turn to a lane, then answers through one gated path; `CHAT_BRAIN` selects linear or omni (a former LangGraph agent brain was retired) |
 | Routing | Deterministic cascade + a cheap 8B tie-break | Layer 0/1 decide the majority at zero marginal cost; the 8B tie-breaks only genuine ambiguity |
 | Embeddings / rerank | Cohere `embed-v4.0` + `rerank-v3.5` | Strong multilingual retrieval; the reranker does the heavy lifting |
 | LLM | Groq, Llama 3.3 70B | Fast enough to stream conversationally; swappable behind one seam |

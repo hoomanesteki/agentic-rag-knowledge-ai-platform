@@ -1432,7 +1432,6 @@ function Conversation({
             )}
             {m.final && (
               <div className="meta-row">
-                <span className={`tier tier-${m.final.tier}`}>{m.final.tier}</span>
                 {dedupeCites(m.final.citations).map((c) => (
                   <span key={c.n} className="cite" title={c.id}>
                     {citeLabel(c)}

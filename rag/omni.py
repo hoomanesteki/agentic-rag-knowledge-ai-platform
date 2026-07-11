@@ -74,6 +74,22 @@ def _answer_once(clause: str, lane: str, deps: dict):
     return ("".join(parts) or final.get("answer", "")), final
 
 
+def _merge_citations(finals) -> list:
+    """Union the contributing clauses' citations for the stitched reply, de-duplicated in
+    first-seen order (by citation id when present, else by value)."""
+    seen: set = set()
+    merged: list = []
+    for f in finals:
+        for c in (f.get("citations") or []):
+            key = c.get("id") if isinstance(c, dict) else c
+            if key is None:
+                key = repr(c)
+            if key not in seen:
+                seen.add(key)
+                merged.append(c)
+    return merged
+
+
 def _stream_multitask(routed, *, message_id, auth_identity, deps):
     # answer each distinct LANE once (so a single complaint split across two comma clauses does not
     # double-apologize), with a complaint lane leading, then the rest in typed order, capped after.
@@ -85,6 +101,7 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps):
     ordered = [(by_lane[ln], ln) for ln in lanes_ordered]
     reroute_budget = 1
     answers = []
+    finals = []  # the real per-clause finals, so the stitched reply reports measured telemetry
     for clause, lane in ordered:
         text, final = _answer_once(clause, lane, deps)
         if final.get("tier") == "abstain" and lane != "answers" and reroute_budget > 0:
@@ -92,13 +109,25 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps):
             text, final = _answer_once(clause, "answers", deps)
         if text:
             answers.append(text)
+            finals.append(final)
     stitched = "\n\n".join(answers)
-    if _output_leaks(stitched, auth_identity):
+    leaked = _output_leaks(stitched, auth_identity)
+    if leaked:
         stitched = _SAFE_LEAK
     mid = message_id or uuid.uuid4().hex
+    # A stitched reply is only as grounded and as confident as its weakest contributing clause, so
+    # report the min of each and the union of their citations, never an invented grounding=1.0. If
+    # the leak tripwire replaced the reply, no clause backs it: report zero grounding, no citations.
+    if leaked or not finals:
+        grounding, confidence, citations = 0.0, 0.0, []
+    else:
+        grounding = min(f.get("grounding", 0.0) for f in finals)
+        confidence = min(f.get("confidence", 0.0) for f in finals)
+        citations = _merge_citations(finals)
     yield {"type": "token", "text": stitched}
     yield {"type": "final", "message_id": mid, "answer": stitched, "tier": "auto",
-           "confidence": 0.8, "grounding": 1.0, "citations": [], "lane": "multi"}
+           "confidence": confidence, "grounding": grounding, "citations": citations,
+           "lane": "multi"}
 
 
 _ORDER_ID = re.compile(r"\b[A-Z]{2}\d{5,}\b")

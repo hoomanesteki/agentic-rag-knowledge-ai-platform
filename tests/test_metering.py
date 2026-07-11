@@ -20,8 +20,8 @@ def test_stream_without_usage_out_is_backward_compatible():
 
 def test_estimate_cost_bills_cached_input_cheaper():
     model = "llama-3.3-70b-versatile"
-    # a turn with 500 fresh + 1000 cached input costs LESS than 1500 all-fresh, because cached
-    # tokens bill at ~0.1x. The streamed path passes fresh = total - cached, no double-counting.
+    # a turn with 500 fresh + 1000 cached input costs LESS than 1500 all-fresh, because Groq bills a
+    # cache hit at 0.5x input. The streamed path passes fresh = total - cached, no double-count.
     all_fresh = _estimate_cost(model, 1500, 250)
     with_cache = _estimate_cost(model, 500, 250, cache_read_tokens=1000)
     assert all_fresh is not None and with_cache is not None

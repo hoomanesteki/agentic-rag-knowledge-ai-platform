@@ -151,6 +151,45 @@ def test_multitask_floats_a_late_complaint_to_the_front(monkeypatch):
     assert rec.calls[0]["lane"] == "complaint"  # empathy leads even from a late clause
 
 
+def test_multitask_final_reports_measured_telemetry_not_a_hardcoded_one(monkeypatch):
+    """The stitched multi-task final must carry the weakest clause's grounding and confidence and
+    the union of the clauses' citations, never an invented grounding=1.0 that poisons monitoring."""
+    def fake_stream(query, **kwargs):
+        lane = kwargs.get("lane")
+        # the stylist clause is well grounded; the care clause is weaker: the stitch takes weaker
+        g, c, cites = ((0.9, 0.8, [{"id": "s1"}]) if lane == "stylist"
+                       else (0.4, 0.5, [{"id": "c1"}, {"id": "s1"}]))
+        yield {"type": "token", "text": lane}
+        yield {"type": "final", "answer": lane, "lane": lane,
+               "grounding": g, "confidence": c, "citations": cites}
+
+    monkeypatch.setattr(omni, "stream_answer", fake_stream)
+    events = list(omni.stream_omni("suggest a gift for my mum and check where my order is",
+                                   embedder=None, store=None, llm=None,
+                                   auth_identity=("Aaron", "a@b.com")))
+    final = events[-1]
+    assert final["lane"] == "multi"
+    assert final["grounding"] == 0.4  # min of the clause groundings, not 1.0
+    assert final["confidence"] == 0.5  # min of the clause confidences, not 0.8
+    assert {c["id"] for c in final["citations"]} == {"s1", "c1"}  # union, s1 de-duplicated
+
+
+def test_multitask_leak_tripwire_reports_zero_grounding(monkeypatch):
+    """When the output leak guard replaces the stitched reply, no clause backs the safe fallback,
+    so it must report zero grounding and no citations rather than inheriting a clause's numbers."""
+    def fake_stream(query, **kwargs):
+        yield {"type": "final", "answer": "reach me at leak@x.com", "lane": kwargs.get("lane"),
+               "grounding": 0.9, "confidence": 0.9, "citations": [{"id": "x"}]}
+
+    monkeypatch.setattr(omni, "stream_answer", fake_stream)
+    # anonymous turn (no auth_identity): an email in the stitched reply trips the leak guard
+    events = list(omni.stream_omni("suggest a gift for my mum and check where my order is",
+                                   embedder=None, store=None, llm=None))
+    final = events[-1]
+    assert final["answer"] == omni._SAFE_LEAK
+    assert final["grounding"] == 0.0 and final["citations"] == []
+
+
 def test_escalation_without_a_queue_makes_no_false_promise(tmp_path):
     events = list(omni.stream_omni("please connect me with a representative", embedder=None,
                                    store=None, llm=None, trace_path=str(tmp_path / "t.jsonl")))

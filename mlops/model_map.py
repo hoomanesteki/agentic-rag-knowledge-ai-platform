@@ -43,7 +43,7 @@ MODEL_MAP: tuple[ModelJob, ...] = (
         env="GROQ_MODEL_LARGE", default="llama-3.3-70b-versatile",
         reason="Tone-sensitive grounded generation. gpt-oss-120b is the eval-gated upgrade: "
                "cheaper ($0.15/$0.60 vs $0.59/$0.79), benchmarks equal-or-better, and the only "
-               "Groq tier with prompt caching, so the static prompt bills at ~0.1x on cache hits.",
+               "Groq tier with prompt caching, so the static prompt bills at 0.5x on cache hits.",
         source="Groq pricing; gpt-oss-120b vs llama-3.3-70b benchmarks (llm-stats)."),
     ModelJob(
         job="RAGAS answer-quality judge",

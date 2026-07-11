@@ -112,6 +112,33 @@ def _emit_with_budget(events, budget):
                    "lane": "budget", "budget": {**budget.snapshot(), "stopped": exc.reason}}
 
 
+def _answers_with_cache(query, *, lane, deps, budget, answer_cache, message_id):
+    """The answers lane with a semantic cache in front. A near-identical earlier FAQ is served
+    without retrieval or generation; a miss streams normally and, if the answer is grounded and not
+    an abstain, is stored for next time. Only reached for anonymous answers-lane turns, so nothing
+    personalized or order-specific is ever cached."""
+    hit = answer_cache.get(query)
+    if hit is not None:
+        mid = message_id or uuid.uuid4().hex
+        yield {"type": "token", "text": hit["answer"]}
+        yield {"type": "final", "message_id": mid, "answer": hit["answer"], "tier": "auto",
+               "confidence": hit.get("confidence") or 0.0, "grounding": hit.get("grounding") or 0.0,
+               "citations": hit.get("citations") or [], "lane": lane, "cache_hit": True,
+               "cache_similarity": hit.get("similarity"), "budget": budget.snapshot()}
+        return
+    final_ev = None
+    for ev in _emit_with_budget(
+            stream_answer(query, message_id=message_id, role_fragment=role_fragment(lane),
+                          lane=lane, **deps), budget):
+        if ev.get("type") == "final":
+            final_ev = ev
+        yield ev
+    # store only a grounded, non-abstained answer, so the cache never serves a hedge or a refusal
+    if final_ev and final_ev.get("tier") == "auto" and (final_ev.get("grounding") or 0.0) > 0.0:
+        answer_cache.put(query, final_ev.get("answer", ""), final_ev.get("citations", []),
+                         grounding=final_ev.get("grounding"), confidence=final_ev.get("confidence"))
+
+
 def _stream_multitask(routed, *, message_id, auth_identity, deps, budget):
     # answer each distinct LANE once (so a single complaint split across two comma clauses does not
     # double-apologize), with a complaint lane leading, then the rest in typed order, capped after.
@@ -230,7 +257,7 @@ def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review
 def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=None,
                 graph_retriever=None, lang=None, persona=None, history=None, concise=False,
                 auth_identity=None, notes=None, message_id=None, small_llm=None, trace_path=None,
-                review_queue=None, domain=None, budget=None):
+                review_queue=None, domain=None, budget=None, answer_cache=None):
     """Yield the same event dicts as stream_answer (token chunks then one final), after routing.
 
     Every model call on this turn goes through one shared TurnBudget: routing tie-break, generation,
@@ -328,7 +355,12 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                                              auth_identity=auth_identity, deps=deps, budget=budget)
                 return
 
-    # Single-task fast path.
+    # Single-task fast path. An anonymous answers-lane turn (generic FAQ, no order or profile data)
+    # may be served from the semantic cache; every other lane bypasses it for safety.
+    if answer_cache is not None and decision.lane == "answers" and not signed_in:
+        yield from _answers_with_cache(query, lane=decision.lane, deps=deps, budget=budget,
+                                       answer_cache=answer_cache, message_id=message_id)
+        return
     yield from _emit_with_budget(
         stream_answer(query, message_id=message_id,
                       role_fragment=role_fragment(decision.lane), lane=decision.lane, **deps),

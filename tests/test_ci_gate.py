@@ -15,3 +15,10 @@ def test_gate_blocks_a_single_dropped_doc(tmp_path):
     broken = {"corpus": gate["corpus"][1:], "fixtures": gate["fixtures"]}
     result = run_gate(broken, trace_path=str(tmp_path / "t.jsonl"))
     assert not result["passed"] and result["score"] < 1.0  # any regression blocks
+
+
+def test_gate_has_a_populated_abstain_slice():
+    # false-premise, third-party, and unanswerable questions must be CI-gated to abstain, so an
+    # un-abstain change (a heuristic that starts answering them) cannot land silently
+    abstain = [f for f in load_gate(_GATE)["fixtures"] if f["expect"] == "abstain"]
+    assert len(abstain) >= 4

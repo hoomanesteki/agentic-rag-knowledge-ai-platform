@@ -22,6 +22,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    # The MCP server (mcp_server/) ships in the repo, so its SDK installs with the dev tooling and
+    # tests/test_mcp.py runs in `make check`. Runtime for `make mcp`; the core engine never imports it.
+    "mcp>=1.2",
 ]
 # The analytics/semantic layer runs on dbt-duckdb. Kept optional so the offline engine and its
 # tests install light; `make dbt-build` and CI pull it in with `uv sync --extra dbt`.
@@ -33,6 +36,12 @@ dbt = [
 notebook = [
     "matplotlib>=3.9",
     "pandas>=2.2",
+]
+# The Quarto showcase pages run `{python}` chunks that read evaluation/reports/site_stats.json, so
+# a headline number is read from one artifact, never hand-typed. Rendering needs a Jupyter kernel;
+# kept optional so only the site build (make site / the Pages workflow) pulls it in.
+docs = [
+    "jupyter>=1.0",
 ]
 
 # This is an application, not a library. Do not try to build or install it as a package.

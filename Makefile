@@ -95,6 +95,10 @@ consolidate: ## Human-triggered: propose a knowledge pack from recent traffic fo
 site-stats: ## Emit the site's headline numbers to evaluation/reports/site_stats.json (pages read it)
 	PYTHONPATH=. uv run python scripts/build_site_stats.py
 
+site: ## Render the Quarto showcase site to showcase/_site (needs quarto + the docs extra)
+	uv sync --extra docs
+	QUARTO_PYTHON=$(CURDIR)/.venv/bin/python uv run quarto render showcase
+
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 
@@ -118,7 +122,10 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000 \
 	  --reload-exclude '.venv/*' --reload-exclude 'web/*' --reload-exclude 'dbt/target/*'
 
+mcp: ## Run the read-only MCP server over stdio (connect from Claude Desktop / Claude Code / an IDE)
+	PYTHONPATH=. uv run python -m mcp_server.server
+
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate promote drift serve keepalive
+.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate promote drift serve mcp site site-stats keepalive

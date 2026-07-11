@@ -14,7 +14,7 @@ from adapters.config import get_settings
 from adapters.factory import make_embedder, make_graph, make_llm, make_reranker, make_store
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
-from rag.graph import run_chat
+from pipeline.answer import answer_question
 from retrieval.graph import make_graph_retriever
 
 
@@ -42,7 +42,7 @@ def main() -> int:
                   "reranker": make_reranker(), "metric_resolver": resolver,
                   "graph_retriever": graph_retriever}
     try:
-        result = run_chat(query, components=components)  # the LangGraph brain (M6.1)
+        result = answer_question(query, **components)  # the one gated pipeline
     except RuntimeError as exc:
         print("error: {}".format(exc), file=sys.stderr)
         print("hint: is Qdrant up (make up) and ingested (make ingest), and are keys set in .env?",

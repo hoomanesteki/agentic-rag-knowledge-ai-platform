@@ -8,12 +8,14 @@ dependency does not. Read this alongside `model-selection.md` (why each model) a
 
 Raw structured and unstructured data is loaded through a **medallion lakehouse** (bronze → silver →
 gold) with data contracts and PII masking. Gold tables and the unstructured corpus are **ingested**
-into a hybrid vector store and a knowledge graph. At query time a **LangGraph agentic loop**
-understands the question, retrieves and reconciles evidence from three specialists (vector,
-governed metrics, graph), passes a **confidence gate**, and either answers with citations or
-abstains and escalates to a human. Every turn is **traced**; traces feed **quality/health/drift**
-dashboards and **MLflow**; human answers feed a **flywheel** that re-indexes them so the assistant
-learns. Every hosted call has a **fallback** so the system degrades instead of failing.
+into a hybrid vector store and a knowledge graph. At query time the **omni orchestrator** routes the
+turn through a cheap-first **3-layer cascade**, then answers it through **one gated pipeline** that
+retrieves and reconciles evidence (vector, governed metrics, graph), passes a **grounding gate**,
+and either answers with citations or abstains and escalates to a human. It is deterministic code
+with LLM calls only at the decision points, not an open-ended agent loop. Every turn is **traced**;
+traces feed **quality/health/drift** dashboards and **MLflow**; human answers feed a **flywheel**
+that re-indexes them so the assistant learns. Every hosted call has a **fallback** so the system
+degrades instead of failing.
 
 ## Data flow (raw → answer)
 
@@ -38,45 +40,58 @@ learns. Every hosted call has a **fallback** so the system degrades instead of f
 - **Governance:** the leak linter (`scripts/check_domain_leak.py`) fails CI if brand/product
   vocabulary appears in engine folders, so the engine stays domain-agnostic and reproducible.
 
-## The agentic loop (per turn)
+## The orchestrator (per turn)
 
-Two serving paths share the same retrieval, gate, and grounding. The default `CHAT_BRAIN=linear`
-(`stream_answer`) streams tokens and is what the demo runs; `CHAT_BRAIN=agent` swaps in the full
-LangGraph brain below (`rag/graph.py`, `rag/supervisor.py`, `rag/specialists.py`) with the
-supervisor, specialist reconciliation, a bounded retry loop, and escalation to the review queue.
-The diagram is the agent path.
+The **omni orchestrator** (`rag/omni.py`) routes each turn, then answers it through the ONE gated
+pipeline (`pipeline/answer.py`) every path shares, so the order-PII gate, safety intercepts, and
+grounding are identical no matter the lane. `CHAT_BRAIN=linear` is that same pipeline with the
+routing turned off. This is Anthropic's *routing* + *orchestrator-worker* pattern (see
+"Building Effective Agents") and 12-Factor Agents' "own your control flow": deterministic code with
+LLM calls only at the decision points.
 
 ```
-        ┌─────────────┐
-  query │  understand │  route + rewrite a follow-up using history
-        └──────┬──────┘
+        ┌──────────────────────────────────────────────┐
+  query │  route (rag/router.py), cheap-first cascade:  │
+        │   L0 escalation regex   → reach a human        │  $0
+        │   L1 intent guards      → complaint|care|      │  $0 deterministic
+        │                            stylist             │
+        │   L2 8B tie-break/clarify (only if L0/L1 miss) │  ~$0.0001, multilingual
+        └───────────────────────┬──────────────────────┘
+                                ▼  the chosen lane answers through the one gated pipeline:
+        ┌─────────────┐   • Retriever  (hybrid dense+sparse, skip-gated rerank)
+        │   retrieve  │──▶• Metrics    (governed SQL over gold, validated params, read-only)
+        │  + evidence │   • Graph      (allowlisted traversals, e.g. supplier of a product)
+        └──────┬──────┘   reconcile: a governed number beats a contradicting review
                ▼
-        ┌─────────────┐   supervisor dispatches specialists in sequence (retriever first, its
-        │   retrieve  │──▶  top text seeds the graph specialist):
-        │             │     • Retriever  (hybrid dense+sparse + rerank)
-        │  + evidence │     • Metrics    (governed SQL over gold, validated params, read-only)
-        └──────┬──────┘     • Graph      (allowlisted traversals, e.g. supplier of a product)
-               ▼            reconcile: a governed number beats a contradicting review
-        ┌─────────────┐
-        │    gate     │  confidence / grounding check (+ PII gate on order docs)
+        ┌─────────────┐  order-PII gate (name+email), injection/harm intercepts, then a
+        │    gate     │  per-citation grounding check + a sampled online faithfulness judge
         └───┬─────┬───┘
        pass │     │ thin
             ▼     ▼
    ┌──────────┐ ┌───────────────────────────┐
-   │ generate │ │ abstain → offer a human    │
-   │ + cite   │ │ (escalate to review queue) │
+   │ generate │ │ abstain → offer a human    │  escalation is an LLM-FREE handoff:
+   │ + cite   │ │ (escalate to review queue) │  files a case, confirms, hands back
    └────┬─────┘ └──────────┬────────────────┘
         ▼                  ▼
       answer          human specialist answers  ──▶  flywheel: verified answer
      (traced)              (rag/hitl.py)              re-indexed (rag/flywheel.py)
 ```
 
-- **Bounded, not open-ended.** The loop retries a weak retrieval a fixed number of times, then
-  escalates rather than spinning. Small/frequent jobs (query rewrite, metric slot-fill) use the
-  cheap model; only the final synthesis uses the large model.
+- **A multi-intent turn** ("suggest a gift AND check my order") fans out over the distinct lanes,
+  capped at `_MAX_CLAUSES`, and stitches the parts back together with a complaint clause leading.
+- **The loop contract.** Every retry or fan-out carries (a) a hard step cap, (b) a strictly
+  shrinking `TurnBudget` (max calls / tokens / cost / wall-clock, checked BEFORE each model call),
+  and (c) a clean finish or escalation on exhaustion. So a turn can never loop or run away on
+  tokens; `tests/test_loop_contract.py` pins this and every trace carries the budget spent.
 - **Human in the loop.** An abstain or escalation writes to the review queue (`rag/hitl.py`); an
   operator answers it in the back office; the flywheel re-embeds that answer and grows the eval set,
   so the same question is handled automatically next time. That is the learning loop.
+
+**What we retired and why.** A parallel `CHAT_BRAIN=agent` LangGraph supervisor brain
+(`rag/graph.py`, `rag/supervisor.py`, `rag/agent.py`, `rag/state.py`) once ran the same turn as a
+state machine with a bounded retry loop. It is deleted: two brains meant two safety surfaces to keep
+in parity, the deterministic omni path won on the routing golden set, and Anthropic's guidance is to
+add framework abstraction only when a simpler composition fails. `CHAT_BRAIN=agent` now maps to omni.
 
 ## Resilience and fallbacks (why it does not just 500)
 

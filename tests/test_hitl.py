@@ -1,15 +1,12 @@
-"""M6.5 human-in-the-loop: the durable review queue, escalation wiring, and the LangGraph
-checkpointer. Proves an escalated question lands in the queue, a human answer closes it (once),
-the answer is stored as verified knowledge, and a checkpointed graph run's state survives.
+"""M6.5 human-in-the-loop: the durable review queue and escalation wiring. Proves an escalated
+question lands in the queue, a human answer closes it (once), and the answer is stored as verified
+knowledge. Escalation is driven through the omni orchestrator's LLM-free handoff.
 """
 import json
 
-from langgraph.checkpoint.memory import MemorySaver
-
 from adapters.factory import make_embedder, make_llm, make_store
-from rag.agent import answer_with_agent
 from rag.hitl import ReviewQueue
-from rag.supervisor import build_supervisor_graph
+from rag.omni import stream_omni
 from retrieval.sparse import SparseEncoder
 
 
@@ -81,41 +78,28 @@ def test_resolve_writes_verified_knowledge(tmp_path):
     assert rows[0]["source"] == "hitl" and rows[0]["answer"].startswith("Go to Settings")
 
 
+def _final(events):
+    return [e for e in events if e.get("type") == "final"][-1]
+
+
 def test_escalation_enqueues_and_a_human_closes_it(tmp_path):
-    embedder, store = _store_with("the flow legging runs small")
     queue = ReviewQueue(str(tmp_path / "rq.db"))
-    result = answer_with_agent("what is the boiling point of water",
-                               components={"embedder": embedder, "store": store,
-                                           "llm": make_llm("fake")},
-                               review_queue=queue, domain="apparel_ecommerce",
-                               trace_path=str(tmp_path / "t.jsonl"))
-    assert result.tier == "escalate"
-    assert result.trace["escalation_id"] is not None
+    events = list(stream_omni("I want to talk to a human please", embedder=None, store=None,
+                              llm=None, review_queue=queue, domain="apparel_ecommerce",
+                              trace_path=str(tmp_path / "t.jsonl")))
+    final = _final(events)
+    assert final["tier"] == "escalate"
     open_items = queue.list_open()
-    assert len(open_items) == 1 and open_items[0]["id"] == result.trace["escalation_id"]
-    assert queue.resolve(open_items[0]["id"], "Around 100 C at sea level.", "operator") is True
+    assert len(open_items) == 1 and open_items[0]["id"] == final["escalation_id"]
+    assert queue.resolve(open_items[0]["id"], "A specialist will follow up.", "operator") is True
     assert queue.list_open() == []
 
 
 def test_auto_answer_does_not_enqueue(tmp_path):
     embedder, store = _store_with("the flow legging runs small so size up one")
     queue = ReviewQueue(str(tmp_path / "rq.db"))
-    result = answer_with_agent("does the flow legging run small",
-                               components={"embedder": embedder, "store": store,
-                                           "llm": make_llm("fake")},
-                               review_queue=queue, domain="apparel_ecommerce",
-                               trace_path=str(tmp_path / "t.jsonl"))
-    assert result.tier == "auto"
-    assert result.trace["escalation_id"] is None and queue.list_open() == []
-
-
-def test_checkpointer_persists_turn_state(tmp_path):
-    embedder, store = _store_with("the flow legging runs small so size up one")
-    components = {"embedder": embedder, "store": store, "llm": make_llm("fake")}
-    graph = build_supervisor_graph(components, trace_path=str(tmp_path / "t.jsonl"),
-                                   checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "t1"}}
-    state = graph.invoke({"query": "does the flow legging run small", "history": [],
-                          "message_id": "m1"}, config=config)
-    saved = graph.get_state(config)
-    assert saved.values["answer"] == state["answer"]  # the run's state survives, so it can resume
+    events = list(stream_omni("does the flow legging run small", embedder=embedder, store=store,
+                              llm=make_llm("fake"), review_queue=queue,
+                              domain="apparel_ecommerce", trace_path=str(tmp_path / "t.jsonl")))
+    assert _final(events)["tier"] != "escalate"
+    assert queue.list_open() == []

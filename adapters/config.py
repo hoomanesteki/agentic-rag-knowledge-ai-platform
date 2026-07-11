@@ -105,8 +105,8 @@ def get_settings() -> Settings:
         gate_username=os.getenv("GATE_USERNAME", ""),
         gate_password=os.getenv("GATE_PASSWORD", ""),
         # omni (default) is the master orchestrator: it routes each turn to a lane and streams
-        # through the one gated pipeline. "linear" is that pipeline with no routing; "agent" runs
-        # the LangGraph supervisor brain (buffered). All three share the same safety gates.
+        # through the one gated pipeline. "linear" is that pipeline with no routing. Both share the
+        # same safety gates. The retired LangGraph "agent" brain now maps to omni (see api.app).
         chat_brain=os.getenv("CHAT_BRAIN", "omni"),
         review_queue_db=os.getenv("REVIEW_QUEUE_DB", ".review_queue.db"),
         mlflow_url=os.getenv("MLFLOW_TRACKING_URI") or os.getenv("MLFLOW_URI", ""),

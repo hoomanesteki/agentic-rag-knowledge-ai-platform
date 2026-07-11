@@ -54,17 +54,20 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.4.0
     restart: unless-stopped
+    # SQLite backend store (in the mlflow_data volume), not Postgres: the stock MLflow image ships no
+    # psycopg2, so a postgres backend crash-loops. SQLite needs no extra driver and is the right lean
+    # store for a single-node tracking server; artifacts live in the same volume.
     command: >
       mlflow server --host 0.0.0.0 --port 5000
-      --backend-store-uri postgresql://skein:skein@postgres:5432/skein
+      --backend-store-uri sqlite:////mlruns/mlflow.db
       --default-artifact-root /mlruns
     ports:
-      - "5000:5000"
+      # host 5001, not 5000: macOS AirPlay Receiver (ControlCenter) squats on 5000 and 403s every
+      # request, so MLflow calls never reach the container. 5001 sidesteps that. Set
+      # MLFLOW_TRACKING_URI=http://localhost:5001 to match.
+      - "5001:5000"
     volumes:
       - mlflow_data:/mlruns
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   # Batch enrichment worker (see docs/adr-enrichment.md). It reuses the app image with a different
   # command and runs ON DEMAND, not as a long-lived service, so its embedding and annotation bursts

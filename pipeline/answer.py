@@ -137,7 +137,8 @@ _SYSTEM_TMPL = (
     "For casual chit-chat, a joke, or 'how are you', reply briefly and warmly, with no citations "
     "and no forced product mentions. "
     "Reply in the same language the shopper writes in (answer a French message in French, a "
-    "Spanish one in Spanish), keeping the same grounded, cited style. "
+    "Spanish one in Spanish), keeping the same grounded, cited style, and NEVER restate the same "
+    "answer in a second language. "
     "ORDER AND ACCOUNT PRIVACY (strict): before revealing ANY order information at all (order "
     "numbers, dates, items, colors, sizes, the destination city, the address, or a tracking link), "
     "you must have BOTH the account holder's full name AND the email on the account, and both must "
@@ -1293,10 +1294,27 @@ def _rerank_skip_reason(query: str, hits: list[dict], top_k: int) -> str | None:
     return None
 
 
+_FR_MARKERS = re.compile(
+    r"[àâçéèêëîïôûùü]|\b(le|la|les|une|des|est|votre|vos|combien|quelle|quel|où|comment|ma|mon|"
+    r"mes|retour|commande|livraison|coûte|coute)\b", re.I)
+
+
+def _query_lang(query: str) -> str | None:
+    """A cheap language guess for the query, so retrieval can drop other-language chunks. French
+    accents or common French function words -> fr; plain ASCII with none of those -> en; anything
+    else (other scripts/languages) -> None, and no language filtering is applied."""
+    q = (query or "").strip()
+    if not q:
+        return None
+    if _FR_MARKERS.search(q):
+        return "fr"
+    return "en" if q.isascii() else None
+
+
 def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
              reranker: Reranker | None = None, top_k_in: int = 50,
              dense_only: bool = False, auth_text: str | None = None, gender=_GENDER_UNSET,
-             rerank_skip_out: dict | None = None) -> list[dict]:
+             rerank_skip_out: dict | None = None, lang: str | None = None) -> list[dict]:
     """Hybrid retrieval used by both the answer pipeline and the eval harness.
 
     With a reranker, fetch a wider pool (top_k_in) then rerank down to top_k; the hit score
@@ -1337,6 +1355,13 @@ def retrieve(query: str, embedder: Embedder, store: HybridStore, top_k: int = 8,
     # single-turn callers pass nothing and it is inferred from this query.
     gender = _explicit_gender(query) if gender is _GENDER_UNSET else gender
     hits = _gender_filter(hits, gender)
+    # Language facet: a shopper writing in one language must not get another language's chunk in the
+    # top-k (e.g. the French return policy leaking behind the English one). Keep chunks that match
+    # the request/query language or carry no language tag; drop the rest before rerank and prompt.
+    want_lang = lang or _query_lang(query)
+    if want_lang:
+        hits = [h for h in hits
+                if (h.get("payload") or {}).get("lang") in (None, want_lang)]
     if reranker is None or not hits:
         return hits[:top_k]
     skip = _rerank_skip_reason(query, hits, top_k)
@@ -1443,7 +1468,7 @@ def answer_question(query: str, *, embedder: Embedder, store: HybridStore, llm: 
     started = time.perf_counter()
     from adapters.config import get_settings
     domain = get_settings().domain
-    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in)
+    hits = retrieve(query, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in, lang=lang)
     # Gate on the vector evidence alone, before injecting authoritative blocks, so a graph or
     # metric block can never inflate the confidence it is about to override.
     abstained, confidence = should_abstain(query, build_contexts(hits), min_confidence)
@@ -1569,7 +1594,8 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         retrieval_q = (rquery + " " + " ".join(pinned[:5])).strip()[:400]
     rerank_skip: dict = {}
     hits = retrieve(retrieval_q, embedder, store, top_k, reranker=reranker, top_k_in=top_k_in,
-                    auth_text=auth_text, gender=sticky_gender, rerank_skip_out=rerank_skip)
+                    auth_text=auth_text, gender=sticky_gender, rerank_skip_out=rerank_skip,
+                    lang=lang)
     abstained, confidence = should_abstain(rquery, build_contexts(hits), min_confidence)
     # use the expanded query for graph/metric evidence too, so "what about size M?" can still
     # slot-fill a governed stock metric with the product from the prior turn

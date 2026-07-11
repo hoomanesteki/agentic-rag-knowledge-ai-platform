@@ -15,6 +15,9 @@ from .observability import observe, update_generation
 
 _DEFAULT_BASE = "https://api.groq.com/openai/v1"
 _DEFAULT_MODEL = "llama-3.3-70b-versatile"
+# Groq is seconds-scale, so a single call has no business taking a minute. 15s caps a hung call
+# ~4x tighter than the old 60s; the per-turn TurnBudget caps the whole turn on top of this.
+_CALL_TIMEOUT = 15
 
 
 class GroqClient:
@@ -43,7 +46,7 @@ class GroqClient:
         body = {"model": self.model, "messages": self._messages(prompt, system),
                 "max_tokens": max_tokens, "temperature": 0}
         resp = request_json("POST", self.base_url + "/chat/completions", body,
-                            {"Authorization": "Bearer " + self.api_key})
+                            {"Authorization": "Bearer " + self.api_key}, timeout=_CALL_TIMEOUT)
         text = resp["choices"][0]["message"]["content"]
         usage = resp.get("usage", {})
         # record the model, prompt/answer, and token counts on the Langfuse generation (no-op when
@@ -72,7 +75,7 @@ class GroqClient:
         req.add_header("User-Agent", _USER_AGENT)  # else Groq's Cloudflare 403s the stream (1010)
         req.add_header("Authorization", "Bearer " + self.api_key)
         try:
-            resp = urllib.request.urlopen(req, timeout=60)  # noqa: S310
+            resp = urllib.request.urlopen(req, timeout=_CALL_TIMEOUT)  # noqa: S310
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode(errors="replace")[:2000]
             raise RuntimeError("groq stream -> HTTP {}: {}".format(exc.code, detail)) from exc

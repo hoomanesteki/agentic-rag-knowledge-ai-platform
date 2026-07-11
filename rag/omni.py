@@ -21,6 +21,7 @@ import re
 import time
 import uuid
 
+from adapters.budget import BudgetedLLM, BudgetExceeded, TurnBudget
 from pipeline.answer import DEFAULT_TRACE_PATH, stream_answer, write_trace
 from rag.roles import role_fragment
 from rag.router import route
@@ -90,7 +91,28 @@ def _merge_citations(finals) -> list:
     return merged
 
 
-def _stream_multitask(routed, *, message_id, auth_identity, deps):
+def _emit_with_budget(events, budget):
+    """Pass answer events through, stamping the turn's budget snapshot onto the final so the spend
+    is queryable. If a budget breach ends the stream before a final, emit a safe final instead of
+    letting the turn die mid-flight."""
+    saw_final = False
+    try:
+        for ev in events:
+            if ev.get("type") == "final":
+                saw_final = True
+                ev = {**ev, "budget": budget.snapshot()}
+            yield ev
+    except BudgetExceeded as exc:
+        if not saw_final:
+            text = ("Let me keep this quick and accurate and bring in a specialist to help you "
+                    "further.")
+            yield {"type": "token", "text": text}
+            yield {"type": "final", "message_id": uuid.uuid4().hex, "answer": text,
+                   "tier": "abstain", "confidence": 0.0, "grounding": 0.0, "citations": [],
+                   "lane": "budget", "budget": {**budget.snapshot(), "stopped": exc.reason}}
+
+
+def _stream_multitask(routed, *, message_id, auth_identity, deps, budget):
     # answer each distinct LANE once (so a single complaint split across two comma clauses does not
     # double-apologize), with a complaint lane leading, then the rest in typed order, capped after.
     by_lane: dict = {}
@@ -103,10 +125,13 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps):
     answers = []
     finals = []  # the real per-clause finals, so the stitched reply reports measured telemetry
     for clause, lane in ordered:
-        text, final = _answer_once(clause, lane, deps)
-        if final.get("tier") == "abstain" and lane != "answers" and reroute_budget > 0:
-            reroute_budget -= 1  # one clause may retry as the answers catch-all
-            text, final = _answer_once(clause, "answers", deps)
+        try:
+            text, final = _answer_once(clause, lane, deps)
+            if final.get("tier") == "abstain" and lane != "answers" and reroute_budget > 0:
+                reroute_budget -= 1  # one clause may retry as the answers catch-all
+                text, final = _answer_once(clause, "answers", deps)
+        except BudgetExceeded:
+            break  # out of budget: finish with the clauses already answered, never loop on
         if text:
             answers.append(text)
             finals.append(final)
@@ -127,7 +152,7 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps):
     yield {"type": "token", "text": stitched}
     yield {"type": "final", "message_id": mid, "answer": stitched, "tier": "auto",
            "confidence": confidence, "grounding": grounding, "citations": citations,
-           "lane": "multi"}
+           "lane": "multi", "budget": budget.snapshot()}
 
 
 _ORDER_ID = re.compile(r"\b[A-Z]{2}\d{5,}\b")
@@ -205,10 +230,17 @@ def _escalate_handoff(query, *, message_id, auth_identity, history, lang, review
 def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=None,
                 graph_retriever=None, lang=None, persona=None, history=None, concise=False,
                 auth_identity=None, notes=None, message_id=None, small_llm=None, trace_path=None,
-                review_queue=None, domain=None):
-    """Yield the same event dicts as stream_answer (token chunks then one final), after routing."""
+                review_queue=None, domain=None, budget=None):
+    """Yield the same event dicts as stream_answer (token chunks then one final), after routing.
+
+    Every model call on this turn goes through one shared TurnBudget: routing tie-break, generation,
+    and each multi-task clause. The budget is checked before each call and the turn stops with the
+    answers already in hand on breach, so it can never loop or run away on tokens or time."""
+    budget = budget or TurnBudget()
+    b_llm = BudgetedLLM(llm, budget)
+    b_small = BudgetedLLM(small_llm, budget) if small_llm is not None else None
     signed_in = bool(auth_identity and auth_identity[0])
-    decision = route(query, history=history, signed_in=signed_in, small_llm=small_llm)
+    decision = route(query, history=history, signed_in=signed_in, small_llm=b_small)
 
     # Lane continuity: a short follow-up ("when will it get here", "the cheaper one") often carries
     # no intent of its own and falls to the answers catch-all, breaking the thread it continues.
@@ -220,7 +252,7 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                  if t.get("role") == "user" and (t.get("content") or "").strip()]
         if prior:
             cont = route((" ".join(prior[-2:]) + " " + query).strip(), history=history,
-                         signed_in=signed_in, small_llm=small_llm)
+                         signed_in=signed_in, small_llm=b_small)
             if cont.lane != "answers" and cont.clarify is None and not cont.tasks:
                 decision = cont
 
@@ -237,7 +269,7 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                "confidence": round(decision.confidence, 3), "grounding": 1.0, "citations": []}
         return
 
-    deps = dict(embedder=embedder, store=store, llm=llm, reranker=reranker,
+    deps = dict(embedder=embedder, store=store, llm=b_llm, reranker=reranker,
                 metric_resolver=metric_resolver, graph_retriever=graph_retriever, lang=lang,
                 persona=persona, history=history, concise=concise, auth_identity=auth_identity,
                 notes=notes)
@@ -248,9 +280,10 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
     # the routed lane's focus. Even a repeated "get me a human" here just reassures them and does
     # NOT file a second case, rather than restarting the shopper with the assistant.
     if persona == "agent":
-        yield from stream_answer(query, message_id=message_id,
-                                 role_fragment=role_fragment(decision.lane), lane=decision.lane,
-                                 **deps)
+        yield from _emit_with_budget(
+            stream_answer(query, message_id=message_id,
+                          role_fragment=role_fragment(decision.lane), lane=decision.lane, **deps),
+            budget)
         return
 
     # A first request to reach a person: file exactly one ready case brief and confirm. This takes
@@ -292,10 +325,11 @@ def stream_omni(query, *, embedder, store, llm, reranker=None, metric_resolver=N
                 # fan out over ALL clauses, so an "answers" sub-question in the turn is still
                 # answered and stitched in, not silently dropped by an actionable-only filter
                 yield from _stream_multitask(routed, message_id=message_id,
-                                             auth_identity=auth_identity, deps=deps)
+                                             auth_identity=auth_identity, deps=deps, budget=budget)
                 return
 
     # Single-task fast path.
-    yield from stream_answer(query, message_id=message_id,
-                             role_fragment=role_fragment(decision.lane), lane=decision.lane,
-                             **deps)
+    yield from _emit_with_budget(
+        stream_answer(query, message_id=message_id,
+                      role_fragment=role_fragment(decision.lane), lane=decision.lane, **deps),
+        budget)

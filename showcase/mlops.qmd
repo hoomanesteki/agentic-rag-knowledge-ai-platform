@@ -154,7 +154,7 @@ Three loops feed each other. A turn that abstains, is corrected, or is flagged l
 
 ## What it costs, for whoever signs the invoice
 
-Operating cost is a first-class number, not an afterthought, and it is the number a business stakeholder actually reads. A reproducible cost model (`mlops/cost_model.py`) puts each option side by side for a typical **8-turn conversation**:
+Operating cost is a first-class number, not an afterthought, and it is the number the business actually reads. A reproducible cost model (`mlops/cost_model.py`) puts each option side by side for a typical **8-turn conversation**:
 
 | Who handles the conversation | Cost per session | Versus a human agent | What you trade |
 |---|---:|---:|---|

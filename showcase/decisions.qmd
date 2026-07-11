@@ -7,7 +7,7 @@ pagetitle: "Skein Lite: Decisions"
 Why these parts, and where I'd switch
 :::
 
-Every choice here is a trade-off against constraints: this runs on a hobby budget, it has to work offline for a reviewer with no API keys, and it has to be swappable so it isn't wedded to one vendor. Below is the reasoning, and the honest "if your constraints differ, switch to this" for each.
+Every choice here is a trade-off against constraints: it runs on a lean budget, it has to work offline with no API keys, and it has to be swappable so it isn't wedded to one vendor. Below is the reasoning, and the honest "if your constraints differ, switch to this" for each.
 
 ## Embeddings & rerank, Cohere
 

@@ -38,7 +38,7 @@ Order documents reach the model only when the shopper's own turns contain **both
 :::
 ::: {.card}
 ### Customer enumeration
-"List your customers / who bought X" refuses before retrieval, so no name, not even a reviewer's, is ever volunteered.
+"List your customers / who bought X" refuses before retrieval, so no customer's name is ever volunteered.
 :::
 ::: {.card}
 ### Gender correctness

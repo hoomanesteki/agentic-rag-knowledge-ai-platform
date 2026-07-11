@@ -1,7 +1,7 @@
 # Fallbacks: how the demo stays up
 
-Every external provider can rate-limit, expire a key, or go down. A hiring manager testing the demo
-should never see a dead screen, so each provider has layers that degrade quietly instead of failing.
+Every external provider can rate-limit, expire a key, or go down. Someone using the app should never
+see a dead screen, so each provider has layers that degrade quietly instead of failing.
 The rule is the same everywhere: try the best option, fall to the next on failure, and only ever
 lose a little quality, never the whole turn.
 

@@ -52,7 +52,7 @@ The structured files run through a dbt medallion, the same bronze to silver to g
 - **Silver** types every column and **masks any column a pack marks as PII** (the value becomes a `masked:` hash), enforced by a dbt `is_masked` test that fails the build if a raw value slips through to gold.
 - **Gold** is the curated set the assistant and the dashboards query.
 
-Every build runs dbt tests: `not_null`, `unique`, `relationships`, and the masking test on any declared PII column. A **parity test in CI** asserts the dbt-built gold is identical to an in-app Python builder, so the two ways of producing gold can never quietly diverge. dbt **exposures** name the downstream consumers, so lineage answers "what does this table feed" for a reviewer, not just "what feeds this table."
+Every build runs dbt tests: `not_null`, `unique`, `relationships`, and the masking test on any declared PII column. A **parity test in CI** asserts the dbt-built gold is identical to an in-app Python builder, so the two ways of producing gold can never quietly diverge. dbt **exposures** name the downstream consumers, so lineage answers "what does this table feed", not just "what feeds this table."
 
 The demo's structured tables (products, stores, suppliers, sales) carry no personal data, so nothing is masked here today; the customer PII lives in the **order documents** on the unstructured side, where a deterministic gate, not the model, decides who may see it (see [Reliability](reliability.qmd)). Point a pack with a PII column at the same medallion and the masking test starts guarding it, no engine change.
 

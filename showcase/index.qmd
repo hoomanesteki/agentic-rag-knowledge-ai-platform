@@ -4,6 +4,12 @@ pagetitle: "Skein Lite: an agentic RAG platform"
 toc: false
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+```
+
 ::: {.hero}
 ::: {.eyebrow}
 Retrieval-augmented generation · built end to end
@@ -11,82 +17,88 @@ Retrieval-augmented generation · built end to end
 # A shopping assistant that knows when it doesn't know {.hero-title}
 
 ::: {.lede}
-Skein Lite is a local-first, domain-swappable RAG platform. The demo is a storefront, an apparel brand called Aster Athletics with a shopping assistant named Sara and an escalation care specialist named Tiffany, but the engine underneath knows nothing about apparel. Swap one folder and it becomes a different store.
+Sara is the AI assistant on Aster Athletics, a demo apparel storefront. A signed-in shopper asks where their order is, wants a gift for their mum, or checks whether a legging runs small. Sara answers from store data with citations, or says she does not know, or hands off to a human. The engine underneath knows nothing about apparel: swap one folder and it becomes a different store.
 :::
 :::
 
 ::: {.stat-strip}
 ::: {.stat}
 ::: {.n}
-500
+`{python} S["tests"]`
 :::
 ::: {.k}
-tests, all green
+tests, fully offline
 :::
 :::
 ::: {.stat}
 ::: {.n}
-85.9%
+`{python} f"{S['routing']['tiebreak_8b_pct']}%"`
 :::
 ::: {.k}
-router accuracy, 100% escalation recall
+routing accuracy, `{python} f"{S['routing']['tiebreak_8b_escalation_recall_pct']:.0f}%"` escalation recall
 :::
 :::
 ::: {.stat}
 ::: {.n}
-1.0
+`{python} f"${S['cost']['text_turn_usd']}"`
 :::
 ::: {.k}
-CI eval-gate score
+per text turn
 :::
 :::
 ::: {.stat}
 ::: {.n}
-430×
+`{python} f"{S['cost']['human_vs_ai_ratio']:.0f}×"`
 :::
 ::: {.k}
-[cheaper per session than a human](cost.qmd)
+[cheaper per turn than a human](cost.qmd)
 :::
 :::
 :::
 
-The interesting problem in a retrieval system is not answering, it is refusing. A model that always answers will confidently invent an order number, a price, or a color it never saw. Most of the work here is in the seams around the model: a confidence gate that abstains on thin evidence, a governed metric layer for anything numeric, a knowledge graph for relationships, and a set of deterministic guards for the things a prompt can't be trusted to enforce, customer privacy, prompt injection, gender-correct recommendations.
+The hard problem in a retrieval system is refusing well. A model that always answers will confidently invent an order number, a price, or a color it never saw. Most of the work here sits in the seams around the model: a per-citation grounding check, a sampled online faithfulness judge from a different model family, and an abstain gate for thin evidence.
 
-The assistant is grounded in synthetic data for a fictional brand. Every product, review, and order is invented. What's real is the machinery: the ingestion, the hybrid retrieval, the evaluation harness, and the CI that blocks a regression before it ships.
+The other half is what runs before the model. One deterministic orchestrator routes each turn through a cheap-first cascade: `{python} f"{S['routing']['deterministic_pct']}%"` of `{python} S["routing_eval_set"]` labeled turns are decided free, and a small-model tie-break lifts accuracy to `{python} f"{S['routing']['tiebreak_8b_pct']}%"` while never missing a genuine "get me a human". Order privacy, prompt injection, and customer enumeration are refused in code, before the prompt.
+
+Every product, review, and order is synthetic, invented for a fictional brand. What's real is the machinery: the ingestion, the hybrid retrieval, the `{python} S["golden_items"]`-item golden set that gates model changes, and the CI that blocks a regression before it ships.
 
 ## What to read next
 
 ::: {.grid-cards}
 ::: {.card}
+### [Experience →](experience.qmd)
+The shopper story: one signed-in conversation walked end to end, an order check, a gift, a sizing question, and the privacy gate that holds through all of it.
+:::
+::: {.card}
 ### [Architecture →](architecture.qmd)
-The path a question takes from keypress to grounded answer: a master-orchestrator router over specialized lanes, hybrid retrieval, the reranker, the graph and metric seams, and the domain-agnostic engine.
+The path a question takes from keypress to grounded answer: the routing cascade, the specialist lanes, hybrid retrieval, the graph and metric seams, and the one gated pipeline they all share.
 :::
 ::: {.card}
 ### [Evaluation →](evaluation.qmd)
-A labeled routing eval, the single-vs-multi and model-tier experiments, a prompt-optimization loop that lifts a prompt on held-out data, an offline CI gate, RAGAS, and drift monitors, with every number regenerated from a command.
+The labeled routing eval, the model-tier experiments, the offline CI gate, RAGAS, and drift monitors, with every number regenerated from a command.
 :::
 ::: {.card}
-### [Cost & the business case →](cost.qmd)
-The full proof behind "430× cheaper than a human": every assumption, the price of each stage of a turn, the session total, and the division, all regenerated from one command.
+### [Cost →](cost.qmd)
+The full proof behind "`{python} f"{S['cost']['human_vs_ai_ratio']:.0f}×"` cheaper than a human": every assumption, the price of each stage of a turn, and the division.
+:::
+::: {.card}
+### [MLOps →](mlops.qmd)
+The human-gated loop: drift detection, one deduped GitHub issue, a registered candidate, shadow replay, and a person who decides. Nothing self-ships.
 :::
 ::: {.card}
 ### [Decisions →](decisions.qmd)
-Why Cohere over the alternatives, why Groq for the LLM, why a graph at all, and where I'd switch if the constraints changed.
+Why Groq and Cohere, why one orchestrator instead of an agent graph, why a cheaper model swap was held on measured faithfulness.
 :::
 ::: {.card}
 ### [Reliability →](reliability.qmd)
-The failure modes I planned for: what happens when the LLM, the vector store, or the voice service is slow or down, and the fallback for each.
+The failure modes planned for: what happens when the LLM, the vector store, or the voice service is slow or down, and the fallback for each.
 :::
 ::: {.card}
 ### [Try it →](usage.qmd)
-How to run it locally with no API keys, and how to talk to the assistant, the things it does well and the honest edges.
-:::
-::: {.card}
-### [Source →](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform)
-The full codebase: engine, domain packs, evaluation, the Next.js storefront, and the CI that keeps it honest.
+The shortest path to running it locally, signing in as the demo shopper, and talking to Sara.
 :::
 :::
 
 ::: {.callout-note appearance="simple"}
-**Built to be inspected.** This is not a slide deck. Every claim here maps to code you can read, and the [Reliability](reliability.qmd) page names each failure mode, each fallback, and the two critical issues a multi-agent adversarial review caught, all now fixed with regression tests. Naming the limits is what makes the rest credible.
+**Built to be inspected.** Every claim on this site maps to code you can read, and the headline numbers load from one generated file, `evaluation/reports/site_stats.json`, so the prose can never drift from the evidence. The [Reliability](reliability.qmd) page names the known limits; naming them is what makes the rest credible. Full source on [GitHub](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform).
 :::

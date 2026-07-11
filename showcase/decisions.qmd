@@ -1,90 +1,91 @@
 ---
 title: "Decisions"
 pagetitle: "Skein Lite: Decisions"
+execute:
+  freeze: true
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+R = S["routing"]
+AB = json.load(open("../evaluation/reports/gpt_oss_swap_ab.json"))
+F = AB["overall"]["faithfulness"]
+def pct(x): return f"{x:g}%"
+```
+
 ::: {.eyebrow}
-Why these parts, and where I'd switch
+Kept and rejected, on evidence
 :::
 
-Every choice here is a trade-off against constraints: it runs on a lean budget, it has to work offline with no API keys, and it has to be swappable so it isn't wedded to one vendor. Below is the reasoning, and the honest "if your constraints differ, switch to this" for each.
+Sara is one deterministic orchestrator over one gated pipeline, Groq-only. Each of those was a decision with a live alternative, and several alternatives were built, measured, and removed. The scorecard first, the reasoning after.
 
-## Embeddings & rerank, Cohere
+## The scorecard
 
-**Chosen:** Cohere `embed-v4.0` (1536-dim) for embeddings and `rerank-v3.5` for reranking.
+| Decision | Kept | Rejected | Decided by |
+|---|---|---|---|
+| Control flow | one deterministic orchestrator (`rag/router.py`) | a LangGraph supervisor brain, built and then deleted | routing eval, plus one safety surface instead of two |
+| Serving path | one gated pipeline (`pipeline/answer.py`) | per-lane pipelines | every turn passes the same guards |
+| Release | human-gated promotion, everywhere | any auto-promote path | the reward-hacking guardrail |
+| Workhorse model | `llama-3.3-70b` | a `gpt-oss-120b` swap | faithfulness `{python} F["baseline"]` vs `{python} F["candidate"]` on the graded golden set |
+| Routing tie-break | the 8B small model | a 70B tie-break | `{python} pct(R["tiebreak_8b_pct"])` vs `{python} pct(R["tiebreak_70b_pct"])`, the big model loses |
+| Prompt tuning | an ~80-line OPRO loop | DSPy | +5.6 points held-out, no framework adopted |
+| Hallucination check | an offline sampled judge | an in-loop critic before streaming | the answer streams; the judge never blocks it |
 
-The reranker is the highest-leverage component in the whole retrieval path. Dense vectors get you a rough top-50; the reranker is what turns that into a precise top-8, and a good one covers for a merely-adequate embedder. Cohere's rerank is strong, multilingual (the demo runs English and French), and cheap at this scale. Embeddings and rerank from one vendor keeps the seam simple.
+## One orchestrator, no framework brain
 
-::: {.callout-note appearance="simple"}
-**If your constraints differ.** Everything is behind a factory seam (`make_embedder`, `make_reranker`), so switching is a config change, not a rewrite. Want fully local and free? Point it at a sentence-transformers embedder and a local cross-encoder. Already on OpenAI? Swap in `text-embedding-3-large`. The project started on Voyage and moved to Cohere, that migration was a manifest and adapter change, which is the whole point of the seam.
-:::
+Every turn goes through a cheap-first cascade: a deterministic escalation intercept, deterministic intent guards, then one 8B tie-break call only for genuine ambiguity. The lane then streams through the single gated pipeline, so the stylist, care, complaint, and escalation lanes all inherit the same grounding and safety rules.
 
-## The LLM, Groq, Llama 3.3 70B
+A LangGraph supervisor brain once ran the same turns as a state machine. It was deleted: around 600 lines and two heavyweight dependencies gone. Two brains meant two safety surfaces to keep in parity, and the deterministic path won on the routing eval. A `linear` no-routing mode remains behind the `CHAT_BRAIN` flag; the old `agent` value now maps to the orchestrator.
 
-**Chosen:** Llama 3.3 70B served by Groq.
+## No auto-promote, anywhere
 
-For a *streaming conversational* assistant, tokens-per-second is a feature, not a nicety, a shopper watching a reply appear word by word forgives a lot. Groq's inference speed makes a 70B model feel instant, and Llama 3.3 70B is more than capable of the grounded, cited, format-following answers this needs. It's also open-weight, so there's no lock-in to the model itself.
+Drift detection, the CT cycle, the prompt loop, consolidation, and staleness all follow one rule: propose automatically, promote through a human. A system that rewrites its own served behavior invites drift and reward hacking, so the loop stops at a registered `@challenger` and shadow evidence, and a person runs the promotion command. The whole loop is on the [MLOps](mlops.qmd) page.
 
-::: {.callout-note appearance="simple"}
-**If your constraints differ.** The LLM sits behind one `make_llm` seam and a `.generate()` interface. For higher reasoning quality on hard multi-step questions, point it at a larger Groq-served model first (staying on one vendor), or at a hosted frontier model if you accept the added dependency, the prompts are model-agnostic. For a stronger *judge* in the RAGAS eval, set `JUDGE_MODEL` independently so the app model isn't grading itself.
-:::
+## The model swap that was measured and held
 
-## The frontier model, measured and declined
+`gpt-oss-120b` is cheaper per token than the 70B workhorse and looked like a free win: the aggregate RAGAS delta on the `{python} S["golden_items"]`-item graded golden set was `{python} AB["aggregate"]["delta"]`. But faithfulness fell from `{python} F["baseline"]` to `{python} F["candidate"]`, and faithfulness is the metric a shopper feels as a made-up fact. The swap was held. Saving money by inventing more is not saving money.
 
-**Chosen:** Groq only, no separate frontier vendor, decided on numbers.
+## The 8B tie-break over a 70B, and Groq-only
 
-The obvious "make it smarter" move is to add a frontier model for routing or for the escalation persona. I made that a measurement, not a preference. On the labeled routing set a 70B tie-break scored 85.6% against an 8B's 85.9%, so a model roughly twenty times the price per token did not even edge out the cheap one on classification. The escalation persona's job, gather the shopper's details, confirm them, and file a ready case, is structured and format-driven rather than reasoning-heavy, which the 70B handles well. So the system stays Groq-only, and a frontier model is reserved for the one place it earns its cost: an offline, occasional judge on the hardest reviewed cases, never in the serving path. The numbers are on the [evaluation](evaluation.qmd) page and the dollars are in the [cost model](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform).
+On the `{python} S["routing_eval_set"]`-turn routing eval, the 70B tie-break scored `{python} pct(R["tiebreak_70b_pct"])` against the 8B's `{python} pct(R["tiebreak_8b_pct"])`, so a model many times the price lost the classification job. The 8B ships, with `{python} pct(R["tiebreak_8b_escalation_recall_pct"])` escalation recall, and the system stays on one vendor. A bigger model is reserved for the one place it earns its cost: an offline judge, never the serving path.
 
-::: {.callout-note appearance="simple"}
-**If your constraints differ.** The tier is a config value and the eval is one command, so revisiting this is `run_agent_eval.py` with a new model in the comparison. The discipline is to let the number, not the instinct, decide.
-:::
+## An OPRO loop over DSPy
 
-## A knowledge graph, worth it, but scoped
+The prompts are hand-tuned and safety-critical, so adopting a framework that wants to own the prompting layer was a large dependency for a small gain. The loop in `mlops/prompt_opt.py` is about eighty lines: an LLM proposes rewrites from the failing cases, the eval scores them on a held-out split, a safety gate checks the contract, and a human promotes the winner. It lifted the tie-break prompt from 73.9% to 79.5% held-out, which is the gain that mattered, without the framework.
 
-**Chosen:** Neo4j, used for relationship questions only.
+## An offline judge over an in-loop critic
 
-Vectors are bad at relationships. "Which supplier makes the Cloud Hoodie" is a graph hop, not a similarity search, and forcing it through vector retrieval gives vague, wrong-shaped answers. The graph earns its place for exactly that class of question, and it's treated as *authoritative* only when the query names the entity, so it grounds rather than guesses.
+A critic model that reviews every answer before the shopper sees it doubles latency and cost on every turn. Instead the answer streams immediately, and the faithfulness ladder queues low-grounding turns plus a sampled slice for a different-family judge after the answer is sent. Hallucinations are caught on a cadence that costs a fraction of a critic, and streaming is never blocked. Details on the [Evaluation](evaluation.qmd#hallucination-defense-three-layers) page.
 
-Honesty about scope: of the two relationships modeled, one (supplier → product) is fully populated and genuinely useful, and one (product → store, derived from a handful of historical sales) is thin and mostly returns nothing. That's documented on the [Reliability](reliability.qmd) page rather than hidden. The graph is a real capability, not a checkbox, which means being clear about where it's strong and where it isn't.
+## The stack, briefly
 
-## A governed metric layer instead of "let the model do math"
+| Component | Chosen | Why |
+|---|---|---|
+| Embeddings + rerank | Cohere `embed-v4.0`, `rerank-v3.5` | the reranker is the highest-leverage retrieval component; one vendor, one seam, strong in English and French |
+| LLM serving | Groq | tokens per second is a feature in a streaming chat; open-weight model, no lock-in |
+| Vectors | Qdrant hybrid | dense + lexical in one store, local-first |
+| Numbers | a governed metric layer (`metrics.yaml`) over read-only DuckDB | "what's the cheapest hoodie in stock" runs a parameterized SQL template; the model presents the number and never invents it |
+| Relationships | Neo4j, scoped | used only where a graph hop beats similarity search; one of two modeled relationships is thin, and that is documented, not hidden |
+| Lakehouse | DuckDB + dbt medallion | tested, reproducible governance that runs on a laptop and in CI |
 
-**Chosen:** A validated semantic layer (`metrics.yaml`) over read-only DuckDB.
-
-Language models are unreliable at arithmetic and worse at making up plausible numbers. Any question with a number in the answer, return rate by size, the cheapest hoodie, per-size stock, routes to a governed metric: the model fills declared slots, a resolver runs a parameterized SQL template on a read-only connection, and the result comes back as a labeled evidence block that is never fused with vector scores. The model presents the number; it never invents it. Small samples even come back with the sample size attached, so a rate over six sales is stated as "based on only six sales."
-
-## DuckDB + dbt for the lakehouse
-
-**Chosen:** a DuckDB medallion (bronze → silver → gold) built and tested by dbt.
-
-This is a portfolio, so the data layer has to *demonstrate* governance, not just have it. dbt gives real schema tests, PII-masking rules, and a deterministic, reproducible build, and it runs in CI, where a parity test asserts the dbt-built gold tables match the in-app builder exactly. DuckDB keeps the whole thing local and zero-infrastructure: no warehouse to provision, and the same file works on a laptop and in CI.
-
-## Two brains, one seam (and one we retired)
-
-**Chosen:** a master orchestrator (the default) and a fast linear pipeline, selectable by one `CHAT_BRAIN` flag.
-
-The default `omni` brain is the master orchestrator: it routes each turn to a specialized lane, then streams through the one gated pipeline. `linear` is that same pipeline with no routing, one pass, retrieve, ground, answer. Both share the same retrieval and the same guards; only the control flow differs, so the demo can show routing without slowing down the common case.
-
-**Retired:** a third `agent` brain, a LangGraph supervisor with a bounded retry loop, once ran the same turn as a state machine. It was deleted (around 600 lines and two heavyweight dependencies gone). Two brains meant two safety surfaces to keep in parity, the deterministic omni path won on the routing golden set, and the guidance we follow is to add framework abstraction only when a simpler composition fails. `agent` now maps to omni. Scoring the deletion is the point: less code, one safety surface, a stronger story than keeping both.
+Everything sits behind a factory seam (`make_llm`, `make_embedder`, `make_reranker`), so each row is a config change, not a rewrite. The project already survived one migration this way, Voyage to Cohere.
 
 ## Alternatives at a glance
 
-Every component is behind a factory seam, so each row below is a config change, not a rewrite.
-
 | Component | Chosen | Alternative | Switch when |
 |---|---|---|---|
-| Embeddings | Cohere `embed-v4.0` | sentence-transformers (local, free) or OpenAI `text-embedding-3-large` | You want zero quota (local) or you are already on OpenAI |
-| Reranker | Cohere `rerank-v3.5` | a local cross-encoder (bge-reranker) | You need fully offline, or lower cost at higher volume |
-| LLM | Groq Llama 3.3 70B | Claude or a GPT-4-class model | You need stronger multi-step reasoning over streaming speed |
-| Vectors | Qdrant hybrid | pgvector, Weaviate, Milvus | You want vectors in your existing Postgres, or a managed cloud |
-| Lakehouse | DuckDB + dbt | Snowflake, BigQuery, or Databricks + dbt | Data outgrows a laptop, or a team needs a shared warehouse |
-| Graph | Neo4j | Memgraph, or a relational adjacency model | You already run one, or the graph stays small enough for SQL |
+| Embeddings | Cohere `embed-v4.0` | sentence-transformers (local, free) or OpenAI | you want zero quota, or you are already on OpenAI |
+| Reranker | Cohere `rerank-v3.5` | a local cross-encoder | you need fully offline, or lower cost at volume |
+| LLM | Groq Llama 3.3 70B | a frontier model | you need deeper multi-step reasoning over streaming speed |
+| Vectors | Qdrant hybrid | pgvector, Weaviate | you want vectors inside your existing Postgres |
+| Lakehouse | DuckDB + dbt | Snowflake, BigQuery, Databricks | data outgrows a laptop, or a team needs a shared warehouse |
+| Graph | Neo4j | a relational adjacency model | the graph stays small enough for SQL |
 
-## How it changes as the stakes change
+## If the stakes change
 
-The architecture was chosen so the answer to "what if it grows up" is an increment, not a redesign.
-
-- **If the domain becomes regulated (legal, health, finance).** The manifest-driven masking test, the read-only governed queries, and the deterministic privacy guards (the order-PII gate that decides who may see an order) are already the spine of a compliance story. The additions are an audit log on every disclosure, a data-retention policy on the trace store, and a human-review requirement wired into the existing escalation queue. Nothing needs to be torn out to add them.
-- **If it goes B2B and multi-tenant.** A domain is already a config folder, so a tenant is a pack plus an isolated index and graph. Auth moves from the demo gate to per-tenant identity, order access binds to the authenticated principal instead of a typed name and email, and rate limits and cost ceilings become per-tenant. The seams are the same.
-- **If the data moves to a warehouse or lake (Databricks, Snowflake, BigQuery).** The dbt project is portable: point it at the warehouse and the same medallion, tests, and exposures run there. DuckDB stays as the fast local build for CI and development, so the reproducible offline story survives the move to a shared platform.
-- **If traffic scales.** The in-memory rate limiter swaps for Redis behind the same interface, the vector store and graph move to their managed cloud tiers, the LLM and embedder are already concurrent-safe behind retrying seams, and the weekly continuous-training workflow gains shadow and canary stages on top of the drift check and eval gate it already runs. The instance cap that protects cost today becomes an autoscaling policy.
+- **Regulated domain.** The masking tests, read-only governed queries, and the deterministic order-PII gate are the spine; add an audit log on disclosure, retention on traces, and mandatory human review in the existing escalation queue.
+- **Multi-tenant B2B.** A domain is already a config folder, so a tenant is a pack plus an isolated index and graph; order access binds to the authenticated principal.
+- **A shared warehouse.** The dbt project ports as-is; DuckDB stays as the fast local build for CI.
+- **More traffic.** Redis behind the rate-limit interface, managed tiers for the stores, and the shadow step grows into a live canary once the loop has earned it.

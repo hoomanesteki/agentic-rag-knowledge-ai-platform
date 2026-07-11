@@ -3,61 +3,92 @@ title: "Try it"
 pagetitle: "Skein Lite: Try it"
 ---
 
-::: {.eyebrow}
-Run it locally · talk to the assistant
-:::
-
-The whole thing runs offline with deterministic fakes, no API keys needed to see the pipeline, the evaluation, and the CI in action. Keys and running services are only needed for *real* answer quality.
-
-## Run it offline in three commands
-
-```bash
-make setup                 # venv + locked dependencies (uv)
-cp .env.example .env       # fill in GROQ_API_KEY and COHERE_API_KEY for real runs
-make check                 # lint, tests, domain-leak, eval gate, fully offline
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
 ```
 
-`make check` is the honest signal: it runs the linter, the full test suite, the domain-leak check, and the eval gate, all with no external services. If it's green, the machinery works. The dbt semantic-layer build and its parity test run as a separate CI job, or locally with `make dbt-build`. `make doctor` explains what's missing if a step hangs (Docker, `.env`, or a provider key).
+::: {.eyebrow}
+Run it locally · sign in · talk to Sara
+:::
 
-For the full experience, live retrieval, real answers, voice, bring up the services (`docker compose`), set the provider keys, run `make ingest`, and start the API and the Next.js storefront.
+Two paths. The offline one proves the machinery with no keys and no services. The full one gets you a real conversation with the assistant.
 
-## How to talk to the assistant
+## Prove it offline, no keys
 
-The assistant is built to behave like a good associate on the floor, not a search box. A few things worth trying:
+Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12).
+
+```bash
+make setup     # venv + locked dependencies
+make check     # lint, the full test suite, leak check, eval gate
+```
+
+`make check` runs the full `{python} S["tests"]`-test suite, the domain-leak linter, and the CI eval gate, all on deterministic fakes. Green means the pipeline, the gates, and the evaluation harness all work. `make doctor` explains anything missing.
+
+## Run the real thing
+
+Needs Docker and two keys (Groq and Cohere, both have free tiers).
+
+```bash
+cp .env.example .env       # add GROQ_API_KEY and COHERE_API_KEY
+make up                    # Qdrant, Postgres, Neo4j, MLflow
+make dbt-build             # build + test the semantic layer
+make ingest                # build the vector index
+make graph-load            # load the knowledge graph
+make serve                 # API on :8000
+cd web && npm install && npm run dev    # storefront on :3000
+```
+
+Open the storefront, sign in as the demo shopper (`demo` / `Canada54321`), and open the chat. You are now Aaron Esteki, a member with a purchase history and orders in transit, which is what makes the order and account questions real.
+
+## What to say to Sara
 
 ::: {.grid-cards}
 ::: {.card}
+### Ask about your orders
+"Where's my order?" or "which of my packages are on the way?" Your signed-in identity unlocks your own orders, so there is no verification quiz.
+:::
+::: {.card}
 ### Ask by need, not keyword
-"What should I wear for a rainy run?" or "a gift for my girlfriend who does yoga, under \$100." It reasons about use, weather, occasion, and budget.
+"A gift for my mum who loves yoga, around \$60" or "a warm waterproof jacket for a rainy winter." It reasons about recipient, use, weather, and budget.
 :::
 ::: {.card}
 ### Push on the details
-"Does the Vent Tech Tee run sheer?" pulls a real critical review. "What's your cheapest hoodie?" comes from the catalog, not a guess.
+"Does the Flow Legging run small?" pulls a real critical review. "What's your return policy?" answers from policy text, cited.
+:::
+::: {.card}
+### Complain, or ask for a person
+"My order is late and I'm annoyed" gets empathy and a next step. "Get me a human" reaches Tiffany, who files a ready case.
 :::
 ::: {.card}
 ### Try to break privacy
-Ask for an order with only an email, or claim to be staff. It refuses and asks for verification, by design.
+Sign out and ask for orders with only an email, or ask "who bought the Flow Legging?". Both are refused in code, before the model runs.
 :::
 ::: {.card}
-### Talk, don't type
-The voice mode speaks a shorter reply than it would type, and puts the fuller set of options on screen, because a bulleted list is miserable to listen to.
+### Talk instead of typing
+Voice mode speaks one or two sentences and puts the fuller set on screen. Interrupt it mid-reply; it stops on your first words.
 :::
 :::
-
-## What it does well
-
-- **Grounds or abstains.** It recommends from what it actually retrieved, or it says it doesn't have an exact match and offers the closest real option, it doesn't invent a product, a price, or a color.
-- **Handles the awkward stuff.** Complaints get empathy and a next step, not a sales pitch. Vague openers ("I need something nice") get one clarifying question. Typos still find the right product.
-- **Knows its lane.** Ask for running shoes and it tells you the store doesn't carry them, then suggests the closest thing it does.
 
 ## The honest edges
 
-- A determined phrasing against a guide that lists both a men's and a women's option can still slip one cross-gender item into a recommendation. The common cases are handled; this rare one is [documented](reliability.qmd#what-the-review-found).
-- The store→product graph relationship is thin (see [Decisions](decisions.qmd)), so "which stores carry X" returns nothing for most of the catalog.
-- It's a synthetic single-store demo. The engineering is the point; the scale is deliberately small.
+- A determined phrasing against a guide listing both a men's and a women's option can still slip one cross-gender item through. The common cases are handled; this rare one is [documented](reliability.qmd).
+- The store-to-product graph relationship is thin (see [Decisions](decisions.qmd)), so "which stores carry X" returns nothing for most of the catalog.
+- It is a synthetic single-store demo. The engineering is the point; the scale is deliberately small.
+
+## Useful extras
+
+| Command | What it does |
+| --- | --- |
+| `make reproduce` | The whole offline verification from a clean clone, one command |
+| `make eval` | Retrieval and abstain quality against the `{python} S["golden_items"]`-item golden set |
+| `make drift` | Drift across the four monitors from recent traffic |
+| `make shadow` | Champion vs challenger replay on real traffic, before a human promotes |
+| `make site-stats` | Regenerates the numbers this site reads |
 
 ---
 
 ::: {.callout-note appearance="simple"}
-Built by **Aaron (Hooman) Esteki**. This is a working agentic RAG platform with a knowledge graph, a governed data layer, and deterministic safety guards, not a mockup. The full source, including everything on this site, is on [GitHub](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform). More at [esteki.ca](https://esteki.ca).
+Built by **Aaron (Hooman) Esteki**. A working agentic RAG platform with a knowledge graph, a governed data layer, and deterministic safety guards. Full source, including this site, is on [GitHub](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform). More at [esteki.ca](https://esteki.ca).
 :::

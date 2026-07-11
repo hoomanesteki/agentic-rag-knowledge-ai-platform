@@ -1,5 +1,5 @@
 {
-  "tests": 542,
+  "tests": 549,
   "golden_items": 121,
   "routing": {
     "deterministic_pct": 81.6,

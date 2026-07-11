@@ -3,174 +3,118 @@ title: "Architecture"
 pagetitle: "Skein Lite: Architecture"
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+R = S["routing"]
+def g(x): return f"{x:g}"
+```
+
 ::: {.eyebrow}
-How a question becomes a grounded answer
+One orchestrator, one gated answer path
 :::
 
-Every request goes first to a **master orchestrator** that reads the turn and hands it to the right specialist, then the answer follows one shared, gated path: understand, retrieve, ground, and either answer with citations or abstain. The engine that runs this path is domain-agnostic, it reads a domain pack (a folder of data and a manifest) and nothing about the store is compiled in.
+Sara is the shopping assistant behind the chat box. A shopper asks "where's my order", "a gift for my mum who loves yoga around \$60", "does the Flow Legging run small". Every one of those turns follows the same shape: a deterministic router picks a focus, one gated pipeline answers it, and a grounding check decides whether the answer ships, abstains, or goes to a person.
 
-## Meet the team
-
-Picture the assistant as a small team behind one chat box. A **manager** reads every message and passes it to the right focus, and every focus answers through the same safety checks, so no one can cut a corner. The assistant persona is **Sara**: she voices the first four focuses below (shopping, orders, complaints, questions), shifting tone to match, and hands to a separate care specialist, **Tiffany**, only when you ask for a person.
-
-::: {.grid-cards}
-::: {.card}
-### 🧭 The orchestrator
-The manager. Reads each turn, decides which focus should handle it, splits a two-in-one request, and asks a clarifying question rather than guessing. Costs nothing on the easy majority.
-:::
-::: {.card}
-### 🛍️ Shopping · Sara
-Gifts, outfits, what-goes-with-what. Asks one or two sharp questions, then recommends with a reason for each pick, and never re-asks what you already told her.
-:::
-::: {.card}
-### 📦 Care · your order
-Order status, returns, refunds, account. Answers from your own records once you are verified, and never asks a signed-in shopper to re-share what it can already see.
-:::
-::: {.card}
-### 🛠️ Complaint · make it right
-A damaged item, a wrong or double charge, a delay. Leads with a genuine acknowledgement, takes ownership, moves to the fix, and does not upsell.
-:::
-::: {.card}
-### 📚 Answers · the facts
-Policies, shipping, sizing, general questions. Answers only from the context, and says so plainly when the answer is not there.
-:::
-::: {.card}
-### 🤝 Tiffany · a real person
-When you ask for a human, Tiffany (an AI care specialist) gathers and confirms what a person will need, files a ready case, and hands off warm, so the human starts halfway there.
-:::
-:::
-
-In one picture: one manager, five specialists, and a single answer path they all share.
+## One turn
 
 ```{mermaid}
 flowchart TD
-  T([A shopper turn]) --> ORCH[Master orchestrator<br/>rag/omni.py]
-  ORCH -->|shopping| S[Stylist · Sara]
-  ORCH -->|your order| C[Care]
-  ORCH -->|a problem| K[Complaint]
-  ORCH -->|the facts| A[Answers]
-  ORCH -->|a human| E[Escalation · Tiffany]
-  S --> P[One gated pipeline<br/>retrieve · ground · answer or abstain]
-  C --> P
-  K --> P
-  A --> P
-  E --> EP[Gather · confirm · file a case]
-  P --> OUT([Grounded, cited answer])
-  EP --> OUT
-  classDef orch fill:#dfeef0,stroke:#0f7b84,color:#13191e;
-  classDef lane fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
-  class ORCH orch;
-  class S,C,K,A,E lane;
-```
-
-## One turn, narrated
-
-Say you type *"a gift for my dad who hikes, around \$100."* The turn unfolds in four steps:
-
-1. The **orchestrator** reads it. It is a shopping request, not an order problem and not a request for a human, so it routes to **Sara**.
-2. Sara's turn runs through the **one gated pipeline**: it repairs typos, expands the follow-up with the conversation so far, and retrieves men's hiking pieces, filtered to the recipient's gender, which stays fixed even when a later *"which is warmest?"* never restates it.
-3. The **guards** run in code, not in the prompt: no women's items for your dad, no order data without verification, retrieved reviews framed as data rather than instructions.
-4. Sara recommends two or three pieces with a one-line reason each, priced, and flags anything over budget, or, if the store has nothing close, says so and offers the nearest alternatives instead of inventing one.
-
-Every specialist follows those same four steps. That is the whole point of routing through one path: specialization sharpens the *tone and focus*, never the safety.
-
-## The routing cascade, precisely
-
-Under the plain-language version, routing is a **cheap-first cascade**, so the common case costs nothing and only genuine ambiguity pays for a model call. Layer 0 and Layer 1 are free deterministic checks that decide the majority; only a genuinely ambiguous turn reaches the cheap 8B tie-break.
-
-```{mermaid}
-flowchart TD
-  T([Shopper turn]) --> L0{Layer 0<br/>reach a person?}
-  L0 -->|yes| ESC[Escalation, Tiffany:<br/>gather, confirm, file a case]
-  L0 -->|no| L1{Layer 1<br/>intent guards}
-  L1 -->|complaint / care / stylist| LANE[The chosen lane]
-  L1 -->|nothing fires| L2{Layer 2<br/>cheap 8B tie-break}
-  L2 -->|a lane| LANE
-  L2 -->|unclear| CLARIFY[Ask one question,<br/>do not guess]
-  LANE --> PIPE[The shared gated answer path,<br/>with the lane's focus]
+  T([Shopper turn]) --> RT{Route<br/>rag/router.py}
+  RT -->|asks for a person| ESC[Tiffany files a ready case<br/>for a human specialist]
+  RT -->|genuinely ambiguous| CL[Ask one clarifying question]
+  RT -->|a lane| GATES[Deterministic gates<br/>order PII · injection · enumeration]
+  GATES -->|probe| REF[Polite refusal,<br/>before retrieval]
+  GATES -->|clean| RET[Hybrid retrieve + rerank<br/>graph + governed metric]
+  RET --> CONF{Confidence gate}
+  CONF -->|thin evidence| AB[Abstain: offer the<br/>closest real options]
+  CONF -->|enough| GEN[Groq 70B<br/>cited answer, streamed]
+  GEN --> GR[Per-citation grounding check]
+  GR --> OUT([Answer with source chips])
+  GR -.->|low support or sampled| FA[Online RAGAS<br/>faithfulness queue]
 
   classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
   classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
-  class L0,L1,L2 guard;
-  class LANE,PIPE,ESC core;
+  class RT,GATES,CONF,GR guard;
+  class RET,GEN,ESC,OUT core;
 ```
 
-The lanes, stylist, care, complaint, answers, and escalation, are data rows, not a class hierarchy: each is a short focus added to the same system prompt, so a new lane is a new row, not new code. Every lane still answers through the one gated pipeline below, so specialization never creates a second, weaker safety surface. A two-in-one turn ("suggest a gift and check my order") is split, each part routed and answered, then stitched back with a complaint clause leading. A turn the router genuinely cannot place is asked about, not guessed. The escalation lane is the AI care specialist Tiffany, who confirms what a person will need and files a ready case, so the human picks up warm.
+The pink nodes are where the system says no or not yet. They are regex and set logic, not the model's judgment, because a model cannot be trusted to withhold data it can already see in its context. The full gate inventory is on [Reliability](reliability.qmd).
 
-On the labeled routing set (350 turns), the free deterministic layers get **81.6%** right at zero marginal cost; adding the cheap 8B tie-break on the ambiguous minority lifts it to **85.9%**, with **100% escalation recall** (it never misses a genuine "get me a human"). A 70B tie-break scored 85.6%, no better than the 8B, which is the measured evidence for keeping routing Groq-only. The full breakdown and the decision are on the [evaluation](evaluation.qmd) page.
+## The lanes
 
-## The answer path
+Routing picks a focus, never a second safety surface. Each lane is a short role fragment added to the same system prompt, and every lane answers through the same gated pipeline in `pipeline/answer.py`.
 
-```{mermaid}
-flowchart TD
-  Q([Shopper question]) --> SM{Small-talk /<br/>safety intercept}
-  SM -->|greeting, harm,<br/>injection, enumeration| DIRECT[Deterministic reply]
-  SM -->|a real request| TY[Typo repair<br/>+ follow-up expansion]
-  TY --> HY[Hybrid retrieval<br/>dense + sparse]
-  HY --> RR[Cohere reranker<br/>top-50 → top-8]
-  RR --> GATE{Confidence gate<br/>lexical overlap}
-  GATE -->|thin evidence| ABSTAIN[Abstain or hand off<br/>to a human]
-  GATE -->|enough| EV[Add evidence:<br/>graph + governed metric]
-  EV --> PII[PII gate + gender<br/>redaction on context]
-  PII --> GEN[Groq LLM<br/>grounded, cited answer]
-  GEN --> STREAM([Streamed to the UI<br/>with source chips])
+| Lane | Voice | Handles |
+|---|---|---|
+| Stylist | Sara | Gifts, outfits, "what goes with this", with one sharp question before recommending |
+| Care | Sara | Order status, returns, refunds, account, answered from the shopper's own verified records |
+| Complaint | Sara | A damaged item, a wrong charge, a delay: acknowledge, own it, fix it, never upsell |
+| Answers | Sara | Policies, shipping, sizing; answers only from context and says so when it is not there |
+| Escalation | Tiffany | An explicit ask for a person: confirm the details, file one ready case, hand off warm |
 
-  classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
-  classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
-  class SM,GATE,PII guard;
-  class HY,RR,EV,GEN core;
-```
+A two-in-one turn ("suggest a gift and check my order") is split, each clause routed and answered, then stitched with the complaint part leading. The stitched reply reports the minimum grounding of its parts, never an invented score.
 
-The pink nodes are the guards, the places where the system says *no* or *not yet*. They are deliberately deterministic (regex and set logic, not the model deciding), because the one thing you cannot ask a language model to reliably do is withhold information it can already see in its context.
+## The routing cascade
 
-## The three retrieval seams
+Routing is cheap-first: two free deterministic layers decide the majority, and only genuine ambiguity pays for one small model call.
 
-Vector search alone is a blunt instrument. It is good at "something like this" and bad at "exactly this number" and "which supplier makes this." So retrieval has three seams, and they are kept separate on purpose, an authoritative fact never gets averaged into a fuzzy vector score.
+| Layer | What it is | Cost |
+|---|---|---|
+| 0 | Regex intercept for an explicit "get me a person", refusals excluded | \$0 |
+| 1 | Intent guards for complaint, care, and shopping cues | \$0 |
+| 2 | One llama-3.1-8b classification call, only when layers 0 and 1 pass | ~\$0.0005 |
+
+On the labeled routing set of `{python} S["routing_eval_set"]` shopper turns:
+
+| Mode | Accuracy | Escalation recall |
+|---|---|---|
+| Deterministic only (layers 0 + 1) | `{python} g(R["deterministic_pct"])`% | `{python} g(R["deterministic_escalation_recall_pct"])`% |
+| Plus the 8B tie-break | **`{python} g(R["tiebreak_8b_pct"])`%** | **`{python} g(R["tiebreak_8b_escalation_recall_pct"])`%** |
+| Plus a 70B tie-break instead | `{python} g(R["tiebreak_70b_pct"])`% | no better |
+
+The 8B tie-break is the shipped configuration: it never misses a genuine request for a human, and the 70B scored below it at higher cost. That is the measured case for staying Groq-only. When even the 8B returns "unclear", the router asks one clarifying question instead of guessing.
+
+::: {.callout-note appearance="simple"}
+**Retired.** An earlier LangGraph agent brain ran this turn as a stateful graph. It was retired for the deterministic cascade above: same behavior contract, testable as pure functions, and no framework between a shopper and the answer. `CHAT_BRAIN=agent` now maps to the omni orchestrator.
+:::
+
+## Three retrieval seams
+
+Vector similarity is good at "something like this" and bad at "exactly this number". Retrieval keeps three seams separate, so an authoritative fact is never averaged into a fuzzy score.
 
 ::: {.grid-cards}
 ::: {.card}
 ### Hybrid vectors
-Cohere `embed-v4.0` (1536-dim) for dense meaning plus a sparse BM25-style leg for exact terms, fused and then reranked by `rerank-v3.5`. This is the default path for "what should I wear for a rainy run."
+Cohere `embed-v4.0` dense plus a sparse BM25-style leg in Qdrant, fused, then reranked by `rerank-v3.5`. The default path for "a warm waterproof jacket for a rainy winter".
 :::
 ::: {.card}
 ### Knowledge graph
-Products, suppliers, and stores as nodes with typed edges. It answers relationship questions, "which supplier makes the Cloud Hoodie", and is treated as authoritative only when the query names the entity itself.
+Products, suppliers, and stores as typed Neo4j edges, traversed over an allowlist. Authoritative only when the query names the entity itself.
 :::
 ::: {.card}
 ### Governed metrics
-Anything numeric (return rate by size, cheapest in a category, stock) resolves through a validated semantic layer over read-only DuckDB. The model fills slots; it never writes SQL and never sees raw rows.
+"What's the cheapest legging" or a stock check resolves through a validated semantic layer: the model fills slots, a resolver runs one parameterized SELECT on read-only DuckDB. The model never writes SQL and never sees raw rows.
 :::
 :::
 
 ## The stack
 
-| Layer | Choice | Why it's here |
+| Layer | Choice | Why |
 |---|---|---|
-| API | FastAPI, SSE streaming | Tokens stream to the browser as they're generated |
-| Brain | Master orchestrator + a linear pipeline (deterministic) | Routes each turn to a lane, then answers through one gated path; `CHAT_BRAIN` selects linear or omni (a former LangGraph agent brain was retired) |
-| Routing | Deterministic cascade + a cheap 8B tie-break | Layer 0/1 decide the majority at zero marginal cost; the 8B tie-breaks only genuine ambiguity |
-| Embeddings / rerank | Cohere `embed-v4.0` + `rerank-v3.5` | Strong multilingual retrieval; the reranker does the heavy lifting |
-| LLM | Groq, Llama 3.3 70B | Fast enough to stream conversationally; swappable behind one seam |
-| Vectors | Qdrant (hybrid) | Native sparse+dense in one query |
-| Graph | Neo4j | Typed relationships, allowlisted traversals (injection-safe) |
-| Lakehouse | DuckDB medallion + dbt | Bronze → silver → gold, with governance tests in CI |
-| Web | Next.js 14 App Router | The storefront and the chat/voice widget |
-| Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are shorter than typed ones by design |
-| MLOps | MLflow, RAGAS, PSI drift monitors | Tracking, answer-quality eval, and drift on live traffic |
-| Observability | Langfuse | One root span per turn, every generation nested with model, tokens, latency, and cost |
+| API | FastAPI, SSE | Tokens stream to the browser as generated |
+| Orchestrator | Deterministic cascade + one gated pipeline | Routes in `rag/router.py`, answers in `pipeline/answer.py` |
+| LLM | Groq llama-3.3-70b (workhorse), llama-3.1-8b (router) | Fast enough to stream; a gpt-oss-120b swap was held on measured faithfulness |
+| Embeddings / rerank | Cohere embed-v4.0 + rerank-v3.5 | Strong multilingual retrieval |
+| Vectors | Qdrant | Native sparse + dense in one query |
+| Graph | Neo4j | Typed relationships, allowlisted traversals |
+| Lakehouse | DuckDB medallion + dbt | Bronze to silver to gold, governance tests in CI |
+| Web | Next.js 14 | The storefront and the chat and voice widget |
+| Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are deliberately shorter than typed ones |
+| MLOps | MLflow, RAGAS, PSI drift monitors | Human-gated: nothing promotes itself |
+| Observability | Langfuse | One root span per turn with model, tokens, latency, cost |
 
 ## Domain-agnostic by construction
 
-The engine folders, ingestion, retrieval, the API, the web app, contain zero references to apparel. The brand name, the product vocabulary, the glossary: all of it lives under `domains/apparel_ecommerce/`. A [leak linter](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform) runs in CI and fails the build if a single domain term (a product name, the brand, a glossary key like "legging") appears in engine code. That constraint is what makes the "swap one folder" claim true rather than aspirational, and it's why the deterministic guards read the product catalog at runtime from the manifest instead of hardcoding a list.
-
-```{mermaid}
-flowchart LR
-  subgraph Engine [Engine, knows nothing about the store]
-    ING[Ingestion] --- RET[Retrieval] --- API[API + Web]
-  end
-  subgraph Pack [domains/apparel_ecommerce/]
-    MAN[manifest] --- DATA[products, reviews,<br/>guides, orders] --- METR[metrics.yaml]
-  end
-  Pack -->|read at runtime| Engine
-  LINT[leak linter in CI] -. fails build if a domain<br/>term appears in Engine .-> Engine
-```
+The engine contains zero apparel references. The brand, catalog vocabulary, metrics, and persona names live in `domains/apparel_ecommerce/`, read at runtime from a manifest. A leak linter runs in CI and fails the build if a single domain term appears in engine code, which is what keeps "swap one folder, get a new assistant" true. A `{python} S["tests"]`-test pytest suite covers the engine.

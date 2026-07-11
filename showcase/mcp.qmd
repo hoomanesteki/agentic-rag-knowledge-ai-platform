@@ -1,0 +1,97 @@
+---
+title: "MCP"
+pagetitle: "Skein Lite: the MCP surface"
+execute:
+  freeze: true
+---
+
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+```
+
+::: {.eyebrow}
+The same brain, exposed as a second client
+:::
+
+An earlier design decision was to defer the Model Context Protocol until there was a real second client, rather than ship a surface nothing used. That client arrived: Claude Desktop, Claude Code, Cursor, and every other MCP host now speak the protocol. So Sara is now an MCP server too, and the way it was added is the point: a thin second client of the exact pipeline the website already calls, not a parallel copy with its own rules.
+
+## One pipeline, two front doors
+
+```{mermaid}
+flowchart LR
+  subgraph Clients
+    WEB[Web storefront<br/>Next.js chat]
+    MCPC[MCP client<br/>Claude Desktop · Code · IDE]
+  end
+  WEB --> API[FastAPI route]
+  MCPC --> SRV[mcp_server/server.py<br/>read-only tools]
+  API --> PIPE[One gated pipeline<br/>router -> gates -> retrieve -> answer]
+  SRV --> PIPE
+  PIPE --> G[Order-PII · injection · enumeration · grounding<br/>all run below both doors]
+  classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  class PIPE core;
+  class G guard;
+```
+
+The MCP server holds no business logic and no second copy of a gate. Each tool delegates to the same functions the FastAPI routes call (`rag.omni.stream_omni`, `data.metrics.MetricResolver`, `data.catalog`), so a safety rule fixed once is fixed for both doors.
+
+## The tools
+
+Four sharp, read-only tools over the `{python} S["catalog"]["products"]`-product catalog and the governed metric layer. A small, credible surface, not an auto-generated dump of every endpoint.
+
+| Tool | What it returns | Why it is safe |
+|---|---|---|
+| `skein_ask` | A grounded, cited answer from store data | Runs anonymous, so the order-PII gate refuses any order or account question exactly as it does for a signed-out web visitor |
+| `skein_search_products` | Catalog cards by text, gender, and price | Reads the governed gold catalog, read-only, truncated to protect the client's context |
+| `skein_get_product_facts` | One product's price, sizes, and honest reviews | Read-only lookup by id |
+| `skein_get_metric` / `skein_list_metrics` | A governed business metric by name | Name-validated against `metrics.yaml`; a single read-only SELECT, no free-form SQL, no raw PII layers |
+
+Two resources (`skein://metrics`, `skein://ontology`) expose the metric catalog and the graph ontology as read-only context, and one prompt template (`shop_for`) gives a client a ready styling request.
+
+## Connect it
+
+stdio is the default transport, which is what a local MCP host launches. One command wires it into Claude Code:
+
+```bash
+claude mcp add skein -- uv run python -m mcp_server.server
+```
+
+Claude Desktop takes the same server as a JSON entry:
+
+```json
+{
+  "mcpServers": {
+    "skein": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "mcp_server.server"],
+      "cwd": "/path/to/agentic-rag-knowledge-ai-platform"
+    }
+  }
+}
+```
+
+## Safe by construction
+
+The security posture is subtraction, not addition. There is no write, admin, login, TTS, or order-lookup tool, so no MCP client has a path to a shopper's private data in the first place.
+
+- **Anonymous by default.** `skein_ask` passes no identity, so the deterministic order-PII gate treats it like an unauthenticated caller and refuses to disclose an order.
+- **Gates stay server-side.** Injection, enumeration, and per-citation grounding all run inside the shared pipeline, never in the MCP layer and never trusting the client's input.
+- **Bounded output.** Every tool truncates its result, so a large table cannot flood a model's context.
+- **Clean framing.** Nothing writes to stdout (over stdio that is the JSON-RPC channel); diagnostics go to logs, and every tool returns a clean error instead of crashing the client.
+
+A test proves the parity: the offline suite asserts the tool surface is exactly the read-only set, and that an order-PII request through MCP is refused just as it is through the web route.
+
+## What was deliberately deferred
+
+Lean means naming the scale-up instead of building it early. The tool code does not change when these are added:
+
+| Deferred | The enterprise path |
+|---|---|
+| HTTP transport | Mount the server on the existing FastAPI app at `/mcp`, reusing its bearer/API-key dependency and Origin validation |
+| OAuth 2.1 | Add PKCE-based authorization for remote clients; local stdio inherits the client's trust and needs none |
+| Write tools | Only behind an authenticated principal and the same human-in-the-loop gates the [MLOps](mlops.qmd) loop already enforces |
+
+The full reasoning for keeping the core deterministic and adding surfaces only when a real client needs them is on the [Decisions](decisions.qmd) page; the gates the MCP surface inherits are on [Reliability](reliability.qmd).

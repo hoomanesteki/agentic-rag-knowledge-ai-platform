@@ -1,168 +1,128 @@
 ---
 title: "MLOps"
-pagetitle: "Skein Lite: MLOps, shipping and operating it"
+pagetitle: "Skein Lite: MLOps"
+execute:
+  freeze: true
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+```
+
 ::: {.eyebrow}
-How it gets to production, and how you know it still works
+Detect, notify, propose. A person promotes.
 :::
 
-An LLM feature is easy to demo and hard to operate. This page is the operations story: how a change ships, how a regression is caught before it reaches a user, and how the system is watched once it is live.
+Nothing that changes what Sara says to a shopper ships itself. The loop detects a signal, notifies a human, registers a candidate only when the signal warrants one, and produces shadow evidence. A person makes the last call. There is no auto-promote path anywhere in the codebase.
 
-## Continuous integration
+## The human-gated loop
 
-Every push runs four jobs. Nothing merges to `main` unless all of them pass.
+```{mermaid}
+flowchart LR
+  D[Detect:<br/>5 drift monitors,<br/>CT triggers] --> N[Notify:<br/>one deduped<br/>GitHub issue]
+  N -->|quality signal| REG[Register challenger:<br/>proposed in the registry]
+  N -->|data signal| INV[Human investigates<br/>index or ingest]
+  REG --> SH[Human runs<br/>shadow replay]
+  SH --> H{Human decides}
+  H -->|approve| PROD[Challenger becomes<br/>champion]
+  H -->|reject| KEEP[Champion stays]
+  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
+  class KEEP,INV rej;
+```
+
+### 1. Detect
+
+Five monitors (`mlops/drift.py`, `make drift`) read the traces every turn already writes: query-embedding distance, retrieval-score PSI, confidence PSI, grounding PSI, and the thumbs-down rate, with the PSI monitors stratified by language. A weekly Continuous Training cycle (`mlops/ct.py`, `.github/workflows/ct.yml`, `make ct`) adds two more triggers: the schedule, and enough new human-verified answers from the review queue.
+
+### 2. Notify
+
+A signal becomes one labelled GitHub issue (`mlops/notify.py`), deduped by label and title, so a recurring signal updates the same thread instead of spamming new ones. The body carries the drift signals, the signal-to-action decision, the registered candidate with its MLflow link, and the exact commands to run next. The thread is the page, the review surface, and the audit trail in one place. Without `gh` or a token it dry-runs, so notify never breaks a cycle.
+
+### 3. Register only when warranted
+
+Drift is a trigger for investigation, not automatic retraining. `mlops/ct.py` classifies the signal before anything is registered:
+
+| Signal | Action |
+|---|---|
+| Confidence, grounding, or feedback drift, or enough new verified answers | Register a candidate prompt experiment as `proposed`, for human review |
+| Query-embedding or retrieval-score drift | Notify only: an intent-mix or index problem a prompt cannot fix. A human investigates ingest and retrieval |
+| Nothing over threshold | Quiet cycle, still recorded for the audit trail |
+
+A candidate is registered only after it beats the baseline on a held-out split with the regression gate and the safety check green. Even then it is only `proposed`.
+
+### 4. Shadow, run by a human
+
+Before promoting, the reviewer runs `make shadow` (`mlops/shadow.py`). It replays the last N real shopper questions through the challenger, offline with zero user risk, and compares grounding, route, and cost against the champion's recorded results. The delta is the evidence a person approves with, logged to MLflow.
+
+### 5. Promote, by a human
+
+`make registry-promote V=<n>` archives the incumbent so exactly one config is ever live. When a tracking server is configured, `make promote` mirrors the transition into the real MLflow Model Registry with the measured RAGAS score attached: 0.65 for staging, 0.78 for production, a production candidate must beat the champion, and it refuses outright if no real score was ever measured for this exact config.
+
+## The model registry
+
+Every artifact this system owns and versions, a prompt candidate or a serving config, moves through staged versions (`mlops/model_registry.py`, `make registry`):
+
+```
+proposed (@challenger)  ->  staging  ->  production (@champion)
+```
+
+MLflow deprecated stages in favour of aliases, so the registry speaks that vocabulary: the one `production` version is the `@champion`, the latest `proposed` candidate is the `@challenger` a human is deciding on, and the stage is kept as the `validation_status` tag. Every CT run is recorded, promotable or not, so "registered on a weekly cadence" is true and reviewable. The store is JSON-backed so it works offline in CI and the demo.
+
+## Four MLflow experiments
+
+Each stage of the loop logs to its own experiment, so a decision is a run you can open, not a screenshot:
+
+| Experiment | What lands there |
+|---|---|
+| `skein-drift` | every drift run: the five monitor scores and which tripped |
+| `skein-ct` | each CT cycle: trigger, baseline vs candidate, the registered version |
+| `skein-shadow` | champion vs challenger deltas per replay |
+| `skein-faithfulness` | the online judge's sampled scores from live traffic |
+
+The demo defaults to a local `./mlruns` file store; set `MLFLOW_TRACKING_URI` for a server and everything logs there unchanged.
+
+## Four monitoring pillars
+
+One trace store feeds four questions, so a bad answer is explained, not guessed at:
+
+| Pillar | Question | Watched | Where |
+|---|---|---|---|
+| **Data** | Has the input shifted? | the five drift monitors | `make drift`, `skein-drift` |
+| **Model** | Is the answer still good? | RAGAS scores, routing accuracy, the eval gate, the faithfulness ladder | `make ragas`, `make gate` |
+| **System** | Is it fast, and up? | p95 latency, error rate, cost per turn, throughput | `/api/admin/health` |
+| **Business** | Is it earning its keep? | containment vs escalation, answer rate, thumbs, $ per turn and session | `/api/admin/business` |
+
+The admin dashboards at `/admin` render the same traces as quality, health, business, and unmet-demand views for an operator.
+
+## The data lifecycle is human-triggered too
+
+The same propose-then-approve rule governs what Sara knows:
+
+| Job | Proposes | The human step |
+|---|---|---|
+| Consolidation (`make consolidate`, `mlops/consolidate.py`) | a knowledge pack distilled from answers an operator already verified; repeat questions and abstain clusters surface as gaps to fill, never auto-answered | edit and approve; only then does the flywheel index it |
+| Staleness (`mlops/staleness.py`) | a refresh of verified chunks older than the threshold | approve; nothing expires or re-indexes on its own |
+
+Only human-verified content enters the index, and an LLM never rewrites stored knowledge, which is what keeps a self-improving corpus from corrupting itself.
+
+## CI, the other loop
+
+CI asks a different question on every push: is the code correct? Four jobs, and nothing merges unless all pass.
 
 | Job | What it proves |
 |---|---|
-| **check** | Lint, the full test suite, domain validation, the leak linter, and the offline eval gate |
-| **dbt** | The medallion builds and its governance tests pass, plus the gold parity test |
-| **web** | The Next.js storefront lints and builds |
-| **security** | Python and web dependency audits (a real critical fails the build; a deferred high is visible but does not) |
+| **check** | lint, the `{python} S["tests"]`-test suite, domain validation, the leak linter, the offline eval gate |
+| **dbt** | the medallion builds, governance tests pass, gold parity holds |
+| **web** | the storefront lints and builds |
+| **security** | Python and web dependency audits |
 
-The **leak linter** is the load-bearing one for the "swap one folder" claim: it fails the build if a single product name, brand, metric, or glossary term appears in engine code.
+The leak linter backs the domain-swap claim: the build fails if a single product name, brand, or metric appears in engine code.
 
-## Continuous training
+## What lives elsewhere
 
-CI asks "is the code correct?" on every push. CD ships it once green. **Continuous training (CT)** asks a different question on a cadence: *as new data and drift arrive, is a retrained candidate better, and safe to promote?* It runs weekly and on demand as its own workflow (`.github/workflows/ct.yml`), separate from the per-push CI.
-
-"Training" here is not gradient descent on model weights, the LLM is a hosted Groq model. It is the data-and-prompt layer this project *does* own, versioned and gated like a model: the router tie-break prompt (the OPRO loop below, which the scheduled cycle re-optimizes), the retrieval index (re-embed new reviews and descriptions, incrementally via `run_ingest.py --only`), and the governed enrichment features (recompute consensus on new reviews). The wired cycle re-optimizes the prompt and gates it; the index and feature refresh run on the same cadence as the flywheel and batch job, which is where CT reads its drift and new-data signals.
-
-```{mermaid}
-flowchart LR
-  T{Trigger:<br/>schedule, drift,<br/>or new labeled data} -->|fires| TR[Retrain:<br/>re-optimize the prompt<br/>against the ground truth]
-  T -->|quiet| SKIP[No cycle:<br/>nothing changed]
-  TR --> G{Held-out eval<br/>+ safety gate}
-  G -->|beats baseline,<br/>gate + safety green| PROP[Promotion PROPOSED<br/>as an artifact]
-  G -->|regresses or unsafe| KEEP[Keep the baseline]
-  PROP --> H[Human approves<br/>the deploy]
-  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
-  class KEEP rej;
-```
-
-A cycle (`make ct`; `mlops/ct.py` is the policy, `scripts/run_ct.py` the wiring) checks three triggers: the weekly schedule, measured drift over threshold, or enough new human-verified answers from the review-queue flywheel to be worth retraining on (an operator can also force it). When one fires, it re-optimizes the tie-break prompt against the routing ground truth, then gates the candidate on a held-out split **and** the same regression gate CI runs. It promotes only when the candidate beats the baseline by a margin with the gate and the safety check green, and even then it only **proposes**: the cycle writes a report and uploads it as the workflow artifact for a human to approve. Nothing retrains and ships itself, which is the drift and reward-hacking guardrail. With no model key the training step is skipped and the cycle runs the gate as a health check, so a run always produces an auditable report.
-
-## Promotion is gated on measured quality
-
-A "model" here is a serving configuration: the LLM, the embedder, the reranker, and the prompt. Promotion from dev to staging to production is not automatic. It runs in two stages.
-
-```{mermaid}
-flowchart LR
-  CFG[A config change] --> SMOKE{Offline pipeline<br/>smoke gate}
-  SMOKE -->|fails| REJ1[Rejected:<br/>fix the pipeline]
-  SMOKE -->|passes| Q{Measured RAGAS<br/>on real providers}
-  Q -->|no real score| REJ2[Rejected:<br/>run make ragas first]
-  Q -->|config drifted| REJ3[Rejected:<br/>score is stale]
-  Q -->|>= 0.65| STG[Staging]
-  Q -->|>= 0.78 and beats champion| PROD[Production]
-  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
-  class REJ1,REJ2,REJ3 rej;
-```
-
-The smoke gate only proves the pipeline is wired. The real decision is the measured RAGAS answer-quality score from the actual providers, logged to MLflow. It refuses to promote on a score measured against a different config (that would ship an unmeasured change), and a production candidate must beat the frozen champion or it is capped at staging. This started life broken (it scored fake providers and always promoted to Production), which an adversarial review caught and fixed.
-
-## The model registry, and weekly registration
-
-Retraining without a registry is a science project. Every retrained artifact, a prompt candidate or a serving config, is versioned and moved through stages that mirror the MLflow Model Registry: `proposed → staging → production` (and any version can be archived).
-
-```{mermaid}
-flowchart LR
-  CT[CT cycle<br/>retrains weekly] -->|beats baseline,<br/>gate + safety green| PROP[Registered:<br/>proposed]
-  CT -->|no better candidate| KEEP[Baseline kept,<br/>cycle recorded]
-  PROP --> REV[A human reviews<br/>the proposal]
-  REV -->|approve| PROD[Production:<br/>archives the incumbent]
-  REV -->|reject| KEEP
-  classDef rej fill:#f8ecec,stroke:#b23a3a,color:#13191e;
-  class KEEP rej;
-```
-
-The weekly [continuous-training](#continuous-training) cycle records **every** run and, when it produced a promotable candidate, **registers it as `proposed`** (`mlops/model_registry.py`), so the model is versioned on a cadence with an audit trail. `make registry` shows every version, its stage, and the current champion. Promotion to production is the one deliberately manual step, `make registry-promote V=<n>` archives the incumbent so exactly one model is ever live. **Retraining and evaluation are automated; deployment is human-gated**, which is the guardrail against a candidate that games the metric shipping itself. The registry is a JSON store, uploaded as the workflow artifact for review in the demo; a real deployment persists it to a durable store, and when an MLflow tracking server is configured `make promote` mirrors the same transition to the real Registry with the measured RAGAS score attached.
-
-## How a change would reach real users
-
-The demo runs on a hobby budget, so the following is the intended path, with the hooks already in place rather than a hosted pipeline.
-
-- **Shadow.** Run the new config on a copy of live traffic and compare RAGAS and grounding before any user sees it. The trace store already records everything needed to replay.
-- **Soft launch (canary).** Route a small slice of traffic to the new config behind the same eval gate, watch the drift and feedback monitors, then widen.
-- **Rollback.** Because a config is just providers plus a prompt behind factory seams, rollback is switching back to the previous config, not a redeploy. The champion in the registry is always a known-good target.
-- **Fallback at runtime.** Additive dependencies (graph, metric layer, voice) degrade rather than fail, and the retry seams ride out a transient provider blip, so a bad minute does not become a bad outage.
-
-## The stack: deterministic orchestration, Langfuse
-
-Two pieces, one job each, wired so a turn is inspectable end to end.
-
-- **The omni orchestrator** is deterministic Python. It routes each turn through a cheap-first 3-layer cascade (`rag/router.py`), then answers through the one gated pipeline (`pipeline/answer.py`). The LLM is called only at the decision points (an ambiguous-route tie-break, then generation), not inside a framework loop. This is Anthropic's routing plus orchestrator-worker pattern and 12-Factor Agents' "own your control flow". An earlier LangGraph supervisor brain was retired because a second control-flow framework was a second safety surface to keep in parity, with no measured win over the deterministic path.
-- **Langfuse** is the observability: one root span per turn (`@observe`), every LLM generation nested under it with model, tokens, latency, and cost. The LLM is a custom Groq adapter, so tracing uses spans directly. One turn maps to one trace in the Langfuse UI.
-
-## The four things we monitor
-
-An ML system is not one thing to watch, it is four, and a good dashboard answers a different question for each. Every turn is traced, and the same trace store feeds all four, so a bad answer can be *explained* rather than guessed at.
-
-| Pillar | The question it answers | What is watched | Where it lives |
-|---|---|---|---|
-| **Data** | Has the input shifted? | Four drift monitors: query-embedding distance, retrieval-score PSI, confidence PSI, feedback rate (the two PSI monitors stratified by language) | `mlops/drift.py`, `make drift`, `skein-drift` in MLflow |
-| **Model** | Is the answer still good? | RAGAS faithfulness / relevance / context, routing accuracy, the offline eval gate | `evaluation/`, `make ragas`, `make gate` |
-| **System** | Is it fast, and up? | p95 latency, error rate, cost per turn, throughput | `/api/admin/health`, Langfuse spans |
-| **Business** | Is it earning its keep? | Containment vs escalation, answer rate, thumbs, and \$ per turn / answer / session | `/api/admin/business`, `mlops/cost_model.py` |
-
-A drift run over the demo's own traffic flagged retrieval-score PSI 0.49, confidence PSI 2.29, and query-embedding distance 0.11, all drifting, exactly the early signal to grow the content. The **admin dashboards** at `/admin` turn those traces into quality, health, business, and unmet-demand views for an operator, and every loop, drift, eval, CT cycle, and promotion, logs to **MLflow** when a tracking server is configured (the demo defaults to a local `./mlruns` file store), so a decision is never a screenshot, it is a run you can open.
-
-## The metrics that matter
-
-The same run produces numbers for two audiences.
-
-| Business | Technical | Success signal |
-|---|---|---|
-| Answer rate vs escalation rate | RAGAS faithfulness, relevance, context precision and recall | Fewer "I don't have that" dead-ends |
-| Self-serve resolution | Retrieval hit@k, MRR, abstain recall | Higher grounded-answer share |
-| Trust (no wrong facts, no leaks) | Grounding score, PII-gate test pass | Zero PII or injection incidents |
-| Cost per conversation | Tokens and latency per turn | Cost held under the instance cap |
-| Demand you cannot yet serve | Drift on query distribution | Content grows where users actually ask |
-
-## SWOT
-
-::: {.grid-cards}
-::: {.card}
-### Strengths
-Grounded-or-honest by design, deterministic safety guards, a real governed data layer, and CI that blocks a regression. One engine serves any domain.
-:::
-::: {.card}
-### Weaknesses
-Synthetic single-store scale and one thin graph relationship. The CT loop is scheduled, but promotion stays human-gated by design, so nothing self-deploys yet. All documented, not hidden.
-:::
-::: {.card}
-### Opportunities
-More domains on the same engine, deeper personalization from chat history, and auto-canary of a CT-approved candidate once the loop has earned that trust.
-:::
-::: {.card}
-### Threats
-Provider quota and cost, model or vendor drift, and adversarial users. Each has a seam, a fallback, or a guard, but they are the things to watch.
-:::
-:::
-
-## What shipped, and what is next
-
-Logged-in personalization already shipped: a signed-in shopper is greeted by first name, and a taste profile built from their own order history biases the recommendations. The scheduled continuous-training loop also shipped, as its own weekly workflow with human-gated promotion. Still ahead: auto-canary of a CT-approved candidate, and the store-relationship graph backed by real inventory. Each is a known increment on an architecture that was built to take it, not a rewrite.
-
-## Optimizing the prompts against the ground truth
-
-The prompts are not frozen. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about eighty lines, not a framework like DSPy) evaluates a prompt against the routing ground truth, lets a model propose better variants from the failing cases, scores each on a held-out split, and surfaces the winner for a human to promote. Its first target, the router's tie-break prompt, went from 73.9% to 79.5% on the held-out test and was promoted by hand with the candidate and the numbers as the audit trail. The rule matches the drift policy: propose automatically, promote through a human, so the system never rewrites its own served behavior.
-
-## The self-improvement loop
-
-Three loops feed each other. A turn that abstains, is corrected, or is flagged low-confidence lands in the durable review queue; a human, or the largest Groq-served model as a rare offline judge (still on Groq, so no second vendor is added), resolves it; the flywheel re-indexes the verified answer as gold and the eval set grows from real failures. The prompt-optimization loop proposes better prompts against that grown set. The batch enrichment pipeline turns new reviews into governed features. Each proposes automatically and promotes through a human, which is what keeps a self-improving system from drifting or reward-hacking its way somewhere bad. The full lifecycle, dev to shadow to canary to soft launch to production, is documented alongside the code.
-
-## What it costs, for whoever signs the invoice
-
-Operating cost is a first-class number, not an afterthought, and it is the number the business actually reads. A reproducible cost model (`mlops/cost_model.py`) puts each option side by side for a typical **8-turn conversation**:
-
-| Who handles the conversation | Cost per session | Versus a human agent | What you trade |
-|---|---:|---:|---|
-| **This assistant (text)** | **\$0.025** | **~430× cheaper** | Handles the routine majority; escalates the hard cases to a human |
-| This assistant (voice) | \$0.28 | ~38× cheaper | The premium voice, not the model, is most of the cost |
-| A frontier model in its place | \$0.08 – \$0.13 | ~100× cheaper | 3.3–5.1× the text cost, for **no measured quality gain** on this workload |
-| A human agent | \$10.67 | 1× (baseline) | The gold standard for the hard 15%, too costly for the routine 85% |
-
-The business case is not "replace the humans", it is **deflection**: the assistant resolves the routine majority itself (the `containment_rate` on the [business dashboard](#the-four-things-we-monitor)) so the human team spends its expensive minutes on the cases that actually need them. The measured decision to skip a frontier model is the same discipline in miniature, it would 3–5× the per-turn cost and the eval showed no lift, so the money stays where it buys something.
-
-Every figure regenerates from the model, so the economics stay honest as prices and models change. The full derivation of the 430×, every assumption, the per-stage math, and the division, is on the dedicated **[Cost](cost.qmd)** page.
+- The graded golden set that gates a model flip, and the quality thresholds behind promotion: [Evaluation](evaluation.qmd).
+- The OPRO prompt loop the CT cycle re-runs (propose automatically, promote through a human): [Evaluation](evaluation.qmd#the-eval-as-a-target).
+- What a turn and a session cost, and the derivation: [Cost](cost.qmd).
+- Why there is no auto-promote, no LangGraph, and no in-loop critic: [Decisions](decisions.qmd).

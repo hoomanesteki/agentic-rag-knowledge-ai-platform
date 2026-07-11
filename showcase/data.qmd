@@ -1,85 +1,89 @@
 ---
 title: "Data"
-pagetitle: "Skein Lite: the data, end to end"
+pagetitle: "Skein Lite: Data"
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+```
+
 ::: {.eyebrow}
-Where the data comes from, and how it becomes answers
+One domain pack, three evidence stores
 :::
 
-An assistant is only as good as the data behind it. This page follows a single domain pack from raw files to the three things the assistant actually reads: a vector index, a governed metric layer, and a knowledge graph. The same code runs any pack, because the shape of the data is declared in a manifest, not compiled into the engine.
+Everything Sara can say comes from three stores: a hybrid vector index, a knowledge graph, and a governed metric layer. All three build from one folder, `domains/apparel_ecommerce/`, whose `domain.yaml` manifest declares the schema, PII columns, graph edges, and metrics. The demo pack carries `{python} S["catalog"]["products"]` products in `{python} S["catalog"]["variants"]` variants.
 
-## One pack, two kinds of data
-
-A domain lives in one folder. Structured facts are CSVs, unstructured content is JSONL, and a single `domain.yaml` manifest declares the schema, the PII columns, the graph edges, the metrics, and the starter prompts.
+## The flow
 
 ```{mermaid}
 flowchart LR
   subgraph Pack [domains/apparel_ecommerce/]
     direction TB
-    S["seed/structured/*.csv<br/>products, orders, suppliers, stores, sales"]
-    U["seed/unstructured/*.jsonl<br/>descriptions, reviews, guides, orders"]
-    M["domain.yaml<br/>schema · PII · graph edges · metrics"]
+    ST["seed/structured/*.csv<br/>products · sales · suppliers · stores"]
+    UN["seed/unstructured/*.jsonl<br/>descriptions · reviews · guides · orders"]
+    MAN["domain.yaml<br/>schema · PII · edges · metrics"]
   end
-  S --> BRONZE
-  U --> CHUNK
-  M -. drives every stage .-> Pack
-  subgraph Analytics [Structured path: DuckDB + dbt]
+  ST --> BR
+  UN --> CH
+  subgraph Medallion [DuckDB + dbt]
     direction TB
-    BRONZE["bronze<br/>raw, lineage-tracked"] --> SILVER["silver<br/>typed + PII masking"] --> GOLD["gold<br/>curated marts"]
+    BR[bronze<br/>raw, lineage] --> SI[silver<br/>typed + PII masked] --> GO[gold<br/>curated marts]
   end
-  subgraph Semantic [What the assistant reads]
+  subgraph Stores [What Sara reads]
     direction TB
-    METRIC["governed metrics<br/>read-only DuckDB"]
-    GRAPH["knowledge graph<br/>Neo4j"]
-    VEC["hybrid vector index<br/>Qdrant"]
+    MET[governed metrics<br/>read-only DuckDB]
+    GR[knowledge graph<br/>Neo4j]
+    VEC[hybrid vectors<br/>Qdrant]
   end
-  GOLD --> METRIC
-  GOLD --> GRAPH
-  CHUNK["chunk + context prefix<br/>Cohere embed-v4"] --> VEC
+  GO --> MET
+  GO --> GR
+  CH[chunk + context prefix<br/>Cohere embed-v4.0] --> VEC
 
   classDef pack fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
   classDef gold fill:#f8f2e6,stroke:#c8791f,color:#13191e;
-  class S,U,M pack;
-  class GOLD gold;
+  class ST,UN,MAN pack;
+  class GO gold;
 ```
 
-## The structured path: a real medallion
+## The medallion
 
-The structured files run through a dbt medallion, the same bronze to silver to gold you would build on a warehouse, but local in DuckDB so it needs no infrastructure and reproduces byte for byte.
+The structured CSVs run through a dbt medallion in local DuckDB, so it needs no infrastructure and reproduces byte for byte.
 
-- **Bronze** keeps the raw rows verbatim, so lineage always traces back to the source.
-- **Silver** types every column and **masks any column a pack marks as PII** (the value becomes a `masked:` hash), enforced by a dbt `is_masked` test that fails the build if a raw value slips through to gold.
-- **Gold** is the curated set the assistant and the dashboards query.
+| Layer | Holds | Guarded by |
+|---|---|---|
+| Bronze | Raw rows, verbatim | Lineage back to the source file |
+| Silver | Typed columns, PII masked to a `masked:` hash | A generic `is_masked` dbt test that fails the build on a raw value |
+| Gold | The curated marts Sara and the dashboards query | `not_null`, `unique`, `relationships` tests |
 
-Every build runs dbt tests: `not_null`, `unique`, `relationships`, and the masking test on any declared PII column. A **parity test in CI** asserts the dbt-built gold is identical to an in-app Python builder, so the two ways of producing gold can never quietly diverge. dbt **exposures** name the downstream consumers, so lineage answers "what does this table feed", not just "what feeds this table."
+Two extra guards keep the lakehouse honest. A parity test in CI asserts the dbt-built gold matches an in-app Python builder exactly, so the two ways of producing gold cannot quietly diverge. And dbt exposures name every downstream consumer, so lineage answers "what does this table feed".
 
-The demo's structured tables (products, stores, suppliers, sales) carry no personal data, so nothing is masked here today; the customer PII lives in the **order documents** on the unstructured side, where a deterministic gate, not the model, decides who may see it (see [Reliability](reliability.qmd)). Point a pack with a PII column at the same medallion and the masking test starts guarding it, no engine change.
+The demo's structured tables carry no personal data. Customer PII lives in the order documents on the unstructured side, where a deterministic name-plus-email gate decides disclosure (see [Reliability](reliability.qmd)). A pack that declares a PII column gets the masking test with no engine change.
 
-## The unstructured path: chunk, ground, embed
+## The unstructured path
 
-Descriptions, reviews, and guides are chunked with a short context prefix (the product they belong to), embedded with Cohere `embed-v4.0`, and indexed in Qdrant as **hybrid vectors**, dense meaning plus a sparse term leg, so "a warm rain jacket" and an exact SKU both land.
+Descriptions, reviews, guides, and order documents are chunked with a short context prefix naming the product they belong to, embedded with Cohere `embed-v4.0`, and indexed in Qdrant as dense plus sparse. That is why "a warm rain jacket" and an exact style name both land.
 
-## The knowledge graph: how things relate
+## The knowledge graph
 
-The graph is the part that answers "how are these connected." Nodes and typed edges are built from the gold tables, never hand-authored, so the graph and the tables never disagree.
-
-```{mermaid}
-flowchart LR
-  SUP[Supplier] -- SUPPLIES --> PROD[Product]
-  PROD -- SOLD_AT --> STORE[Store]
-  REV[Review] -- MENTIONS --> PROD
-  DOC[ProductDoc] -- DESCRIBES --> PROD
-  classDef auth fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
-  class SUP,PROD auth;
-```
-
-Zooming in on one product, "which supplier makes the Cloud Hoodie" is a single hop from `Product` to `Supplier` over the `SUPPLIES` edge, returned as authoritative grounding rather than a fuzzy guess. Traversals are allowlisted (no free-form Cypher), which keeps the graph injection-safe. The graph is treated as authoritative only when the query names the entity itself, so an entity merely mentioned in retrieved text enriches the answer without overriding it.
+Nodes and typed edges build from the gold tables, never by hand, so the graph and the tables cannot disagree. "Which supplier makes the Cloud Hoodie" is one hop over the `SUPPLIES` edge, returned as authoritative grounding. Traversals are allowlisted, no free-form Cypher, which keeps the graph injection-safe.
 
 ::: {.callout-note appearance="simple"}
-**Honest scope.** The `SUPPLIES` relationship is fully populated and genuinely useful. The `SOLD_AT` store relationship is derived from a handful of historical sales, so it is thin and returns nothing for most of the catalog. It is a modeled capability that needs real inventory data to be broadly useful, and it is called out as such rather than hidden. See [Reliability](reliability.qmd).
+**Honest scope.** `SUPPLIES` is fully populated. The product-to-store `SOLD_AT` edge derives from a handful of historical sales and returns nothing for most of the catalog. It is a modeled capability waiting on real inventory data, and it is labeled as such.
 :::
 
-## Why a semantic layer
+## Governed metrics
 
-The one file that ties it all together is `metrics.yaml`. It defines each governed number (return rate by size, cheapest in a category, per-size stock) once, and the assistant, the evaluation harness, and the admin dashboards all read the same definition. A number is never free-form SQL and never invented by the model: the model fills declared slots, a resolver runs a parameterized single-SELECT on a read-only connection, and the result comes back as its own cited evidence. One definition, many consumers, is what "governed" means here.
+When a shopper asks "what's the cheapest legging" or whether a size is in stock, the number comes from `metrics.yaml`: one definition per metric, shared by the assistant, the eval harness, and the dashboards. The model fills declared slots, a resolver runs one parameterized SELECT on a read-only DuckDB connection, and the result comes back as its own cited evidence. No free-form SQL, no invented numbers.
+
+## The data lifecycle is human-triggered
+
+The corpus never mutates itself. Two jobs propose, a person disposes:
+
+| Job | Proposes | Who acts |
+|---|---|---|
+| Consolidation (`mlops/consolidate.py`) | A knowledge pack distilled from operator-closed answers, plus gaps worth filling | A human edits and approves; only then does the flywheel index it |
+| Staleness (`mlops/staleness.py`) | A refresh list of verified chunks older than the threshold | A human approves the re-index; nothing expires on its own |
+
+Candidate knowledge comes only from answers a person already verified, never from an LLM rewriting stored content, because a model that continuously rewrites its own memory corrupts it.

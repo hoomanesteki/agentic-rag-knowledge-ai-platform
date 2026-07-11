@@ -1,43 +1,57 @@
 ---
 title: "Evaluation"
 pagetitle: "Skein Lite: Evaluation"
+execute:
+  freeze: true
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+R = S["routing"]
+AB = json.load(open("../evaluation/reports/gpt_oss_swap_ab.json"))
+F = AB["overall"]["faithfulness"]
+def pct(x): return f"{x:g}%"
+```
+
 ::: {.eyebrow}
-A layered defense, each catching a different failure
+Every quality claim is a number from a command
 :::
 
-An LLM feature without evaluation is a demo, not a product. The hard part is that "answer quality" is many different things, is it grounded, is it relevant, did it retrieve the right fact, did it correctly refuse, and no single number captures all of them. So there are several layers, four core ones below, plus a routing evaluation and a prompt-optimization loop, each designed to catch a specific class of failure before it reaches a shopper.
+Sara answers real shopper questions: "where's my order", "does the Flow Legging run small", "a gift for my mum who loves yoga around \$60". Each fails differently, so quality is measured in layers.
 
-## The four layers
+Behind every claim on this page: `{python} S["tests"]` tests, a `{python} S["golden_items"]`-item graded golden set, and a `{python} S["routing_eval_set"]`-turn routing eval. No number here is hand-typed; the page reads them from the committed reports.
 
-| Layer | What it measures | Runs where | Catches |
-|---|---|---|---|
-| **CI eval gate** | Does the pipeline retrieve the right fact, or correctly abstain? | Every push, offline | A broken retriever or abstain path |
-| **RAGAS** | Faithfulness, answer relevance, context precision & recall | On demand, real providers | A model or prompt that reads well but is ungrounded |
-| **Drift monitors** | Distribution shift in traffic, grounding, and refusal rate | Scheduled, live traffic | The world moving out from under a frozen model |
-| **Promotion gate** | Is a new config actually better than the champion? | Before promoting to prod | Shipping a regression to Production |
+## The layers
 
-## Layer 1, the offline CI gate
+| Layer | The question it answers | Runs |
+|---|---|---|
+| **CI eval gate** | Is the pipeline wired: retrieve the fact, or abstain? | every push, offline, no keys |
+| **Graded golden set** | Is the answer right, grounded, and complete? | on demand, real providers |
+| **Routing eval** | Did the turn reach the right lane? | seconds, at most one 8B call per ambiguous turn |
+| **Hallucination defense** | Did the model make something up? | every live turn |
 
-Five fixtures over a small, neutral corpus (no domain vocabulary, so it runs on deterministic fakes with no API keys). Four are in-domain questions that must retrieve the right fact; one is out-of-domain and must abstain. A cheap lexical judge, did a retrieved context contain the expected keyword, or did it correctly abstain, needs no LLM, so it runs in CI on every push.
+Drift monitoring and the human-gated release loop are operations, so they live on the [MLOps](mlops.qmd) page.
 
-[score 1.0]{.chip .good} &nbsp; min 1.0 &nbsp; blocks the merge below 1.0
+## The graded golden set
 
-The gate is deliberately strict: any single failed fixture drops the score below the threshold and blocks the merge. The evaluation notebook demonstrates it *working* by breaking the corpus on purpose and watching the score fall, a gate you've never seen fail is a gate you don't trust.
+`{python} S["golden_items"]` questions in `domains/apparel_ecommerce/eval/golden.jsonl`, English and French. Each row is graded: the facts the answer must contain, the entities behind them, the route, the difficulty, and whether the correct move is to answer or to abstain. A run produces a scorecard, not an impression.
 
-## Layer 2, RAGAS on the golden set
+It does three jobs:
 
-The four canonical RAGAS metrics, implemented from scratch rather than pulled from a package, so the judged text is sanitized against prompt injection and the scores break down per language:
+1. `make eval` scores retrieval and the abstain gate, overall and per language, with no LLM in the loop.
+2. `make ragas` runs the four RAGAS metrics over it with a temperature-0 judge, sanitized against prompt injection.
+3. It gates model and cost flips. The worked example is below.
 
 ::: {.grid-cards}
 ::: {.card}
 ### Faithfulness
-Of the claims in the answer, how many are supported by the retrieved context? This is the anti-hallucination metric.
+Of the claims in the answer, how many does the retrieved context support? The anti-hallucination metric.
 :::
 ::: {.card}
 ### Answer relevance
-Does the answer actually address the question, or does it wander?
+Does the answer address the question, or wander?
 :::
 ::: {.card}
 ### Context precision
@@ -45,39 +59,67 @@ Of the chunks retrieved, how many were relevant? Measures the reranker.
 :::
 ::: {.card}
 ### Context recall
-Of the facts needed, how many were retrieved at all? Measures recall.
+Of the facts needed, how many were retrieved at all?
 :::
 :::
 
-The judge runs at temperature 0, and can be pointed at an independent, stronger model (`JUDGE_MODEL`) so the system isn't grading its own homework. RAGAS needs the real providers and an ingested store, so it isn't a CI gate, instead it feeds the promotion decision below.
+### The gate in action: a cheaper model, held
 
-## Layer 3, drift monitors
+Swapping the workhorse to `openai/gpt-oss-120b` looked free: the aggregate RAGAS delta was `{python} AB["aggregate"]["delta"]` over `{python} AB["count"]` graded turns, with the judge fixed to the llama family for both runs. The metric that matters said no:
 
-Four monitors watch live traffic: query-embedding distance (cosine between the reference and current query centroids), retrieval-score PSI (population stability index of the top vector-hit score), confidence PSI (of the lexical-overlap gate), and feedback rate (the change in thumbs-down). The retrieval-score and confidence monitors are stratified by language. A monitor that trips exits non-zero so a scheduled job can alert. The point isn't to page someone at 3am, it's to notice when the questions people ask start drifting away from what the corpus can answer, which is the early signal that the content needs to grow.
+| Metric | llama-3.3-70b (kept) | gpt-oss-120b (held) |
+|---|---:|---:|
+| Faithfulness | `{python} F["baseline"]` | `{python} F["candidate"]` |
+| Aggregate | `{python} AB["aggregate"]["baseline"]` | `{python} AB["aggregate"]["candidate"]` |
 
-## Layer 4, the promotion gate
+A swap that saves money but invents more facts is not a swap. The full report is `evaluation/reports/gpt_oss_swap_ab.json`; the reasoning is on the [Decisions](decisions.qmd) page.
 
-A "model" here is a serving configuration: the LLM, the embedder, the reranker, the prompt. Promotion from dev → staging → prod is **not** automatic and **not** decided by the offline smoke test. It works in two stages:
+## The routing scorecard
 
-1. **Precondition**, the offline CI gate must pass, proving the pipeline is wired.
-2. **Quality gate**, promotion is decided by the *measured* RAGAS score from the real providers, persisted and logged to MLflow. A candidate reaches Staging at 0.65 and Production at 0.78, and a Production candidate must also **beat the current champion** or it's capped at Staging.
+Every turn goes through a cheap-first cascade (`rag/router.py`): a deterministic escalation intercept, deterministic intent guards, then an 8B tie-break only when neither decides. Send "my jacket arrived torn" to the stylist lane and the best answer in the world is wrong, so routing gets its own labeled eval: `{python} S["routing_eval_set"]` shopper turns, scored with no retrieval and no generation by `scripts/run_agent_eval.py --with-llm`.
 
-::: {.callout-note appearance="simple"}
-This layer started life broken, it scored a fake-provider pipeline that always returned 1.0, so every run "promoted to Production" regardless of the real model. An [adversarial review](reliability.qmd#what-the-review-found) caught it. It now refuses to promote at all if no real quality score was ever measured: you cannot promote on a quality you never measured.
-:::
+| Mode | Accuracy | Escalation recall | Marginal cost |
+|---|---:|---:|---:|
+| Deterministic only | `{python} pct(R["deterministic_pct"])` | `{python} pct(R["deterministic_escalation_recall_pct"])` | none |
+| **8B tie-break (ships)** | **`{python} pct(R["tiebreak_8b_pct"])`** | **`{python} pct(R["tiebreak_8b_escalation_recall_pct"])`** | ~$0.0005 |
+| 70B tie-break (declined) | `{python} pct(R["tiebreak_70b_pct"])` | 100% | ~$0.0006 |
 
-## Layer 5, the omni-agent routing evaluation
+Three findings, each a decision:
 
-The assistant became a master orchestrator that routes every turn to a lane, stylist, care, complaint, answers, or escalation, before it answers. Routing is the new thing to evaluate: send a turn to the wrong lane and the best answer in the world is off-topic. So there is a labeled set of 350 shopper turns (`domains/apparel_ecommerce/eval/routing.jsonl`, curated synthetic and described honestly as such) and a harness that scores the router with no retrieval and no generation, so it runs in seconds and costs at most one small-model call per ambiguous turn. Every number below regenerates from one command, `scripts/run_agent_eval.py --with-llm`, and lands in `evaluation/reports/routing_eval.json`.
+- The free deterministic layers carry most turns at zero cost with zero false escalations (precision 100%).
+- The 8B tie-break earns its half-cent: it lifts accuracy and takes "get me a person" recall to `{python} pct(R["tiebreak_8b_escalation_recall_pct"])`, so a shopper asking for a human always reaches one.
+- The 70B tie-break loses to the 8B (`{python} pct(R["tiebreak_70b_pct"])` vs `{python} pct(R["tiebreak_8b_pct"])`). That is the measured case for staying Groq-only instead of paying a bigger model to classify.
 
-| Mode | Accuracy | Marginal cost |
+### The eval as a target
+
+The routing eval found the tie-break guessing a lane on ambiguous turns instead of deferring. An [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about eighty lines) rewrote that prompt from its own failures and scored candidates on a held-out split: 73.9% to 79.5%. A human promoted the winner; the loop never edits served code. Why not DSPy is on the [Decisions](decisions.qmd) page.
+
+## Hallucination defense, three layers
+
+The lexical confidence gate abstains on thin evidence before generation. After generation, three layers catch what a prompt cannot guarantee:
+
+| Layer | What it does | When |
 |---|---|---|
-| Deterministic (layers 0 and 1) | 81.6% | none |
-| 8B small-model tie-break | 85.9% | ~$0.0005 |
-| 70B large-model tie-break | 85.6% | ~$0.0006 |
+| **Per-citation grounding check** | A sentence counts as grounded only if it cites a chunk and its content overlaps the specific chunk it cites. Citing [1] while asserting something not in chunk 1 does not count. | every answer, free |
+| **Online faithfulness ladder** | Every low-grounding turn plus a deterministic 8% sample is queued after the answer streams. The repo's RAGAS faithfulness judge scores each claim offline, using `gpt-oss-120b`, a different family from the llama generator, so it cannot grade its own style up. It never blocks streaming. | sampled, live traffic |
+| **Abstain or escalate** | Thin evidence gets an honest "I don't have that" with a next step. A stuck or upset shopper gets Tiffany, a human, through the review queue. Silence beats invention. | every turn |
 
-Two decisions fell out of this, and both are in the numbers rather than a preference. The cheap deterministic router carries most turns at zero marginal cost and 100% escalation precision. And a 70B tie-break does not even edge out the 8B (85.6% vs 85.9%), while both lift the free layer by only a few points, which is the measured case for staying Groq-only instead of paying a frontier model to classify.
+`make faithfulness` drains the ladder's queue; a low score lands in the review queue for a person, and feeds the drift signal on the [MLOps](mlops.qmd) page.
 
-## Layer 6, the prompt-optimization loop
+## The offline CI gate
 
-The evaluation is not just a scorecard, it is a target. The routing eval found the small-model tie-break was guessing a specialist lane on ambiguous turns instead of deferring. A small [OPRO](https://arxiv.org/abs/2309.03409)-style loop, about eighty lines rather than a framework, took that exact prompt, let a model propose more conservative rewrites from the failing cases, scored each on a held-out split, and surfaced the winner for a human to promote. It lifted the tie-break from 73.9% to 79.5% on the held-out test, which flipped the 8B tie-break from hurting the routing to helping it. That winner was promoted by hand and is now the baseline the served prompt sits at, so re-running the loop today finds no further lift, the loop working as intended, not a regression. Measure, find the weak spot, optimize, re-measure, with a human on the promotion step so the system never rewrites its own served behavior. The whole story, with the two verification rounds that caught an overfit in the router cues, is on the [decisions](decisions.qmd) page.
+Five fixtures over a neutral corpus run on deterministic fakes, no API keys: four must retrieve the right fact, one must abstain. A lexical judge scores them on every push.
+
+[score 1.0]{.chip .good} &nbsp; min 1.0 &nbsp; any single failure blocks the merge
+
+The evaluation notebook breaks the corpus on purpose and watches the score fall. A gate you have never seen fail is a gate you cannot trust.
+
+## Reproduce every number
+
+| Number | Command | Report |
+|---|---|---|
+| Retrieval and abstain scorecard | `make eval` | `evaluation/reports/` |
+| RAGAS answer quality | `make ragas` | logged to MLflow (`skein-ragas`) |
+| Routing scorecard | `uv run python scripts/run_agent_eval.py --with-llm` | `evaluation/reports/routing_eval.json` |
+| Online faithfulness | `make faithfulness` | `skein-faithfulness` in MLflow |
+| This page's headline stats | `make site-stats` | `evaluation/reports/site_stats.json` |

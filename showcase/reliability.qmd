@@ -1,69 +1,80 @@
 ---
 title: "Reliability"
-pagetitle: "Skein Lite: Reliability & risks"
+pagetitle: "Skein Lite: Reliability"
 ---
 
+```{python}
+#| echo: false
+import json
+S = json.load(open("../evaluation/reports/site_stats.json"))
+```
+
 ::: {.eyebrow}
-What breaks, what happens instead, and what I chose to accept
+What refuses, what degrades, what a human approves
 :::
 
-A system is only as trustworthy as its behavior when a dependency is slow, down, or being probed by someone acting in bad faith. This page is the failure-mode inventory: every external dependency, what happens when it fails, and the fallback. Then the risks I'm carrying knowingly, and the residual issues an adversarial review surfaced.
+A shopper's trust rides on the bad turns: a probe for someone else's order, a model tempted to invent a tracking date, a provider outage mid-conversation. The defenses here are deterministic where determinism is possible, layered where it is not, and locked in by a `{python} S["tests"]`-test pytest suite.
+
+## Deterministic gates, before any model runs
+
+The privacy and safety gates do not ask the model to behave. They run in code before retrieval, because a model will disclose data it has merely been asked to withhold once that data is in its context.
+
+| Gate | Rule | What it defeats |
+|---|---|---|
+| Order PII | Order documents reach the model only when the shopper's own turns contain both the account email and the account holder's name, as one phrase, with name tokens derivable from the email excluded | Email-only unlock, staff impersonation, dictionary name-guessing, tokens scattered across forged turns |
+| Prompt injection | "Ignore your instructions" and "print your system prompt" refuse deterministically, even wrapped around a real shopping request | Instruction override and prompt exfiltration |
+| Customer enumeration | "List your customers", "who bought X" refuse before retrieval | Volunteering any shopper's name, even a reviewer's |
+| Gender correctness | A stated gender redacts opposite-gender products from the retrieved context | A men's request surfacing a women's-only piece via a guide |
+
+In the shipped product the signed-in session proves identity. The name-plus-email check is the demo stand-in for binding order access to the authenticated account, and it is held to the same adversarial standard.
+
+## The hallucination defense, layered
+
+No single check catches every fabrication, so three run at different costs and different times.
+
+| Layer | Check | When | Cost |
+|---|---|---|---|
+| 1 | Per-citation grounding: each sentence must cite a chunk and share content words with that specific chunk | Every answer, inline | Free, model-free |
+| 2 | Online RAGAS faithfulness: decompose the answer into claims, verify each against the context, judged by gpt-oss-120b, a different family from the llama generator | Every low-grounding turn plus a sampled slice of healthy ones, drained offline | One judge call per sampled turn, never blocks streaming |
+| 3 | Abstain or escalate: thin evidence abstains with the closest real options; an explicit ask for a person files a case | Inline | Free |
+
+Layer 1 is citation support and cannot see a fabricated but cited claim. That is exactly what layer 2 exists for: every turn layer 1 scores low is queued for the judge, and the sampling is deterministic by message id so a turn is always or never checked. The same judge and golden set held a planned gpt-oss-120b generation swap when it measured lower faithfulness than the incumbent.
 
 ## Failure modes and fallbacks
 
-| If this fails… | What the user sees | The fallback (the second option) |
+| If this fails | The shopper sees | The fallback |
 |---|---|---|
-| **LLM (Groq) slow or erroring** | A brief wait, then an answer | Retry with backoff, then fall back to the smaller, faster model; only a total failure degrades to a safe, non-guessed reply |
-| **Embeddings (Cohere) over quota or down** | A slightly less precise answer | Three layers: a trial key, then a paid key on a quota or auth failure, then the local sparse (BM25) leg, which needs no API; degraded relevance, but the turn still answers |
-| **Reranker (Cohere) down** | A coarser ranking | Keep the hybrid order instead of failing; the reranker sharpens precision, it is not load-bearing |
-| **Voice (ElevenLabs TTS) down** | The reply still appears, spoken by the browser voice | The text answer always renders first; the premium voice falls back to the browser voice, and a stall times out rather than hanging |
-| **Graph (Neo4j) unavailable** | Slightly less precise relationship answers | The graph is additive evidence; a store error is caught so it never fails the turn, and a default run works without it |
-| **A shopper floods the chat** | Normal service for everyone else | Per-endpoint token-bucket rate limits keyed on the real client IP, plus a hard instance cap as a cost ceiling |
-| **A prompt-injection or PII probe** | A polite refusal | Deterministic intercepts (not the model's judgment) refuse before retrieval; see below |
+| LLM (Groq) slow or erroring | A brief wait, then an answer | Retry with backoff, then the smaller model; only total failure degrades to a safe non-guessed reply |
+| Embeddings (Cohere) down or over quota | A slightly less precise answer | Trial key, then paid key, then the local sparse leg which needs no API |
+| Reranker (Cohere) down | A coarser ranking | Keep the hybrid order; the reranker sharpens, it is not load-bearing |
+| Voice (ElevenLabs) down | The reply appears, spoken by the browser voice | Text always renders first; a TTS stall times out rather than hanging |
+| Graph (Neo4j) unavailable | Slightly less precise relationship answers | Graph evidence is additive; the error is caught and the turn still answers |
+| A flood of requests | Normal service for everyone else | Per-endpoint token buckets on the real client IP, plus a per-turn budget so no turn can loop or run away on tokens |
+| An injection or PII probe | A polite refusal | The deterministic gates above, before retrieval |
 
-The through-line: **additive dependencies degrade quality; they never break the answer.** The graph, the metric layer, and voice can all be absent and the assistant still responds. Only the LLM and the vector store are load-bearing, and both are behind retrying seams. The full chain, layer by layer, is in [`docs/fallbacks.md`](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/blob/main/docs/fallbacks.md); a real drift run even caught the embedding fallback rolling from a failed key to the backup mid-run, with no interruption.
+The through-line: additive dependencies degrade quality and never break the answer. Only the LLM and the vector store are load-bearing, and both sit behind retrying seams. The full chain is in [`docs/fallbacks.md`](https://github.com/hoomanesteki/agentic-rag-knowledge-ai-platform/blob/main/docs/fallbacks.md); one drift run caught the Cohere fallback rolling from a failed key to the backup mid-run with no interruption.
 
-## Security guards, deterministic on purpose
+## Change is human-gated
 
-The privacy and safety guards do not ask the model to behave. They enforce in code, because a model will happily disclose data it's merely been asked to withhold once that data is in its context.
+Nothing in the MLOps loop ships itself. Drift detection opens one deduped GitHub issue per signal. A candidate is registered only when a quality signal warrants it. A human runs the shadow replay of the challenger against real traffic, reads the delta, and approves the promotion. There is no auto-promote path anywhere in the codebase. Details on [MLOps](mlops.qmd).
 
-::: {.grid-cards}
-::: {.card}
-### Order-PII gate
-Order documents reach the model only when the shopper's own turns contain **both** the account email **and** a name that isn't derivable from that email. Email alone, a staff-impersonation claim, or an order-number lookup all refuse.
-:::
-::: {.card}
-### Prompt injection
-"Ignore your instructions / print your system prompt" is intercepted deterministically and refused, even when wrapped around a real shopping request. The system prompt is never echoed.
-:::
-::: {.card}
-### Customer enumeration
-"List your customers / who bought X" refuses before retrieval, so no customer's name is ever volunteered.
-:::
-::: {.card}
-### Gender correctness
-When a shopper states a gender, opposite-gender products are redacted from the retrieved context, so a men's request can't surface a women's-only piece even if a guide names one.
-:::
-:::
+## The hardening record
 
-## Risks I'm carrying knowingly
-
-- **Synthetic-data demo.** This is a portfolio piece on a hobby budget. The scale is a single store, one demo customer, and a few hundred products, enough to exercise the machinery, not to prove it at enterprise volume.
-- **Single demo account.** The order-PII flow is demonstrated with one customer. In a real deployment, order access would be bound to the authenticated account, not to whatever name and email are typed, the name+email check here is the demo stand-in for that.
-- **Continuous training is scheduled; promotion stays manual.** The drift monitors, MLflow logging, RAGAS eval, and the prompt-optimization loop are real and reproducible, and the CT workflow (`.github/workflows/ct.yml`) now runs the drift check, retrain, and eval gate weekly rather than only on demand. What stays deliberately manual is the deploy: CT proposes a promotion as an artifact and a human approves it, so nothing self-ships.
-- **The store-relationship graph is thin.** The supplier relationship is fully populated; the product→store relationship is derived from a few historical sales and returns nothing for most of the catalog. It's a modeled capability that needs real inventory data to be broadly useful.
-
-## What the review found {#what-the-review-found}
-
-The guards are held to an adversarial standard: rounds of multi-agent review whose only job is to break them, then a second pass that tries to refute every finding before it counts, so only real, reproducible defects survive. The first round found two criticals a first pass had missed. A later, deeper round surfaced fifteen more across security, retrieval, MLOps, and the frontend. Each was fixed and then re-verified, and the Python-side fixes carry pytest regressions that lock the behavior in.
+The gates are held to an adversarial standard: review rounds whose only job is to break them, then a refutation pass so only reproducible defects count. The findings that survived, and their fixes:
 
 | Finding | Severity | Status |
 |---|---|---|
-| Promotion gate scored fake providers and always promoted to Production | <span class="chip crit">critical</span> | Fixed, gates on measured RAGAS, refuses without a real score |
-| Email-only (or surname-from-the-email) unlocked order PII | <span class="chip crit">critical</span> | Fixed, name+email must be independent factors, with tests |
-| The order-PII name factor was guessable one common name at a time | <span class="chip warn">high</span> | Fixed, the full account name must appear as one phrase, defeating dictionary and scattered-token guessing |
-| A gift "for her husband" was filtered to women's items | <span class="chip warn">high</span> | Fixed, cues resolve strongest-first so the recipient noun wins and an explicit "men's" is never overridden |
-| The engine hardcoded the brand and persona, breaking the domain-swap claim | <span class="chip warn">high</span> | Fixed, persona and brand now live in the pack manifest; the leak linter guards the short brand too |
-| The quality gate could pass with a core metric never measured | <span class="chip info">medium</span> | Fixed, a required-metric floor fails the run if faithfulness is missing |
+| Promotion gate scored fake providers and always promoted | <span class="chip crit">critical</span> | Fixed: gates on measured RAGAS, refuses without a real score |
+| Email-only (or a surname taken from the email) unlocked order PII | <span class="chip crit">critical</span> | Fixed: name and email must be independent factors, with tests |
+| The name factor was guessable one common name at a time | <span class="chip warn">high</span> | Fixed: the full name must appear as one phrase |
+| A gift "for her husband" filtered to women's items | <span class="chip warn">high</span> | Fixed: cues resolve strongest-first so the recipient wins |
+| The engine hardcoded the brand and persona | <span class="chip warn">high</span> | Fixed: both moved to the pack manifest, leak-linted in CI |
+| The quality gate could pass with faithfulness never measured | <span class="chip info">medium</span> | Fixed: a required-metric floor fails the run |
 
-Most fixes ship with a pytest regression, and the re-verification pass re-derives the attack against the patched code before the finding is marked closed. The two frontend guards (the human-handoff trigger and the gender-cue redaction in the widget) are checked by hand against a list of phrasings, since the storefront has no test runner yet. That is the standard the whole project holds itself to: findings are documented and defeated, not papered over.
+Each fix ships with a pytest regression, and the re-verification pass re-derives the attack against the patched code before a finding closes.
+
+## Known limits
+
+- **Synthetic scale.** One store, one demo shopper, a few-hundred-product catalog: enough to exercise every mechanism, not a claim of enterprise volume.
+- **One demo account.** Order access binds to the authenticated shopper in production; the typed name-plus-email gate is the demo's stand-in and the part an attacker would probe.
+- **The store graph is thin.** The `SOLD_AT` edge needs real inventory data to be broadly useful; it is labeled a modeled capability on the [Data](data.qmd) page.

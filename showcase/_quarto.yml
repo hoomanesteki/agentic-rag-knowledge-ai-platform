@@ -23,6 +23,8 @@ website:
         href: cost.qmd
       - text: "Decisions"
         href: decisions.qmd
+      - text: "MCP"
+        href: mcp.qmd
       - text: "Reliability"
         href: reliability.qmd
       - text: "Experience"

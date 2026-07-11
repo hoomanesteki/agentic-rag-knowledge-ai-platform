@@ -99,3 +99,21 @@ def test_multitask_stops_early_when_the_budget_is_spent(monkeypatch):
     assert final["budget"]["calls"] == 1  # only the first clause ran
     # exactly one lane made it into the stitched reply, not both
     assert ("stylist" in final["answer"]) ^ ("care" in final["answer"])
+
+
+def test_multitask_budget_breach_before_first_clause_hands_off(monkeypatch):
+    # exhausted before ANY clause produced text: a safe abstain handoff, never an empty tier=auto
+    def fake_stream(query, **kwargs):
+        llm = kwargs.get("llm")
+        if llm is not None:
+            llm.generate("probe")  # the very first call trips the empty budget
+        yield {"type": "final", "answer": kwargs.get("lane"), "lane": kwargs.get("lane"),
+               "tier": "auto", "grounding": 0.9, "confidence": 0.9, "citations": []}
+
+    monkeypatch.setattr(omni, "stream_answer", fake_stream)
+    events = list(omni.stream_omni(
+        "suggest a gift for my mum and check where my order is", embedder=None, store=None,
+        llm=EchoLLM(), auth_identity=("A", "a@b.com"), budget=TurnBudget(max_calls=0)))
+    final = events[-1]
+    assert final["tier"] == "abstain" and final["answer"]  # non-empty handoff, never empty auto
+    assert final["grounding"] == 0.0

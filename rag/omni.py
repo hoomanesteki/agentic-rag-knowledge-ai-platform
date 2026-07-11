@@ -162,11 +162,20 @@ def _stream_multitask(routed, *, message_id, auth_identity, deps, budget):
         if text:
             answers.append(text)
             finals.append(final)
+    mid = message_id or uuid.uuid4().hex
+    if not answers:
+        # a budget breach before any clause produced text must not ship an empty reply that reads as
+        # a confident (tier=auto) answer; hand off safely instead, like the single-task budget path
+        text = "Let me keep this quick and accurate and bring in a specialist to help you further."
+        yield {"type": "token", "text": text}
+        yield {"type": "final", "message_id": mid, "answer": text, "tier": "abstain",
+               "confidence": 0.0, "grounding": 0.0, "citations": [], "lane": "budget",
+               "budget": budget.snapshot()}
+        return
     stitched = "\n\n".join(answers)
     leaked = _output_leaks(stitched, auth_identity)
     if leaked:
         stitched = _SAFE_LEAK
-    mid = message_id or uuid.uuid4().hex
     # A stitched reply is only as grounded and as confident as its weakest contributing clause, so
     # report the min of each and the union of their citations, never an invented grounding=1.0. If
     # the leak tripwire replaced the reply, no clause backs it: report zero grounding, no citations.

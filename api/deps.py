@@ -26,6 +26,7 @@ from api.resilience import (
 )
 from data.metrics import MetricResolver
 from ingest.naming import collection_name
+from rag.answer_cache import SemanticAnswerCache
 from rag.hitl import ReviewQueue
 from retrieval.graph import make_graph_retriever
 
@@ -52,9 +53,16 @@ def get_components() -> dict:
         _log.warning("lakehouse not found at %s; metric answers are disabled. Run make lakehouse.",
                      lakehouse_db)
     reranker = make_reranker()  # may be None when RERANK_PROVIDER=none
+    # cache query embeds (fewer metered calls), then retry transient failures
+    embedder = CachingEmbedder(ResilientEmbedder(make_embedder()))
+    # answers-lane FAQ cache: serves a repeat anonymous, grounded answer without retrieval or
+    # generation. On by default (safe and cheap; anonymous + grounded only, TTL, invalidated on
+    # re-index); set ANSWER_CACHE=off to disable. Reuses the app embedder for consistent similarity.
+    answer_cache = (SemanticAnswerCache(embedder)
+                    if os.getenv("ANSWER_CACHE", "on").strip().lower() != "off" else None)
     return {
-        # cache query embeds (fewer metered Voyage calls), then retry transient failures
-        "embedder": CachingEmbedder(ResilientEmbedder(make_embedder())),
+        "embedder": embedder,
+        "answer_cache": answer_cache,
         "store": ResilientStore(
             make_store(collection=collection_name(settings.domain, settings.embed_model))),
         "llm": ResilientLLM(make_llm(), fallback=make_small_llm()),

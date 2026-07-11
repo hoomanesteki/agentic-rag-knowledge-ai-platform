@@ -86,6 +86,9 @@ ragas: ## RAGAS-style answer-quality eval on the golden set (needs keys, make up
 faithfulness: ## Drain the online faithfulness queue: score sampled live answers (different-family judge)
 	PYTHONPATH=. uv run python scripts/run_faithfulness.py
 
+shadow: ## Human-triggered shadow replay: champion vs challenger on real traffic (evidence to promote with)
+	PYTHONPATH=. uv run python scripts/run_shadow.py
+
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 

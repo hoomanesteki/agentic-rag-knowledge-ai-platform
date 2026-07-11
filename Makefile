@@ -83,6 +83,9 @@ mlflow-log: ## Log the request traces to MLflow (./mlruns locally, or MLFLOW_TRA
 ragas: ## RAGAS-style answer-quality eval on the golden set (needs keys, make up, an ingest)
 	PYTHONPATH=. uv run python scripts/run_ragas.py
 
+faithfulness: ## Drain the online faithfulness queue: score sampled live answers (different-family judge)
+	PYTHONPATH=. uv run python scripts/run_faithfulness.py
+
 gate: ## Run the offline CI eval gate on recorded fixtures (fails on a regression)
 	PYTHONPATH=. uv run python scripts/run_gate.py
 

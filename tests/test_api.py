@@ -141,7 +141,9 @@ def test_empty_query_rejected():
     assert resp.status_code == 400
 
 
-def test_agent_brain_answers_over_sse(tmp_path):
+def test_retired_agent_brain_maps_to_omni(tmp_path):
+    # the M6 LangGraph brain is retired; CHAT_BRAIN=agent now resolves to its omni successor and
+    # still answers a grounded question over SSE rather than erroring on an unknown brain
     from rag.hitl import ReviewQueue
     components = _components()
     components["review_queue"] = ReviewQueue(str(tmp_path / "rq.db"))
@@ -150,20 +152,6 @@ def test_agent_brain_answers_over_sse(tmp_path):
     events = _sse(_chat(client, "how much does the belt bag cost").text)
     final = [e for e in events if e["type"] == "final"][-1]
     assert final["tier"] == "auto" and final["citations"]
-
-
-def test_agent_brain_escalates_and_enqueues(tmp_path):
-    from rag.hitl import ReviewQueue
-    queue = ReviewQueue(str(tmp_path / "rq.db"))
-    components = _components()
-    components["review_queue"] = queue
-    components["domain"] = "apparel_ecommerce"
-    client = _client(components, chat_brain="agent")
-    events = _sse(_chat(client, "what is the boiling point of water").text)
-    final = [e for e in events if e["type"] == "final"][-1]
-    assert final["tier"] == "escalate"
-    assert final["escalation_id"] is not None
-    assert len(queue.list_open()) == 1  # the M6 brain actually queues escalations now
 
 
 def test_cors_allows_configured_origin(monkeypatch):

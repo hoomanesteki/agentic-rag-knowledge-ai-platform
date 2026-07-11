@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from adapters.config import get_settings
 from adapters.elevenlabs import ElevenLabsTTS
-from adapters.observability import flush, request_span, update_span
+from adapters.observability import flush
 from api.auth import (
     DUMMY_HASH,
     UserStore,
@@ -42,11 +42,9 @@ from evaluation.monitoring import (
 from pipeline.answer import (
     DEFAULT_MIN_CONFIDENCE,
     DEFAULT_TRACE_PATH,
-    _smalltalk,
     stream_answer,
     write_trace,
 )
-from rag.agent import answer_with_agent
 from rag.flywheel import grow_verified_eval, reindex_verified, suggest_threshold
 from rag.omni import stream_omni
 
@@ -228,8 +226,10 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
     app = FastAPI(title="Skein Lite API")
     settings = get_settings()
     # "omni" (default) routes each turn to a lane then streams; "linear" is that pipeline with no
-    # routing; "agent" runs the M6 LangGraph supervisor brain (buffered).
+    # routing. The retired M6 LangGraph "agent" brain maps to omni, its deterministic successor.
     brain = chat_brain or settings.chat_brain
+    if brain == "agent":
+        brain = "omni"
     limiter = RateLimiter(rate_limit or settings.rate_limit)
     # Default allows the web app at either localhost or 127.0.0.1 (browsers pick either), so local
     # dev works without CORS surprises. Production sets ALLOWED_ORIGINS to the real origin.
@@ -428,41 +428,6 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
 
         def event_stream():
             try:
-                if brain == "agent":
-                    # safety/greeting intercept BEFORE the brain, so the agent path gets the same
-                    # harm-decline and small-talk handling as the linear path (the brain does not
-                    # call _smalltalk itself)
-                    chat = _smalltalk(req.query, req.persona)
-                    if chat is not None:
-                        yield _sse({"type": "token", "text": chat})
-                        yield _sse({"type": "final", "message_id": message_id, "answer": chat,
-                                    "tier": "auto", "confidence": 1.0, "grounding": 1.0,
-                                    "citations": []})
-                        return
-                    # the full M6 brain (supervisor, gate, escalation to the review queue) as a
-                    # buffered response. The whole turn runs synchronously here before the first
-                    # yield, so the Langfuse span opens and closes within one execution (no cross-
-                    # yield context hop) and every LLM generation nests under it. No-op when off.
-                    # NOTE: voice brevity (concise) and logged-in personalization (auth_identity:
-                    # own-order auto-unlock plus the taste profile) are LINEAR-BRAIN features, not
-                    # applied on this non-default agent path. It fails closed: the deterministic
-                    # name+email PII gate still applies, so a logged-in shopper simply re-types
-                    # name+email to see their own orders here.
-                    with request_span("chat.agent", input=req.query,
-                                      metadata={"message_id": message_id, "lang": req.lang}):
-                        result = answer_with_agent(
-                            req.query, components=comp, history=req.history or [],
-                            message_id=message_id, review_queue=comp.get("review_queue"),
-                            domain=comp.get("domain"), lang=req.lang)
-                        update_span(output=result.answer, metadata={"tier": result.tier})
-                    yield _sse({"type": "token", "text": result.answer})
-                    yield _sse({"type": "final", "message_id": message_id,
-                                "answer": result.answer, "tier": result.tier,
-                                "confidence": round(result.confidence, 3),
-                                "grounding": round(result.grounding, 3),
-                                "citations": result.citations,
-                                "escalation_id": result.trace.get("escalation_id")})
-                    return
                 if brain == "omni":
                     # The master orchestrator: route the turn, then answer through the SAME gated
                     # streaming pipeline with the chosen lane's focus, so the order-PII gate, safety

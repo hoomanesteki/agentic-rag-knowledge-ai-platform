@@ -28,7 +28,7 @@ jobs:
       # One-time setup: enable Pages in repo Settings -> Pages -> Source: "GitHub Actions".
       # After that, this step reads the config and every push to showcase/ deploys automatically.
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - uses: quarto-dev/quarto-actions/setup@v2
       # The pages run `{python}` chunks that read evaluation/reports/site_stats.json, so rendering
       # needs a Jupyter kernel. Install it from the pinned `docs` extra so CI uses the same versions

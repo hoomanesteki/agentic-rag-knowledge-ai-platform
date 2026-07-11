@@ -4,7 +4,7 @@ from pathlib import Path
 
 from adapters.base import LLMResult
 from adapters.factory import make_embedder, make_store
-from pipeline.answer import _build_prompt, answer_question, grounding_score
+from pipeline.answer import _build_prompt, _used_citations, answer_question, grounding_score
 from pipeline.sanitize import sanitize_context
 from retrieval.sparse import SparseEncoder
 
@@ -58,7 +58,7 @@ def test_sanitize_collapses_newlines():
 
 
 def test_grounding_score_counts_only_valid_citations():
-    ctx = [{"n": 1, "text": "context"}]
+    ctx = [{"n": 1, "text": "the belt bag price is 38 dollars and it fits a phone"}]
     assert grounding_score("The price is 38 [1]. It fits a phone [1].", ctx) == 1.0
     assert grounding_score("The price is 38. It fits a phone.", ctx) == 0.0
     assert 0.0 < grounding_score("The price is 38 [1]. It is nice.", ctx) < 1.0
@@ -66,9 +66,34 @@ def test_grounding_score_counts_only_valid_citations():
     assert grounding_score("anything", []) == 0.0
 
 
+def test_grounding_score_rejects_a_mis_cited_sentence():
+    # cites [1] but asserts something absent from chunk 1: the cite-anything loophole, now closed
+    ctx = [{"n": 1, "text": "the belt bag costs 38 dollars"}]
+    assert grounding_score("the hoodie is waterproof and machine washable [1].", ctx) == 0.0
+    # a contentless sentence (all stopwords) cannot be checked, so a valid marker is enough
+    assert grounding_score("it is [1].", ctx) == 1.0
+
+
 def test_grounding_score_handles_bullets():
-    ctx = [{"n": 1, "text": "context"}]
-    assert grounding_score("- runs small\n- soft fabric\n- holds a phone [1]", ctx) < 1.0
+    ctx = [{"n": 1, "text": "the hoodie holds a phone in the pocket"}]
+    # two uncited bullets and one supported bullet -> below 1.0 but the supported one still counts
+    assert 0.0 < grounding_score("- runs small\n- soft fabric\n- holds a phone [1]", ctx) < 1.0
+
+
+def test_compact_multi_citation_is_parsed():
+    # the model often emits a compact [1, 2] marker instead of [1] [2]; it must parse, or a
+    # well-cited answer reads as ungrounded with no provenance
+    ctx = [{"n": 1, "text": "the aster flow legging costs 98 dollars"}, {"n": 2, "text": "other"}]
+    assert grounding_score("the aster flow legging costs 98 dollars [1, 2].", ctx) == 1.0
+    assert [c["n"] for c in _used_citations("costs 98 dollars [1, 2, 9].", ctx)] == [1, 2]
+
+
+def test_used_citations_are_honest_when_nothing_valid_cited():
+    ctx = [{"n": 1, "text": "a"}, {"n": 2, "text": "b"}]
+    assert [c["n"] for c in _used_citations("yes it does [2].", ctx)] == [2]
+    # nothing valid cited -> NO citations, never a false fallback that attributes to every chunk
+    assert _used_citations("no citation here.", ctx) == []
+    assert _used_citations("out of range [9].", ctx) == []
 
 
 def test_build_prompt_excludes_injection():

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 
 from .base import Chunk, GraphNeighbor, GraphNode, LLMResult
 
@@ -232,20 +233,31 @@ class InMemoryGraphStore:
         return out[:limit]
 
 
+_ECHO_CTX1 = re.compile(r"\[1\]\s*(.+)")
+
+
 class EchoLLM:
-    """Offline placeholder LLM. Returns a fixed string plus rough token counts so the seam
-    (and tracing) is testable without keys."""
+    """Offline placeholder LLM. When the prompt carries retrieved context it echoes the first
+    context block and cites [1], so an offline answer is grounded and carries a citation like a real
+    one (the pipeline's grounding and citation checks then have something honest to measure). With
+    no context (a routing or slot-fill prompt) it returns a fixed string. Rough token counts keep
+    the metering seam testable without keys."""
+
+    model = "fake"
+
+    def _answer(self, prompt: str) -> str:
+        m = _ECHO_CTX1.search(prompt)
+        return "{} [1]".format(m.group(1).strip()[:200]) if m else "offline-fake-response"
 
     def generate(self, prompt: str, *, system: str | None = None,
                  max_tokens: int = 512) -> LLMResult:
-        return LLMResult(text="offline-fake-response",
+        return LLMResult(text=self._answer(prompt),
                          prompt_tokens=max(len(prompt) // 4, 1),
                          completion_tokens=3, model="fake")
 
     def stream(self, prompt: str, *, system: str | None = None, max_tokens: int = 512,
                usage_out: dict | None = None):
-        for word in ("offline-fake-response",):
-            yield word
+        yield self._answer(prompt)
         if usage_out is not None:  # so the streamed-metering path is exercised offline
             usage_out.update({"prompt_tokens": len(prompt.split()), "completion_tokens": 1,
                               "model": getattr(self, "model", "fake")})

@@ -733,6 +733,16 @@ def _used_citations(answer_text: str, contexts: list[dict]) -> list[dict]:
     return [c for c in contexts if c["n"] in used]
 
 
+def _maybe_enqueue_faithfulness(message_id, question, answer, contexts, grounding) -> None:
+    """Best-effort hand-off to the online faithfulness ladder. Lazy import keeps mlops out of the
+    hot path, and a swallowed error means a sampling hiccup can never break a served turn."""
+    try:
+        from mlops.faithfulness import enqueue_candidate
+        enqueue_candidate(message_id, question, answer, contexts, grounding)
+    except Exception:
+        pass
+
+
 # Order and account documents carry customer PII (name, email, phone, address, purchase history).
 # They must only surface when the shopper is asking about their OWN order or account, never for a
 # generic "who is X", a third-person "has anyone bought X", or a product question that happens to
@@ -1655,7 +1665,7 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
     prompt_tokens = int(usage.get("prompt_tokens") or 0)  # total input (cached + fresh)
     completion_tokens = int(usage.get("completion_tokens") or 0)
     cached_tokens = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)
-    # cost bills the fresh input at full rate and the cached input at ~0.1x, so split the total to
+    # cost bills fresh input at full rate and cached input at Groq's 0.5x, so split the total to
     # avoid double-counting the cached tokens (they matter once the workhorse is a caching model).
     answer_cost = (_estimate_cost(model_used, max(prompt_tokens - cached_tokens, 0),
                                   completion_tokens, cache_read_tokens=cached_tokens)
@@ -1672,6 +1682,9 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
     write_trace(trace, trace_path)
+    # after the answer is on its way to the shopper (never before), maybe queue it for an offline
+    # faithfulness check. A no-op unless sampling is enabled, so the default path is untouched.
+    _maybe_enqueue_faithfulness(message_id, rquery, answer, contexts, round(grounding, 3))
     yield {"type": "final", "message_id": message_id, "answer": answer, "tier": "auto",
            "confidence": round(confidence, 3), "grounding": round(grounding, 3),
            "citations": citations}

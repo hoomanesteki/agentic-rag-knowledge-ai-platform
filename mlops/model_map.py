@@ -53,6 +53,13 @@ MODEL_MAP: tuple[ModelJob, ...] = (
                "up. Once generation moves to gpt-oss-120b, the freed llama-3.3-70b judges free.",
         source="Self-Preference Bias in LLM-as-a-Judge (arXiv:2410.21819)."),
     ModelJob(
+        job="Online faithfulness judge (hallucination detector)",
+        env="FAITHFULNESS_JUDGE_MODEL", default="openai/gpt-oss-120b",
+        reason="Samples live answers and verifies each claim against the retrieved context. Uses "
+               "gpt-oss-120b, a DIFFERENT family from the llama-3.3-70b generator, so it does not "
+               "grade its own style up, and it is the cheap tier since the ladder runs offline.",
+        source="Self-Preference Bias (arXiv:2410.21819); AWS Bedrock contextual grounding check."),
+    ModelJob(
         job="Embeddings (dense retrieval)",
         env="EMBED_MODEL", default="embed-v4.0",
         reason="Strong multilingual retrieval; the reranker does the precision work downstream.",
@@ -61,9 +68,10 @@ MODEL_MAP: tuple[ModelJob, ...] = (
         job="Rerank (precision), skip-gated",
         env="RERANK_MODEL", default="rerank-v3.5",
         reason="A cross-encoder is the single largest per-turn cost line, so it is skipped when it "
-               "cannot change the answer (own-order lookups, governed-metric turns, clean score "
-               "margins) and paid only where it earns its latency.",
-        source="When cross-encoders earn latency (rerank-strategies research)."),
+               "cannot change the answer (own-order lookups and small pools) and paid everywhere "
+               "else. A clean-margin skip was tried and rejected: calibration showed it lowered "
+               "abstain_recall.",
+        source="evaluation/reports/rerank_skip_calibration.json (golden recall A/B)."),
 )
 
 

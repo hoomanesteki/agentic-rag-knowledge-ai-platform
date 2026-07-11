@@ -319,6 +319,10 @@ function speakAsync(text: string): Promise<void> {
   });
 }
 
+// Module scope, so it resets on a page (re)load but survives closing and reopening the widget in the
+// same session: a fresh run starts a clean chat, while close/reopen keeps the running conversation.
+let chatSessionStarted = false;
+
 export default function ChatWidget({
   open,
   setOpen,
@@ -503,10 +507,18 @@ function Conversation({
 }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
-    // restore the session's history at mount, so closing and reopening the chat keeps it. A lazy
-    // initializer avoids the empty-state save effect from clobbering the saved history.
+    // A fresh page load starts a CLEAN chat (forget the previous run's conversation), so opening the
+    // app never shows a stale thread. Closing and reopening the widget within the same session keeps
+    // the running conversation, distinguished by the module-scope flag above.
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("aster_chat") : null;
+      if (typeof window === "undefined") return [];
+      if (!chatSessionStarted) {
+        chatSessionStarted = true;
+        localStorage.removeItem("aster_chat"); // clear the prior run so nothing lingers
+        localStorage.removeItem("aster_agent"); // and start as the assistant, not mid-handoff
+        return [];
+      }
+      const raw = localStorage.getItem("aster_chat");
       const parsed = raw ? JSON.parse(raw) : null;
       return Array.isArray(parsed) ? parsed : [];
     } catch {

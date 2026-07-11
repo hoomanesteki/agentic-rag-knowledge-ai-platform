@@ -273,13 +273,14 @@ defaults:
   confidence_high: 0.7
   confidence_low: 0.4
 
-# Starter prompts for the chat UI, one per capability (a product fact, a governed metric, a graph
-# relationship, what reviewers say, and a policy), so a new user knows what they can ask. The API
-# serves these for the active domain; the engine never hardcodes a question.
+# Starter prompts for the chat UI: the things a signed-in shopper actually asks, so someone new
+# knows how to start. Consumer-facing (order status, gift and outfit help, sizing, a problem, a
+# policy), not internal analytics. The API serves these for the active domain; the engine never
+# hardcodes a question.
 suggestions:
-  - { text: "How much does the Aster Flow Legging cost?", lang: en, kind: fact }
-  - { text: "What is the return rate for size M?", lang: en, kind: metric }
-  - { text: "Which supplier makes the Cloud Hoodie?", lang: en, kind: graph }
-  - { text: "Do customers say the Flow Legging runs small?", lang: en, kind: reviews }
-  - { text: "What is your return policy?", lang: en, kind: policy }
-  - { text: "Combien coute le legging Flow ?", lang: fr, kind: fact }
+  - { text: "Where's my order?", lang: en, kind: order }
+  - { text: "Gift idea for my mum who loves yoga, around $60?", lang: en, kind: gift }
+  - { text: "I need a warm waterproof jacket for a rainy Vancouver winter", lang: en, kind: recommend }
+  - { text: "Does the Flow Legging run small?", lang: en, kind: sizing }
+  - { text: "What's your return policy?", lang: en, kind: policy }
+  - { text: "Où en est ma commande ?", lang: fr, kind: order }

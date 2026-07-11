@@ -41,10 +41,10 @@ MODEL_MAP: tuple[ModelJob, ...] = (
     ModelJob(
         job="Stylist / complaint / care generation (the workhorse)",
         env="GROQ_MODEL_LARGE", default="llama-3.3-70b-versatile",
-        reason="Tone-sensitive grounded generation. gpt-oss-120b is ~70% cheaper ($0.15/$0.60 vs "
-               "$0.59/$0.79) with a 0.5x prompt cache, but a live RAGAS A/B HELD the swap: aggregate "
-               "quality flat and faithfulness regressed 0.023 on the hallucination guard. Revisit "
-               "after the Phase 2 online faithfulness net catches the extra ungrounding.",
+        reason="Tone-sensitive grounded generation. gpt-oss-120b is ~70% cheaper "
+               "($0.15/$0.60 vs $0.59/$0.79) with a 0.5x prompt cache, but a live RAGAS A/B "
+               "HELD the swap: aggregate quality flat, faithfulness regressed 0.023 on the "
+               "hallucination guard. Revisit after the Phase 2 online faithfulness net.",
         source="evaluation/reports/gpt_oss_swap_ab.json (live A/B, judge fixed to llama-3.3-70b)."),
     ModelJob(
         job="RAGAS answer-quality judge",

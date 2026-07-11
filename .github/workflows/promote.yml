@@ -42,7 +42,7 @@ jobs:
         run: make registry-promote V="${{ github.event.inputs.version }}"
 
       - name: Upload the updated registry as an audit artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: model-registry-after-promote
           path: evaluation/reports/model_registry.json

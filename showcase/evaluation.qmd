@@ -78,21 +78,23 @@ A swap that saves money but invents more facts is not a swap. The full report is
 
 Every turn goes through a cheap-first cascade (`rag/router.py`): a deterministic escalation intercept, deterministic intent guards, then an 8B tie-break only when neither decides. Send "my jacket arrived torn" to the stylist lane and the best answer in the world is wrong, so routing gets its own labeled eval: `{python} S["routing_eval_set"]` shopper turns, scored with no retrieval and no generation by `scripts/run_agent_eval.py --with-llm`.
 
-| Mode | Accuracy | Escalation recall | Marginal cost |
+| Mode | Accuracy | Escalation recall | Tie-break spend, full eval |
 |---|---:|---:|---:|
 | Deterministic only | `{python} pct(R["deterministic_pct"])` | `{python} pct(R["deterministic_escalation_recall_pct"])` | none |
 | **8B tie-break (ships)** | **`{python} pct(R["tiebreak_8b_pct"])`** | **`{python} pct(R["tiebreak_8b_escalation_recall_pct"])`** | ~$0.0005 |
 | 70B tie-break (declined) | `{python} pct(R["tiebreak_70b_pct"])` | 100% | ~$0.0006 |
 
+The spend column is the total tie-break cost across all `{python} S["routing_eval_set"]` turns, not a per-call price; one 8B classification call is under a hundredth of a cent.
+
 Three findings, each a decision:
 
 - The free deterministic layers carry most turns at zero cost with zero false escalations (precision 100%).
-- The 8B tie-break earns its half-cent: it lifts accuracy and takes "get me a person" recall to `{python} pct(R["tiebreak_8b_escalation_recall_pct"])`, so a shopper asking for a human always reaches one.
+- The 8B tie-break earns its keep: it lifts accuracy and takes "get me a person" recall to `{python} pct(R["tiebreak_8b_escalation_recall_pct"])`, so a shopper asking for a human always reaches one.
 - The 70B tie-break loses to the 8B (`{python} pct(R["tiebreak_70b_pct"])` vs `{python} pct(R["tiebreak_8b_pct"])`). That is the measured case for staying Groq-only instead of paying a bigger model to classify.
 
 ### The eval as a target
 
-The routing eval found the tie-break guessing a lane on ambiguous turns instead of deferring. An [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about sixty lines) rewrote that prompt from its own failures and scored candidates on a held-out split: `{python} pct(S["prompt_opt"]["baseline_pct"])` to `{python} pct(S["prompt_opt"]["candidate_pct"])`. A human promoted the winner, which is the served tie-break prompt; a later re-run of the loop found no further held-out gain against it. The loop never edits served code. Why not DSPy is on the [Decisions](decisions.qmd) page.
+The routing eval found the tie-break guessing a lane on ambiguous turns instead of deferring. An [OPRO](https://arxiv.org/abs/2309.03409)-style loop (`mlops/prompt_opt.py`, about sixty lines) rewrote that prompt from its own failures and scored candidates on a held-out split: `{python} pct(S["prompt_opt"]["baseline_pct"])` to `{python} pct(S["prompt_opt"]["candidate_pct"])`. A human promoted the winner and added an explicit escalation lane, giving the served tie-break prompt; a later re-run of the loop found no further held-out gain against it. The loop never edits served code. Why not DSPy is on the [Decisions](decisions.qmd) page.
 
 ## Hallucination defense, three layers
 

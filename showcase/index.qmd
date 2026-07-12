@@ -87,11 +87,19 @@ The human-gated loop: drift detection, one deduped GitHub issue, a registered ca
 :::
 ::: {.card}
 ### [Decisions →](decisions.qmd)
-Why Groq and Cohere, why one orchestrator instead of an agent graph, why a cheaper model swap was held on measured faithfulness.
+Why Groq and Cohere, why a deterministic orchestrator by default with LangGraph kept as an opt-in corrective lane, why a cheaper model swap was held on measured faithfulness.
 :::
 ::: {.card}
 ### [Reliability →](reliability.qmd)
 The failure modes planned for: what happens when the LLM, the vector store, or the voice service is slow or down, and the fallback for each.
+:::
+::: {.card}
+### [MCP →](mcp.qmd)
+The same gates, a second client: a read-only MCP server exposing Sara's tools, and a working Telegram bot that speaks them, with voice notes in and voice replies out.
+:::
+::: {.card}
+### [Data →](data.qmd)
+One domain pack, three evidence stores: the dbt medallion, the knowledge graph, and the governed metric layer Sara reads from.
 :::
 ::: {.card}
 ### [Try it →](usage.qmd)

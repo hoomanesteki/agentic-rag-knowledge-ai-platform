@@ -125,4 +125,4 @@ The leak linter backs the domain-swap claim: the build fails if a single product
 - The graded golden set that gates a model flip, and the quality thresholds behind promotion: [Evaluation](evaluation.qmd).
 - The OPRO prompt loop the CT cycle re-runs (propose automatically, promote through a human): [Evaluation](evaluation.qmd#the-eval-as-a-target).
 - What a turn and a session cost, and the derivation: [Cost](cost.qmd).
-- Why there is no auto-promote, no LangGraph, and no in-loop critic: [Decisions](decisions.qmd).
+- Why the default path has no auto-promote, no framework brain (LangGraph is an opt-in lane, not the default), and no in-loop critic: [Decisions](decisions.qmd).

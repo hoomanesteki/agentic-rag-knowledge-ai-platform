@@ -98,4 +98,5 @@ The frontier row is the same discipline in miniature: it would 3 to 5× the per-
 
 - These are list prices and a bottom-up estimate, not a metered invoice. Volume discounts and busier sessions move them.
 - The 4-minute handle time and the \$20/hour loaded rate are the two levers the ratio turns on. Both are constants in `mlops/cost_model.py`; substitute your own and rerun.
+- These figures are the default deterministic path. The opt-in LangGraph corrective lane (`CHAT_BRAIN=graph`) costs more on the hard tail: up to three generations and a few extra retrievals per turn, still capped by the same per-turn `TurnBudget`. That higher cost, for a narrow quality gain, is exactly why it is opt-in and not the default.
 - This page reads its numbers from the model's committed report, so it cannot drift from the code.

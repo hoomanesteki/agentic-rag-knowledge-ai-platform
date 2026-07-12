@@ -21,22 +21,19 @@ An earlier design decision was to defer the Model Context Protocol until there w
 
 ```{mermaid}
 flowchart LR
-  subgraph Clients
-    WEB[Web storefront<br/>Next.js chat]
-    MCPC[MCP client<br/>Telegram bot · support copilot · a shopper's AI]
-  end
-  WEB --> API[FastAPI route]
-  MCPC --> SRV[mcp_server/server.py<br/>read-only tools]
-  API --> PIPE[One gated pipeline<br/>router -> gates -> retrieve -> answer]
-  SRV --> PIPE
-  PIPE --> G[Order-PII · injection · enumeration · grounding<br/>all run below both doors]
+  WEB[Web storefront<br/>Next.js chat] --> API[FastAPI route]
+  MCPC[MCP client<br/>Telegram bot · IDE · a shopper's AI] --> SRV[mcp_server/server.py<br/>read-only tools]
+  API --> PIPE[One gated pipeline<br/>gates -> retrieve -> answer]
+  SRV -->|skein_ask| PIPE
+  SRV -->|catalog · metric| GOV[Governed read-only reads<br/>gold layer, name-validated SQL]
+  PIPE --> G[Order-PII · injection · enumeration · grounding<br/>below every generated answer]
   classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
   classDef guard fill:#f8ecec,stroke:#b23a3a,color:#13191e;
   class PIPE core;
   class G guard;
 ```
 
-The MCP server holds no business logic and no second copy of a gate. Each tool delegates to the same functions the FastAPI routes call (`rag.omni.stream_omni`, `data.metrics.MetricResolver`, `data.catalog`), so a safety rule fixed once is fixed for both doors.
+The MCP server holds no business logic and no second copy of a gate. `skein_ask` answers through the same gated pipeline the web route calls (`rag.omni.stream_omni`), so its order-PII, injection, and grounding gates are the web's gates. The catalog and metric tools (`data.catalog`, `data.metrics.MetricResolver`) are direct read-only reads of the governed gold layer, name-validated with no free-form SQL, so they generate nothing and touch no PII. A rule fixed once is fixed for both doors.
 
 ## The tools
 
@@ -84,7 +81,7 @@ The messaging bot from the top of this page is real. `channels/telegram_bot.py` 
 make telegram          # needs a bot token from @BotFather
 ```
 
-Because the bot is an MCP client, it cannot do anything the surface forbids: an order or account lookup is declined and pointed to the website, where identity can be verified. A WhatsApp or Instagram concierge is the same adapter behind that platform's business onboarding.
+Because the bot is an MCP client, it cannot do anything the surface forbids: an order or account lookup discloses nothing, since the anonymous surface has no way to verify identity. A WhatsApp or Instagram concierge is the same adapter behind that platform's business onboarding.
 
 ## Safe by construction
 

@@ -42,22 +42,24 @@ flowchart TD
 
 The pink nodes are where the system says no or not yet. They are regex and set logic, not the model's judgment, because a model cannot be trusted to withhold data it can already see in its context. The full gate inventory is on [Reliability](reliability.qmd).
 
-## The same pipeline, two clients
+## One gated pipeline, every surface
 
-The web storefront is not the only thing that talks to Sara. A read-only [MCP](https://modelcontextprotocol.io/) server (`mcp_server/`) lets other surfaces use the same tools: a messaging bot, a care-team support copilot, or a shopper's own AI assistant. Each is a thin second client of the exact pipeline above, not a parallel copy, so every gate still runs below it.
+The web storefront is not the only thing that talks to Sara, and the deterministic router is not the only brain. A read-only [MCP](https://modelcontextprotocol.io/) server (`mcp_server/`) lets other surfaces use the same tools, and an opt-in LangGraph corrective lane can replace the router on the hard tail. The invariant holds through all of them: every generated answer runs through the one gated pipeline, so no path gets a weaker safety surface.
 
 ```{mermaid}
 flowchart LR
   WEB([Web storefront<br/>chat + voice]) --> API[FastAPI route]
-  MCP([MCP client<br/>Telegram bot · support copilot]) --> SRV[mcp_server<br/>5 read-only tools]
+  MCP([MCP client<br/>Telegram bot · support copilot]) --> SRV[mcp_server<br/>read-only tools]
   API --> PIPE[One gated pipeline<br/>route · gates · retrieve · answer]
+  API -.->|CHAT_BRAIN=graph| GL[Opt-in LangGraph<br/>corrective-RAG lane]
+  GL -.-> PIPE
   SRV --> PIPE
   PIPE --> ST[Qdrant · DuckDB · Neo4j]
   classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
   class PIPE core;
 ```
 
-A working one ships in `channels/telegram_bot.py`: a Telegram bot that connects as an MCP client, understands voice notes, and can reply by voice. The MCP surface is deliberately narrower than the web: it is anonymous and blocks all order and account disclosure, so it is strictly safer than a signed-out web visitor, who can unlock their own orders with a matching name and email. The tools, the connect command, and the safety posture are on [MCP](mcp.qmd).
+A working MCP client ships in `channels/telegram_bot.py`: a Telegram bot that understands voice notes and can reply by voice. The MCP surface is deliberately narrower than the web: it is anonymous and blocks all order and account disclosure, so it is strictly safer than a signed-out web visitor, who can unlock their own orders with a matching name and email. The dashed path is the opt-in corrective lane (`CHAT_BRAIN=graph`); it changes the retrieval strategy, never the gates. Tools and safety posture on [MCP](mcp.qmd); the lane on [Decisions](decisions.qmd).
 
 ## The lanes
 
@@ -131,7 +133,7 @@ Products, suppliers, and stores as typed Neo4j edges, traversed over an allowlis
 | MCP | `mcp_server` (FastMCP, stdio) | A read-only second client of the same pipeline for any MCP host; anonymous, order PII blocked |
 | Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are deliberately shorter than typed ones |
 | MLOps | MLflow, RAGAS, PSI drift monitors | Human-gated: nothing promotes itself |
-| Observability | Langfuse | One root span per turn with model, tokens, latency, cost |
+| Observability | Langfuse, JSONL traces, MLflow | Every turn writes a JSONL trace (tokens, cost, latency, grounding); Langfuse traces the auxiliary model calls; MLflow logs the eval and MLOps runs |
 
 ## Domain-agnostic by construction
 

@@ -44,6 +44,8 @@ flowchart TD
   SH([Signed-in shopper: chat or voice]) --> API[FastAPI: SSE, JWT, rate limits]
   MC([MCP client: a Telegram bot,<br/>a support copilot, or a shopper's own AI]) --> MCP[mcp_server: read-only tools<br/>anonymous · order PII blocked]
   API --> R{Omni orchestrator<br/>rag/router.py, cheap-first}
+  API -.->|CHAT_BRAIN=graph| GL[Opt-in LangGraph<br/>corrective-RAG lane]
+  GL -.-> P
   MCP --> R
   R -->|"L0: 'get me a human' (regex, $0)"| E[Escalation · Tiffany]
   R -->|"L1: intent guards ($0, most turns)"| L[Stylist · Care · Complaint · Answers]
@@ -57,11 +59,13 @@ flowchart TD
 One deterministic orchestrator, one answer path. The cascade in `rag/router.py` decides most
 turns for free and pays for a small-model call only on genuine ambiguity. Every lane answers
 through the single gated pipeline in `pipeline/answer.py`, so no lane gets a weaker safety
-surface. The same pipeline serves two clients: the web storefront and a read-only MCP server
-(`mcp_server/`), so an MCP tool call passes the identical gates (and is anonymous, so it discloses
-no order or account data). A LangGraph brain once ran this by default; the deterministic cascade
-won the benchmark, so LangGraph now serves off the fast path as an opt-in corrective-RAG lane
-(`CHAT_BRAIN=graph`, `rag/graph_brain.py`) for the hard tail, below these same gates.
+surface. The same pipeline serves every surface: the web storefront and a read-only MCP server
+(`mcp_server/`). The MCP `skein_ask` tool answers through this identical gated pipeline (anonymous,
+so no order or account data leaks); its catalog and metric tools are direct read-only reads of the
+governed gold layer, which generate nothing and carry no PII. A LangGraph brain once ran the web
+turn by default; the deterministic cascade won the benchmark, so LangGraph now serves off the fast
+path as an opt-in corrective-RAG lane (`CHAT_BRAIN=graph`, `rag/graph_brain.py`) for the hard tail,
+below these same gates.
 
 ## How it stays honest
 

@@ -19,6 +19,13 @@ updates:
     groups:
       web:
         patterns: ["*"]
+    ignore:
+      # The storefront stays on its current major lines (Next 14.x, React 18.x). A framework major
+      # (Next 16 / React 19) is a deliberate, separately-tested migration, not a weekly auto-PR, so
+      # do not re-propose it. Minor and patch updates, including security fixes within the current
+      # majors, still flow. Lift this when the migration is scheduled.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 

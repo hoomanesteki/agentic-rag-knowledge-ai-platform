@@ -15,7 +15,7 @@ S = json.load(open("../evaluation/reports/site_stats.json"))
 The same brain, exposed as a second client
 :::
 
-An earlier design decision was to defer the Model Context Protocol until there was a real second client, rather than ship a surface nothing used. That client arrived: Claude Desktop, Claude Code, Cursor, and every other MCP host now speak the protocol. So Sara is now an MCP server too, and the way it was added is the point: a thin second client of the exact pipeline the website already calls, not a parallel copy with its own rules.
+An earlier design decision was to defer the Model Context Protocol until there was a real second client, rather than ship a surface nothing used. That moment arrived: MCP is now a broad standard, so the same governed tools can serve a messaging bot, an internal support copilot, or a shopper's own AI assistant, not just the web chat. So Sara is now an MCP server too, and the way it was added is the point: a thin second client of the exact pipeline the website already calls, not a parallel copy with its own rules. A working messaging bot ships with it (see below).
 
 ## One pipeline, two front doors
 
@@ -23,7 +23,7 @@ An earlier design decision was to defer the Model Context Protocol until there w
 flowchart LR
   subgraph Clients
     WEB[Web storefront<br/>Next.js chat]
-    MCPC[MCP client<br/>Claude Desktop · Code · IDE]
+    MCPC[MCP client<br/>Telegram bot · support copilot · a shopper's AI]
   end
   WEB --> API[FastAPI route]
   MCPC --> SRV[mcp_server/server.py<br/>read-only tools]
@@ -53,7 +53,7 @@ Two resources (`skein://metrics`, `skein://ontology`) expose the metric catalog 
 
 ## Connect it
 
-stdio is the default transport, which is what a local MCP host launches. One command wires it into Claude Code:
+stdio is the default transport, which is what a local MCP host launches. To try the tools right now, wire the server into an MCP host you already run, like Claude Code:
 
 ```bash
 claude mcp add skein -- uv run python -m mcp_server.server
@@ -72,6 +72,19 @@ Claude Desktop takes the same server as a JSON entry:
   }
 }
 ```
+
+## A working client: the Telegram bot
+
+The messaging bot from the top of this page is real. `channels/telegram_bot.py` connects to `mcp_server` as an MCP client and answers every message through `skein_ask`, so it inherits every gate: anonymous, order and account PII blocked, grounded and cited. It adds voice on top, reusing the app's own adapters:
+
+- A **voice note** is transcribed (Groq Whisper) and answered like any other question.
+- The reply comes **back as speech** (ElevenLabs) when a voice key is set, and as text otherwise.
+
+```bash
+make telegram          # needs a bot token from @BotFather
+```
+
+Because the bot is an MCP client, it cannot do anything the surface forbids: an order or account lookup is declined and pointed to the website, where identity can be verified. A WhatsApp or Instagram concierge is the same adapter behind that platform's business onboarding.
 
 ## Safe by construction
 

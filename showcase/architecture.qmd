@@ -44,12 +44,12 @@ The pink nodes are where the system says no or not yet. They are regex and set l
 
 ## The same pipeline, two clients
 
-The web storefront is not the only thing that talks to Sara. A read-only [MCP](https://modelcontextprotocol.io/) server (`mcp_server/`) exposes the same tools to Claude Desktop, Claude Code, or any MCP client. It is a thin second client of the exact pipeline above, not a parallel copy, so every gate still runs below it.
+The web storefront is not the only thing that talks to Sara. A read-only [MCP](https://modelcontextprotocol.io/) server (`mcp_server/`) lets other surfaces use the same tools: a messaging bot, a care-team support copilot, or a shopper's own AI assistant. Each is a thin second client of the exact pipeline above, not a parallel copy, so every gate still runs below it.
 
 ```{mermaid}
 flowchart LR
   WEB([Web storefront<br/>chat + voice]) --> API[FastAPI route]
-  MCP([MCP client<br/>Claude Desktop · Code]) --> SRV[mcp_server<br/>5 read-only tools]
+  MCP([MCP client<br/>Telegram bot · support copilot]) --> SRV[mcp_server<br/>5 read-only tools]
   API --> PIPE[One gated pipeline<br/>route · gates · retrieve · answer]
   SRV --> PIPE
   PIPE --> ST[Qdrant · DuckDB · Neo4j]
@@ -57,7 +57,7 @@ flowchart LR
   class PIPE core;
 ```
 
-The MCP surface is deliberately narrower than the web: it is anonymous and blocks all order and account disclosure, so it is strictly safer than a signed-out web visitor, who can unlock their own orders with a matching name and email. The tools, the connect command, and the safety posture are on [MCP](mcp.qmd).
+A working one ships in `channels/telegram_bot.py`: a Telegram bot that connects as an MCP client, understands voice notes, and can reply by voice. The MCP surface is deliberately narrower than the web: it is anonymous and blocks all order and account disclosure, so it is strictly safer than a signed-out web visitor, who can unlock their own orders with a matching name and email. The tools, the connect command, and the safety posture are on [MCP](mcp.qmd).
 
 ## The lanes
 

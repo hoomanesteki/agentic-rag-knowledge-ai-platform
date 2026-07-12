@@ -94,7 +94,7 @@ On the labeled routing set of `{python} S["routing_eval_set"]` shopper turns:
 The 8B tie-break is the shipped configuration: it never misses a genuine request for a human, and the 70B scored below it at higher cost. That is the measured case for staying Groq-only. When even the 8B returns "unclear", the router asks one clarifying question instead of guessing.
 
 ::: {.callout-note appearance="simple"}
-**Retired.** An earlier LangGraph agent brain ran this turn as a stateful graph. It was retired for the deterministic cascade above: same behavior contract, testable as pure functions, and no framework between a shopper and the answer. `CHAT_BRAIN=agent` now maps to the omni orchestrator.
+**Retired from the fast path.** An earlier LangGraph agent brain ran every turn as a stateful graph. Benchmarked against the deterministic cascade above, determinism won the routing eval and gave one safety surface instead of two, so LangGraph moved off the default path and `CHAT_BRAIN=agent` now maps to the omni orchestrator. It did not leave the repo: LangGraph returns scoped and opt-in as a corrective/self-RAG lane (`CHAT_BRAIN=graph`, `rag/graph_brain.py`) for the hard tail, a retrieve, grade, rewrite and re-retrieve loop whose every answer still runs through this same gated pipeline, so the gates are unchanged and there is still one safety surface. Details on [Decisions](decisions.qmd).
 :::
 
 ## Three retrieval seams

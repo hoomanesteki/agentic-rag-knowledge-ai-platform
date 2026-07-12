@@ -25,7 +25,8 @@ Sara is one deterministic orchestrator over one gated pipeline, Groq-only. Each 
 
 | Decision | Kept | Rejected | Decided by |
 |---|---|---|---|
-| Control flow | one deterministic orchestrator (`rag/router.py`) | a LangGraph supervisor brain, built and then deleted | routing eval, plus one safety surface instead of two |
+| Control flow (default) | one deterministic orchestrator (`rag/router.py`) | a LangGraph brain on the fast path, benchmarked and moved off it | routing eval, plus one safety surface instead of two |
+| Hard-tail lane (opt-in) | a LangGraph corrective-RAG lane, off the default (`CHAT_BRAIN=graph`) | putting it on the fast path | it helps a narrow tail at higher cost, so it is available, not default |
 | Serving path | one gated pipeline (`pipeline/answer.py`) | per-lane pipelines | every turn passes the same guards |
 | Release | human-gated promotion, everywhere | any auto-promote path | the reward-hacking guardrail |
 | Workhorse model | `llama-3.3-70b` | a `gpt-oss-120b` swap | faithfulness `{python} F["baseline"]` vs `{python} F["candidate"]` on the graded golden set |
@@ -37,7 +38,9 @@ Sara is one deterministic orchestrator over one gated pipeline, Groq-only. Each 
 
 Every turn goes through a cheap-first cascade: a deterministic escalation intercept, deterministic intent guards, then one 8B tie-break call only for genuine ambiguity. The lane then streams through the single gated pipeline, so the stylist, care, complaint, and escalation lanes all inherit the same grounding and safety rules.
 
-A LangGraph supervisor brain once ran the same turns as a state machine. It was deleted: around 600 lines and two heavyweight dependencies gone. Two brains meant two safety surfaces to keep in parity, and the deterministic path won on the routing eval. A `linear` no-routing mode remains behind the `CHAT_BRAIN` flag; the old `agent` value now maps to the orchestrator.
+A LangGraph supervisor brain once ran every turn as a state machine. It was benchmarked and moved off the default path: two brains on the fast path meant two safety surfaces to keep in parity, and the deterministic cascade won on the routing eval. That is the decision, and it still stands for the default turn.
+
+LangGraph did not leave the repo, though, because retiring a tool from the fast path is not the same as it being the wrong tool everywhere. It returns scoped and opt-in as a corrective/self-RAG lane (`CHAT_BRAIN=graph`, `rag/graph_brain.py`) for the hard tail: a `retrieve → grade → rewrite and re-retrieve → generate → grade → reflect or abstain` loop, bounded by a retry counter, the same per-turn `TurnBudget`, and a recursion backstop. The reason it is opt-in and not default is the same reason the gpt-oss swap was held and the 8B tie-break beat the 70B: it earns its keep only on a narrow, retrieval-heavy tail, at higher latency and cost. Crucially, every answer it produces still runs through the one gated pipeline (`stream_answer`), so the order-PII, injection, enumeration, and grounding gates are unchanged and there is still exactly one safety surface. The graph adds a retrieval strategy, never a second gate. A `linear` no-routing mode also remains behind the flag; the old `agent` value maps to the orchestrator.
 
 ## No auto-promote, anywhere
 

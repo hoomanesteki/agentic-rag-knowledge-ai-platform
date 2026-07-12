@@ -16,7 +16,8 @@ import sys
 
 # Folders that must stay domain agnostic. Only the ones that exist are scanned.
 ENGINE_DIRS = ["adapters", "ingest", "retrieval", "pipeline", "rag", "api", "data", "mlops",
-               "knowledge", "evaluation", "scripts", "web/app", "web/components", "web/lib"]
+               "mcp_server", "channels", "knowledge", "evaluation", "scripts",
+               "web/app", "web/components", "web/lib"]
 # The reusable server engine: the code that must serve ANY pack unchanged. High-signal but short
 # tokens (the short brand form, the persona names) are only checked here, not against the Next.js
 # storefront in web/app, which is demo presentation you would fork per client. This keeps the strict

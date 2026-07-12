@@ -125,7 +125,10 @@ serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for r
 mcp: ## Run the read-only MCP server over stdio (connect from Claude Desktop / Claude Code / an IDE)
 	PYTHONPATH=. uv run python -m mcp_server.server
 
+telegram: ## Run the Telegram bot (an MCP client of mcp_server); needs TELEGRAM_BOT_TOKEN from @BotFather
+	PYTHONPATH=. uv run python -m channels.telegram_bot
+
 keepalive: ## Ping the configured hosted free-tier services so they do not idle out (see docs/DEPLOY.md)
 	PYTHONPATH=. uv run python -m scripts.keepalive
 
-.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate promote drift serve mcp site site-stats keepalive
+.PHONY: help setup test lint validate validate-all leak-check check reproduce doctor up down ps lakehouse dbt-build dbt-docs graph-load ingest ask eval ablation mlflow-log ragas gate promote drift serve mcp telegram site site-stats keepalive

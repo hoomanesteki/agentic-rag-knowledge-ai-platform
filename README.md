@@ -26,7 +26,7 @@ in [`showcase/`](showcase/).
 
 | Measure | Value |
 | --- | --- |
-| Test suite (fully offline) | 555 |
+| Test suite (fully offline) | 563 |
 | Golden eval set | 121 graded items; it gates every cost-motivated model flip |
 | Routing, deterministic layers only | 81.6% of 350 labeled turns, at zero model cost |
 | Routing with the 8B tie-break | 85.9%, with 100% escalation recall |
@@ -42,7 +42,7 @@ site reads the same file, so a number never drifts from its evidence.
 ```mermaid
 flowchart TD
   SH([Signed-in shopper: chat or voice]) --> API[FastAPI: SSE, JWT, rate limits]
-  MC([MCP client: Claude Desktop / Code]) --> MCP[mcp_server: read-only tools<br/>anonymous · order PII blocked]
+  MC([MCP client: a Telegram bot,<br/>a support copilot, or a shopper's own AI]) --> MCP[mcp_server: read-only tools<br/>anonymous · order PII blocked]
   API --> R{Omni orchestrator<br/>rag/router.py, cheap-first}
   MCP --> R
   R -->|"L0: 'get me a human' (regex, $0)"| E[Escalation · Tiffany]
@@ -111,10 +111,11 @@ brand, product, or metric name reaches an engine folder, which is what keeps the
 
 ## MCP: the same brain, a second client
 
-The store's assistant is also an [MCP](https://modelcontextprotocol.io/) server, so Claude Desktop,
-Claude Code, or any MCP client can use Sara's tools directly. It is a thin second client of the
-exact same gated pipeline the website calls, not a parallel copy: every deterministic gate (order
-PII, injection, enumeration, grounding) still runs below it.
+The store's assistant is also an [MCP](https://modelcontextprotocol.io/) server, so the same
+governed tools can power other surfaces: a messaging concierge (WhatsApp or Instagram), a care-team
+support copilot, or a shopper's own AI assistant. Each is a thin second client of the exact same
+gated pipeline the website calls, not a parallel copy: every deterministic gate (order PII,
+injection, enumeration, grounding) still runs below it.
 
 ```bash
 claude mcp add skein -- uv run python -m mcp_server.server    # or: make mcp
@@ -134,13 +135,19 @@ that unlocks orders). stdio is the default transport; an HTTP mount and OAuth ar
 enterprise scale-up, and no tool code changes when they are added. Full write-up on the
 [MCP page](https://hoomanesteki.github.io/agentic-rag-knowledge-ai-platform/mcp.html).
 
+**A working channel: Telegram.** [`channels/telegram_bot.py`](channels/telegram_bot.py) is a
+Telegram bot that connects to `mcp_server` as an MCP client, so every answer inherits the same
+gates. It understands **voice notes** (speech-to-text) and can reply **by voice** (text-to-speech),
+falling back to text when no voice key is set. Run `make telegram` with a token from `@BotFather`.
+A WhatsApp or Instagram bot is the same adapter behind that platform's business onboarding.
+
 ## Run it
 
 Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
 make setup                 # venv + locked dependencies
-make check                 # lint, 555 tests, leak check, eval gate: fully offline, no keys
+make check                 # lint, 563 tests, leak check, eval gate: fully offline, no keys
 cp .env.example .env       # add GROQ_API_KEY and COHERE_API_KEY for real answers
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
 make dbt-build && make ingest && make graph-load

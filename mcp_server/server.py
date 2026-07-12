@@ -54,8 +54,8 @@ def _domain() -> str:
 
 @mcp.tool()
 def skein_ask(query: str) -> dict:
-    """Ask Sara, the apparel shopping assistant, a shopping or store question and get a short,
-    grounded, cited answer drawn from the store's own data.
+    """Ask the store's shopping assistant a shopping or store question and get a short, grounded,
+    cited answer drawn from the store's own data.
 
     It CANNOT access any shopper's orders, account, or personal data: the call runs anonymous and
     with order/account disclosure blocked, so every order and account document is dropped before

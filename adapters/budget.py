@@ -66,7 +66,9 @@ class TurnBudget:
         self.usd += max(usd, 0.0)
 
     def snapshot(self) -> dict:
-        """The turn's spend, for logging into the final event so it is queryable."""
+        """The turn's spend, for logging into the final event and the trace so it is queryable. The
+        usd figure tracks Groq generation spend, the ceiling this budget enforces; retrieval (Cohere
+        embed and rerank) is not charged here, and the full-turn cost lives in the cost model."""
         return {"calls": self.calls, "tokens": self.tokens, "usd": round(self.usd, 6),
                 "elapsed_ms": round(self.elapsed() * 1000, 1),
                 "limits": {"calls": self.max_calls, "tokens": self.max_tokens,

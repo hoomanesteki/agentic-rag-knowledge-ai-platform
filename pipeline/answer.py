@@ -1712,6 +1712,11 @@ def stream_answer(query: str, *, embedder: Embedder, store: HybridStore, llm: LL
         rerank_skipped=rerank_skip.get("reason"),  # None when rerank ran; the reason when skipped
         latency_ms=round((time.perf_counter() - started) * 1000, 1),
     )
+    # Persist the per-turn budget snapshot when the caller wrapped the LLM in a BudgetedLLM (the
+    # omni and graph brains do), so the turn's model spend is auditable from the trace, not the SSE.
+    _budget = getattr(llm, "budget", None)
+    if _budget is not None and hasattr(_budget, "snapshot"):
+        trace["budget"] = _budget.snapshot()
     write_trace(trace, trace_path)
     # after the answer is on its way to the shopper (never before), maybe queue it for an offline
     # faithfulness check. A no-op unless sampling is enabled, so the default path is untouched.

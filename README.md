@@ -26,7 +26,7 @@ in [`showcase/`](showcase/).
 
 | Measure | Value |
 | --- | --- |
-| Test suite (fully offline) | 563 |
+| Test suite (fully offline) | 569 |
 | Golden eval set | 121 graded items; it gates every cost-motivated model flip |
 | Routing, deterministic layers only | 81.6% of 350 labeled turns, at zero model cost |
 | Routing with the 8B tie-break | 85.9%, with 100% escalation recall |
@@ -59,7 +59,9 @@ turns for free and pays for a small-model call only on genuine ambiguity. Every 
 through the single gated pipeline in `pipeline/answer.py`, so no lane gets a weaker safety
 surface. The same pipeline serves two clients: the web storefront and a read-only MCP server
 (`mcp_server/`), so an MCP tool call passes the identical gates (and is anonymous, so it discloses
-no order or account data). An earlier LangGraph agent brain was retired in favour of this.
+no order or account data). A LangGraph brain once ran this by default; the deterministic cascade
+won the benchmark, so LangGraph now serves off the fast path as an opt-in corrective-RAG lane
+(`CHAT_BRAIN=graph`, `rag/graph_brain.py`) for the hard tail, below these same gates.
 
 ## How it stays honest
 
@@ -147,7 +149,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
 make setup                 # venv + locked dependencies
-make check                 # lint, 563 tests, leak check, eval gate: fully offline, no keys
+make check                 # lint, 569 tests, leak check, eval gate: fully offline, no keys
 cp .env.example .env       # add GROQ_API_KEY and COHERE_API_KEY for real answers
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
 make dbt-build && make ingest && make graph-load

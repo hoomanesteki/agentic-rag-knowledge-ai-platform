@@ -25,6 +25,11 @@ dev = [
     # The MCP server (mcp_server/) ships in the repo, so its SDK installs with the dev tooling and
     # tests/test_mcp.py runs in `make check`. Runtime for `make mcp`; the core engine never imports it.
     "mcp>=1.2",
+    # LangGraph powers the OPT-IN corrective-RAG lane (rag/graph_brain.py, CHAT_BRAIN=graph). It is a
+    # dev/feature dependency, not core: the default deterministic path never imports it, and the base
+    # install (uv sync, no extras) has zero LangGraph. Here so tests/test_graph_brain.py runs in
+    # `make check`. (langchain-core arrives transitively via langgraph but is never imported.)
+    "langgraph>=1.2",
 ]
 # The analytics/semantic layer runs on dbt-duckdb. Kept optional so the offline engine and its
 # tests install light; `make dbt-build` and CI pull it in with `uv sync --extra dbt`.

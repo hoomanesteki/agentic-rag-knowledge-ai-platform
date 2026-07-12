@@ -363,6 +363,26 @@ def create_app(rate_limit: str | None = None, auth_db_path: str | None = None,
                                              answer_cache=comp.get("answer_cache")):
                         yield _sse(event)
                     return
+                if brain == "graph":
+                    # Opt-in corrective/self-RAG lane (LangGraph), off the deterministic fast path:
+                    # retrieve -> grade -> rewrite loop -> generate, where every answer is produced
+                    # through the SAME gated pipeline, so the order-PII gate, safety intercepts, and
+                    # grounding are identical. Lazy import so a base install never loads LangGraph.
+                    from rag.graph_brain import stream_graph
+                    for event in stream_graph(req.query, message_id=message_id,
+                                              embedder=comp["embedder"], store=comp["store"],
+                                              llm=comp["llm"], reranker=comp["reranker"],
+                                              metric_resolver=comp.get("metric_resolver"),
+                                              graph_retriever=comp.get("graph_retriever"),
+                                              lang=req.lang, persona=req.persona,
+                                              history=req.history, concise=req.concise,
+                                              auth_identity=auth_identity, notes=req.notes,
+                                              small_llm=getattr(comp["llm"], "fallback", None),
+                                              review_queue=comp.get("review_queue"),
+                                              domain=comp.get("domain"),
+                                              answer_cache=comp.get("answer_cache")):
+                        yield _sse(event)
+                    return
                 # Linear path: tokens stream across threadpool resumes, so we do not open a span
                 # around the generator (its OTel context would not survive the hops). The individual
                 # generate() calls are still traced by the adapter.

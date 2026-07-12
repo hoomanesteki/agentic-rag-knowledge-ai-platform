@@ -42,7 +42,9 @@ site reads the same file, so a number never drifts from its evidence.
 ```mermaid
 flowchart TD
   SH([Signed-in shopper: chat or voice]) --> API[FastAPI: SSE, JWT, rate limits]
+  MC([MCP client: Claude Desktop / Code]) --> MCP[mcp_server: read-only tools<br/>anonymous · order PII blocked]
   API --> R{Omni orchestrator<br/>rag/router.py, cheap-first}
+  MCP --> R
   R -->|"L0: 'get me a human' (regex, $0)"| E[Escalation · Tiffany]
   R -->|"L1: intent guards ($0, most turns)"| L[Stylist · Care · Complaint · Answers]
   R -->|L2: 8B tie-break, only if unclear| L
@@ -55,7 +57,9 @@ flowchart TD
 One deterministic orchestrator, one answer path. The cascade in `rag/router.py` decides most
 turns for free and pays for a small-model call only on genuine ambiguity. Every lane answers
 through the single gated pipeline in `pipeline/answer.py`, so no lane gets a weaker safety
-surface. An earlier LangGraph agent brain was retired in favour of this.
+surface. The same pipeline serves two clients: the web storefront and a read-only MCP server
+(`mcp_server/`), so an MCP tool call passes the identical gates (and is anonymous, so it discloses
+no order or account data). An earlier LangGraph agent brain was retired in favour of this.
 
 ## How it stays honest
 

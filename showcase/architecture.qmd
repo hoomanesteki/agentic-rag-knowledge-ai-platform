@@ -42,6 +42,23 @@ flowchart TD
 
 The pink nodes are where the system says no or not yet. They are regex and set logic, not the model's judgment, because a model cannot be trusted to withhold data it can already see in its context. The full gate inventory is on [Reliability](reliability.qmd).
 
+## The same pipeline, two clients
+
+The web storefront is not the only thing that talks to Sara. A read-only [MCP](https://modelcontextprotocol.io/) server (`mcp_server/`) exposes the same tools to Claude Desktop, Claude Code, or any MCP client. It is a thin second client of the exact pipeline above, not a parallel copy, so every gate still runs below it.
+
+```{mermaid}
+flowchart LR
+  WEB([Web storefront<br/>chat + voice]) --> API[FastAPI route]
+  MCP([MCP client<br/>Claude Desktop · Code]) --> SRV[mcp_server<br/>5 read-only tools]
+  API --> PIPE[One gated pipeline<br/>route · gates · retrieve · answer]
+  SRV --> PIPE
+  PIPE --> ST[Qdrant · DuckDB · Neo4j]
+  classDef core fill:#e9f3f4,stroke:#0f7b84,color:#13191e;
+  class PIPE core;
+```
+
+The MCP surface is deliberately narrower than the web: it is anonymous and blocks all order and account disclosure, so it is strictly safer than a signed-out web visitor, who can unlock their own orders with a matching name and email. The tools, the connect command, and the safety posture are on [MCP](mcp.qmd).
+
 ## The lanes
 
 Routing picks a focus, never a second safety surface. Each lane is a short role fragment added to the same system prompt, and every lane answers through the same gated pipeline in `pipeline/answer.py`.
@@ -111,6 +128,7 @@ Products, suppliers, and stores as typed Neo4j edges, traversed over an allowlis
 | Graph | Neo4j | Typed relationships, allowlisted traversals |
 | Lakehouse | DuckDB medallion + dbt | Bronze to silver to gold, governance tests in CI |
 | Web | Next.js 14 | The storefront and the chat and voice widget |
+| MCP | `mcp_server` (FastMCP, stdio) | A read-only second client of the same pipeline for any MCP host; anonymous, order PII blocked |
 | Voice | ElevenLabs TTS + Web Audio lip-sync | Spoken replies are deliberately shorter than typed ones |
 | MLOps | MLflow, RAGAS, PSI drift monitors | Human-gated: nothing promotes itself |
 | Observability | Langfuse | One root span per turn with model, tokens, latency, cost |

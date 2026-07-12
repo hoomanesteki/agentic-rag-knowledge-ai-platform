@@ -213,6 +213,8 @@ async def _poll_loop(client: TelegramClient, brain: AssistantBrain) -> None:
 
 
 async def _run() -> int:
+    from dotenv import load_dotenv
+    load_dotenv()  # read the token and keys from .env, the same way the rest of the app does
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
         print("Set TELEGRAM_BOT_TOKEN (get one from @BotFather) to run the Telegram bot.",

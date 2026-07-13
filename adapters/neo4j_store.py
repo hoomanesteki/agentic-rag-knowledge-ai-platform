@@ -33,10 +33,14 @@ def _ident(name: str, kind: str) -> str:
 class Neo4jGraphStore:
     def __init__(self, url: str | None = None, user: str | None = None,
                  password: str | None = None, database: str = "neo4j",
-                 domain: str | None = None) -> None:
+                 domain: str | None = None, timeout: int = 15) -> None:
         s = get_settings()
         self.url = (url or s.neo4j_url).rstrip("/")
         self.database = database
+        # Fail fast: graph evidence is additive, so a wedged Cypher must degrade in seconds, not
+        # hang. 15s keeps the worst-case single retrieval well under the per-turn budget (30s) and
+        # the web client's 60s idle abort, so a slow graph query can never stall a streamed answer.
+        self.timeout = timeout
         # scope every write and the reset to this domain, so one shared Neo4j can hold several
         # domains without a load wiping the others
         self.domain = domain or s.domain
@@ -49,7 +53,7 @@ class Neo4jGraphStore:
         body = request_json(
             "POST", self.endpoint,
             {"statements": [{"statement": statement, "parameters": parameters or {}}]},
-            headers=self.headers)
+            headers=self.headers, timeout=self.timeout)
         errors = body.get("errors") or []
         if errors:
             msg = "; ".join(e.get("message", str(e)) for e in errors)

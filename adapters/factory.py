@@ -84,14 +84,16 @@ def make_store(provider: str | None = None, collection: str | None = None) -> Hy
     raise ValueError("unknown vector provider: {}".format(provider))
 
 
-def make_graph(provider: str | None = None) -> GraphStore:
-    """The knowledge graph. Offline uses an in-memory fake, real uses Neo4j over its HTTP API."""
+def make_graph(provider: str | None = None, timeout: int | None = None) -> GraphStore:
+    """The knowledge graph. Offline uses an in-memory fake, real uses Neo4j over its HTTP API.
+    timeout overrides the store's fail-fast default; the graph-load script passes a longer one
+    because a batch write can legitimately take longer than a single request-path evidence read."""
     provider = provider or get_settings().graph_provider
     if provider in ("memory", "fake", ""):
         return fakes.InMemoryGraphStore()
     if provider == "neo4j":
         from .neo4j_store import Neo4jGraphStore
-        return Neo4jGraphStore()
+        return Neo4jGraphStore(timeout=timeout) if timeout is not None else Neo4jGraphStore()
     raise ValueError("unknown GRAPH_PROVIDER: {}".format(provider))
 
 

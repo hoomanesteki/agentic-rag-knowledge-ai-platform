@@ -29,7 +29,7 @@ def main() -> int:
         print("warning: GRAPH_PROVIDER is offline; the graph is built in memory and discarded. "
               "Set GRAPH_PROVIDER=neo4j and run make up to persist it.", file=sys.stderr)
 
-    store = make_graph()
+    store = make_graph(timeout=60)  # a batch load may take longer than a request-path read
     try:
         counts = load_graph(settings.domain, db, store)
     except (RuntimeError, ValueError) as exc:

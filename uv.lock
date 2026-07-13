@@ -3598,6 +3598,9 @@ dev = [
 docs = [
     { name = "jupyter" },
 ]
+graph = [
+    { name = "langgraph" },
+]
 notebook = [
     { name = "matplotlib" },
     { name = "pandas" },
@@ -3613,6 +3616,7 @@ requires-dist = [
     { name = "jupyter", marker = "extra == 'docs'", specifier = ">=1.0" },
     { name = "langfuse", specifier = ">=4.14.0" },
     { name = "langgraph", marker = "extra == 'dev'", specifier = ">=1.2" },
+    { name = "langgraph", marker = "extra == 'graph'", specifier = ">=1.2" },
     { name = "matplotlib", marker = "extra == 'notebook'", specifier = ">=3.9" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.2" },
     { name = "mlflow-skinny", specifier = ">=3.14.0" },
@@ -3624,7 +3628,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.21" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.51.0" },
 ]
-provides-extras = ["dev", "dbt", "notebook", "docs"]
+provides-extras = ["dev", "dbt", "notebook", "docs", "graph"]
 
 [[package]]
 name = "smmap"

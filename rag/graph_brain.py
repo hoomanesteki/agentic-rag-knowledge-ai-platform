@@ -31,7 +31,7 @@ try:
     from langgraph.graph import END, START, StateGraph
 except ImportError as exc:  # pragma: no cover - only when the graph lane runs without the dep
     raise ImportError(
-        "The graph brain (CHAT_BRAIN=graph) needs LangGraph. Install it: uv sync --extra dev"
+        "The graph brain (CHAT_BRAIN=graph) needs LangGraph. Install it: uv sync --extra graph"
     ) from exc
 
 from adapters.budget import BudgetedLLM, BudgetExceeded, TurnBudget

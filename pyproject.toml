@@ -48,6 +48,12 @@ notebook = [
 docs = [
     "jupyter>=1.0",
 ]
+# The opt-in LangGraph corrective-RAG lane (rag/graph_brain.py, CHAT_BRAIN=graph). Install just the
+# lane with `uv sync --extra graph`; it also ships with the dev extra so `make check` exercises it.
+# The base install (no extras) has zero LangGraph and the default path never imports it.
+graph = [
+    "langgraph>=1.2",
+]
 
 # This is an application, not a library. Do not try to build or install it as a package.
 [tool.uv]

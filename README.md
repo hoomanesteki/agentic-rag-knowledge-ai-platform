@@ -26,7 +26,7 @@ in [`showcase/`](showcase/).
 
 | Measure | Value |
 | --- | --- |
-| Test suite (fully offline) | 569 |
+| Test suite (fully offline) | 570 |
 | Golden eval set | 121 graded items; it gates every cost-motivated model flip |
 | Routing, deterministic layers only | 81.6% of 350 labeled turns, at zero model cost |
 | Routing with the 8B tie-break | 85.9%, with 100% escalation recall |
@@ -153,7 +153,7 @@ Needs [uv](https://docs.astral.sh/uv/) (it manages Python 3.12) and Docker.
 
 ```bash
 make setup                 # venv + locked dependencies
-make check                 # lint, 569 tests, leak check, eval gate: fully offline, no keys
+make check                 # lint, 570 tests, leak check, eval gate: fully offline, no keys
 cp .env.example .env       # add GROQ_API_KEY and COHERE_API_KEY for real answers
 make up                    # Qdrant, Postgres, Neo4j, MLflow in Docker
 make dbt-build && make ingest && make graph-load

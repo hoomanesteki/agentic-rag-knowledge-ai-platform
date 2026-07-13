@@ -120,6 +120,7 @@ registry-promote: ## Human-gated: promote a registry version (make registry-prom
 
 serve: ## Run the API locally on :8000 (needs keys, make up, and an ingest for real answers)
 	PYTHONPATH=. uv run uvicorn api.app:app --reload --port 8000 \
+	  --reload-include '.env' \
 	  --reload-exclude '.venv/*' --reload-exclude 'web/*' --reload-exclude 'dbt/target/*'
 
 mcp: ## Run the read-only MCP server over stdio (connect from Claude Desktop / Claude Code / an IDE)

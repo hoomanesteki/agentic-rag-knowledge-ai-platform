@@ -202,8 +202,16 @@ def stream_graph(query, *, embedder, store, llm, reranker=None, metric_resolver=
     app = make_graph(ctx)
     initial: _State = {"question": query, "original_question": query, "retries": 0,
                        "auth_text": auth_text}
+    # Stream the graph superstep by superstep so a keepalive reaches the client while the corrective
+    # loop runs buffered. The web client aborts if no byte arrives within 30s and if the stream
+    # then idles for 60s; a slow multi-generation graph turn would otherwise trip that and read as
+    # "cannot reach the assistant". The keepalives carry no answer text (the accepted attempt's
+    # answer is emitted once, below), so a rejected attempt's tokens never reach the shopper.
+    state: _State = initial
     try:
-        state = app.invoke(initial, {"recursion_limit": _RECURSION_LIMIT})
+        for state in app.stream(initial, {"recursion_limit": _RECURSION_LIMIT},
+                                stream_mode="values"):
+            yield {"type": "token", "text": ""}
     except BudgetExceeded as exc:
         yield from _budget_final(budget, exc.reason)
         return

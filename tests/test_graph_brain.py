@@ -56,9 +56,25 @@ def test_happy_path_grounded_answer_ends(monkeypatch):
     ans = _Answer(tier="auto", grounding=1.0)
     _wire(monkeypatch, hits=[_hit("leggings made of recycled nylon polyester")], answer=ans)
     events = _run()
-    assert [e["type"] for e in events] == ["token", "final"]
+    # keepalive tokens keep the SSE stream alive while the loop runs buffered, then the accepted
+    # answer token and one final; every event before the final is a token, and the answer is present
+    assert events[-1]["type"] == "final"
+    assert all(e["type"] == "token" for e in events[:-1])
+    assert events[-2]["type"] == "token" and events[-2]["text"]  # the accepted answer, before final
     assert events[-1]["tier"] == "auto" and events[-1]["grounding"] == 1.0
     assert len(ans.calls) == 1  # relevant docs -> generate once -> useful -> END
+
+
+def test_keepalive_tokens_stream_during_the_buffered_loop(monkeypatch):
+    # The corrective loop runs buffered, so it must emit keepalive tokens while it works, or the web
+    # client's 30s first-byte / 60s idle watchdog aborts and shows "cannot reach the assistant".
+    ans = _Answer(tier="auto", grounding=1.0)
+    _wire(monkeypatch, hits=[_hit("leggings recycled nylon")], answer=ans)
+    events = _run()
+    tokens = [e for e in events if e["type"] == "token"]
+    assert len(tokens) >= 2                            # at least one keepalive plus the answer
+    assert any(t["text"] == "" for t in tokens[:-1])   # a keepalive (no answer text) comes first
+    assert tokens[-1]["text"]                          # the accepted answer is the last token
 
 
 def test_generation_grade_loop_terminates_at_abstain(monkeypatch):
@@ -96,7 +112,8 @@ def test_budget_breach_yields_a_safe_final(monkeypatch):
 
     _wire(monkeypatch, hits=[_hit("x")], answer=boom)
     events = _run()
-    assert [e["type"] for e in events] == ["token", "final"]
+    assert events[-1]["type"] == "final"
+    assert all(e["type"] == "token" for e in events[:-1])  # keepalives then the safe-final token
     assert events[-1]["tier"] == "abstain" and events[-1]["lane"] == "budget"
     assert events[-1]["budget"]["stopped"] == "max_calls"
 

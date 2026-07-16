@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -85,7 +85,7 @@ jobs:
           uv export --format requirements-txt --no-emit-project --no-hashes > requirements.audit.txt
           uvx pip-audit -r requirements.audit.txt
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm

@@ -7,29 +7,29 @@ version = "0.0.0"
 requires-python = ">=3.11"
 dependencies = [
     "bcrypt>=5.0.0",
-    "duckdb>=1.5.4",
-    "fastapi>=0.139.0",
+    "duckdb>=1.5.5",
+    "fastapi>=0.141.1",
     "httpx>=0.28.1",
-    "langfuse>=4.14.0",
-    "mlflow-skinny>=3.14.0",
+    "langfuse>=4.14.2",
+    "mlflow-skinny>=3.15.0",
     "pyjwt>=2.13.0",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
-    "uvicorn[standard]>=0.51.0",
+    "uvicorn[standard]>=0.52.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.15.21",
+    "ruff>=0.16.1",
     # The MCP server (mcp_server/) ships in the repo, so its SDK installs with the dev tooling and
     # tests/test_mcp.py runs in `make check`. Runtime for `make mcp`; the core engine never imports it.
-    "mcp>=1.2",
+    "mcp>=2.0.0",
     # LangGraph powers the OPT-IN corrective-RAG lane (rag/graph_brain.py, CHAT_BRAIN=graph). It is a
     # dev/feature dependency, not core: the default deterministic path never imports it, and the base
     # install (uv sync, no extras) has zero LangGraph. Here so tests/test_graph_brain.py runs in
     # `make check`. (langchain-core arrives transitively via langgraph but is never imported.)
-    "langgraph>=1.2",
+    "langgraph>=1.2.10",
 ]
 # The analytics/semantic layer runs on dbt-duckdb. Kept optional so the offline engine and its
 # tests install light; `make dbt-build` and CI pull it in with `uv sync --extra dbt`.
@@ -39,8 +39,8 @@ dbt = [
 # The notebooks in notebooks/ use matplotlib and pandas for the charts. Kept optional and light
 # (no full Jupyter tree; the IDE or an existing jupyter supplies the kernel) so the base stays lean.
 notebook = [
-    "matplotlib>=3.9",
-    "pandas>=2.2",
+    "matplotlib>=3.11.1",
+    "pandas>=3.0.5",
 ]
 # The Quarto showcase pages run `{python}` chunks that read evaluation/reports/site_stats.json, so
 # a headline number is read from one artifact, never hand-typed. Rendering needs a Jupyter kernel;
@@ -52,7 +52,7 @@ docs = [
 # lane with `uv sync --extra graph`; it also ships with the dev extra so `make check` exercises it.
 # The base install (no extras) has zero LangGraph and the default path never imports it.
 graph = [
-    "langgraph>=1.2",
+    "langgraph>=1.2.10",
 ]
 
 # This is an application, not a library. Do not try to build or install it as a package.
